@@ -23,7 +23,8 @@ schema-sync-script/
 │   ├── columnOperations.js           # Column sync logic
 │   ├── functionOperations.js         # Function/procedure sync logic
 │   ├── constraintOperations.js       # Constraint/index sync logic
-│   └── triggerOperations.js          # Trigger sync logic
+│   ├── triggerOperations.js          # Trigger sync logic
+│   └── utils.js                      # Shared utility functions
 └── README.md                         # This file
 ```
 
@@ -117,6 +118,19 @@ Handles database triggers:
 
 - `getTriggers(schemaName)`: Get all triggers from a schema
 - `generateTriggerOperations()`: Main method to generate trigger sync operations
+
+### Utils
+
+Shared utility functions used across all modules:
+
+- `generateTimestamp()`: Generate timestamp for file/object naming
+- `generateBackupName(originalName, suffix)`: Generate backup names for data preservation
+- `generateOutputFilename(devSchema, prodSchema, prefix)`: Generate output filenames
+- `formatColumnDefinition(column)`: Format column definitions for SQL
+- `formatDataType(column)`: Format data types with length specifications
+- `generateManualReviewComment(type, name, reason)`: Generate manual review comments
+- `generateSectionHeader(title)`: Generate section headers for script output
+- `generateScriptFooter()`: Generate script footer
 
 ## Data Preservation Strategy
 

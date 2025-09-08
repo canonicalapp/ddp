@@ -3,6 +3,8 @@
  * Handles table creation, dropping, and comparison logic
  */
 
+import {Utils} from './utils.js';
+
 export class TableOperations {
   constructor(client, options) {
     this.client = client;
@@ -57,19 +59,7 @@ export class TableOperations {
     if (columns.length === 0) return null;
 
     const columnDefs = columns
-      .map((col) => {
-        let def = `"${col.column_name}" ${col.data_type}`;
-        if (col.character_maximum_length) {
-          def += `(${col.character_maximum_length})`;
-        }
-        if (col.is_nullable === 'NO') {
-          def += ' NOT NULL';
-        }
-        if (col.column_default) {
-          def += ` DEFAULT ${col.column_default}`;
-        }
-        return def;
-      })
+      .map((col) => Utils.formatColumnDefinition(col))
       .join(',\n  ');
 
     return `CREATE TABLE ${this.options.prod}.${tableName} (\n  ${columnDefs}\n);`;
@@ -115,8 +105,7 @@ export class TableOperations {
 
     // Handle tables to drop in prod (rename first for data preservation)
     for (const table of tablesToDrop) {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const backupName = `${table.table_name}_dropped_${timestamp}`;
+      const backupName = Utils.generateBackupName(table.table_name);
 
       alterStatements.push(
         `-- Table ${table.table_name} exists in prod but not in dev`

@@ -3,6 +3,8 @@
  * Handles stored procedures and functions sync logic
  */
 
+import {Utils} from './utils.js';
+
 export class FunctionOperations {
   constructor(client, options) {
     this.client = client;
@@ -42,8 +44,7 @@ export class FunctionOperations {
     );
 
     for (const func of functionsToDrop) {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const backupName = `${func.routine_name}_dropped_${timestamp}`;
+      const backupName = Utils.generateBackupName(func.routine_name);
 
       alterStatements.push(
         `-- ${func.routine_type} ${func.routine_name} exists in prod but not in dev`

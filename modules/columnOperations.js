@@ -3,6 +3,8 @@
  * Handles column comparison, addition, modification, and dropping logic
  */
 
+import {Utils} from './utils.js';
+
 export class ColumnOperations {
   constructor(client, options) {
     this.client = client;
@@ -52,19 +54,7 @@ export class ColumnOperations {
    * Generate column definition string
    */
   generateColumnDefinition(column) {
-    let def = `"${column.column_name}" ${column.data_type}`;
-
-    if (column.character_maximum_length) {
-      def += `(${column.character_maximum_length})`;
-    }
-    if (column.is_nullable === 'NO') {
-      def += ' NOT NULL';
-    }
-    if (column.column_default) {
-      def += ` DEFAULT ${column.column_default}`;
-    }
-
-    return def;
+    return Utils.formatColumnDefinition(column);
   }
 
   /**
@@ -135,8 +125,7 @@ export class ColumnOperations {
 
         // Handle columns to drop (rename first for data preservation)
         for (const colToDrop of columnsToDrop) {
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const backupName = `${colToDrop.column_name}_dropped_${timestamp}`;
+          const backupName = Utils.generateBackupName(colToDrop.column_name);
 
           alterStatements.push(
             `-- Column ${colToDrop.column_name} exists in prod but not in dev`
@@ -166,12 +155,8 @@ export class ColumnOperations {
             );
           } else {
             // Column exists in both, check for differences
-            const devType = devCol.character_maximum_length
-              ? `${devCol.data_type}(${devCol.character_maximum_length})`
-              : devCol.data_type;
-            const prodType = prodCol.character_maximum_length
-              ? `${prodCol.data_type}(${prodCol.character_maximum_length})`
-              : prodCol.data_type;
+            const devType = Utils.formatDataType(devCol);
+            const prodType = Utils.formatDataType(prodCol);
 
             if (
               devType !== prodType ||

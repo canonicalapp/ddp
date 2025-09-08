@@ -8,6 +8,7 @@ import {ColumnOperations} from './columnOperations.js';
 import {FunctionOperations} from './functionOperations.js';
 import {ConstraintOperations} from './constraintOperations.js';
 import {TriggerOperations} from './triggerOperations.js';
+import {Utils} from './utils.js';
 import {writeFileSync, mkdirSync} from 'fs';
 import {dirname} from 'path';
 
@@ -41,50 +42,44 @@ export class SchemaSyncOrchestrator {
 
     try {
       // 1. Handle table operations
-      alterStatements.push('-- ===========================================');
-      alterStatements.push('-- TABLE OPERATIONS');
-      alterStatements.push('-- ===========================================');
+      alterStatements.push(...Utils.generateSectionHeader('TABLE OPERATIONS'));
       const tableOps = await this.tableOps.generateTableOperations();
       alterStatements.push(...tableOps);
       alterStatements.push('');
 
       // 2. Handle column operations
-      alterStatements.push('-- ===========================================');
-      alterStatements.push('-- COLUMN OPERATIONS');
-      alterStatements.push('-- ===========================================');
+      alterStatements.push(...Utils.generateSectionHeader('COLUMN OPERATIONS'));
       const columnOps = await this.columnOps.generateColumnOperations();
       alterStatements.push(...columnOps);
       alterStatements.push('');
 
       // 3. Handle function operations
-      alterStatements.push('-- ===========================================');
-      alterStatements.push('-- FUNCTION/PROCEDURE OPERATIONS');
-      alterStatements.push('-- ===========================================');
+      alterStatements.push(
+        ...Utils.generateSectionHeader('FUNCTION/PROCEDURE OPERATIONS')
+      );
       const functionOps = await this.functionOps.generateFunctionOperations();
       alterStatements.push(...functionOps);
       alterStatements.push('');
 
       // 4. Handle constraint operations
-      alterStatements.push('-- ===========================================');
-      alterStatements.push('-- CONSTRAINT/INDEX OPERATIONS');
-      alterStatements.push('-- ===========================================');
+      alterStatements.push(
+        ...Utils.generateSectionHeader('CONSTRAINT/INDEX OPERATIONS')
+      );
       const constraintOps =
         await this.constraintOps.generateConstraintOperations();
       alterStatements.push(...constraintOps);
       alterStatements.push('');
 
       // 5. Handle trigger operations
-      alterStatements.push('-- ===========================================');
-      alterStatements.push('-- TRIGGER OPERATIONS');
-      alterStatements.push('-- ===========================================');
+      alterStatements.push(
+        ...Utils.generateSectionHeader('TRIGGER OPERATIONS')
+      );
       const triggerOps = await this.triggerOps.generateTriggerOperations();
       alterStatements.push(...triggerOps);
       alterStatements.push('');
 
       // Add footer
-      alterStatements.push('-- ===========================================');
-      alterStatements.push('-- END OF SCHEMA SYNC SCRIPT');
-      alterStatements.push('-- ===========================================');
+      alterStatements.push(...Utils.generateScriptFooter());
 
       return alterStatements;
     } catch (error) {
@@ -97,13 +92,7 @@ export class SchemaSyncOrchestrator {
    * Generate output filename with timestamp
    */
   generateOutputFilename() {
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/[:.]/g, '-')
-      .slice(0, 19);
-    const devSchema = this.options.dev;
-    const prodSchema = this.options.prod;
-    return `schema-sync_${devSchema}-to-${prodSchema}_${timestamp}.sql`;
+    return Utils.generateOutputFilename(this.options.dev, this.options.prod);
   }
 
   /**
