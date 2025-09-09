@@ -3,7 +3,7 @@
  * Handles stored procedures and functions sync logic
  */
 
-import {Utils} from './utils.js';
+import { Utils } from './utils.js';
 
 export class FunctionOperations {
   constructor(client, options) {
@@ -38,9 +38,23 @@ export class FunctionOperations {
     const devFunctions = await this.getFunctions(this.options.dev);
     const prodFunctions = await this.getFunctions(this.options.prod);
 
-    // Find functions to drop in prod (exist in prod but not in dev)
+    this.handleFunctionsToDrop(alterStatements, devFunctions, prodFunctions);
+    this.handleFunctionsToCreate(alterStatements, devFunctions, prodFunctions);
+
+    return alterStatements;
+  }
+
+  /**
+   * Handle functions that need to be dropped in prod
+   */
+  handleFunctionsToDrop(alterStatements, devFunctions, prodFunctions) {
     const functionsToDrop = prodFunctions.filter(
-      (p) => !devFunctions.some((d) => d.routine_name === p.routine_name)
+      p =>
+        !devFunctions.some(
+          d =>
+            d.routine_name === p.routine_name &&
+            d.routine_type === p.routine_type
+        )
     );
 
     for (const func of functionsToDrop) {
@@ -50,34 +64,41 @@ export class FunctionOperations {
         `-- ${func.routine_type} ${func.routine_name} exists in prod but not in dev`
       );
       alterStatements.push(
-        `-- Renaming ${func.routine_type.toLowerCase()} to preserve before manual drop`
+        `-- Renaming ${func.routine_type?.toLowerCase()} to preserve before manual drop`
       );
       alterStatements.push(
         `ALTER ${func.routine_type} ${this.options.prod}.${func.routine_name} RENAME TO ${backupName};`
       );
       alterStatements.push(
-        `-- TODO: Manually drop ${func.routine_type.toLowerCase()} ${
+        `-- TODO: Manually drop ${(func.routine_type || 'FUNCTION').toLowerCase()} ${
           this.options.prod
         }.${backupName} after confirming it's no longer needed`
       );
     }
+  }
 
-    // Find functions to create in prod (exist in dev but not in prod)
+  /**
+   * Handle functions that need to be created in prod
+   */
+  handleFunctionsToCreate(alterStatements, devFunctions, prodFunctions) {
     const functionsToCreate = devFunctions.filter(
-      (d) => !prodFunctions.some((p) => p.routine_name === d.routine_name)
+      d =>
+        !prodFunctions.some(
+          p =>
+            p.routine_name === d.routine_name &&
+            p.routine_type === d.routine_type
+        )
     );
 
     for (const func of functionsToCreate) {
       alterStatements.push(
-        `-- TODO: Create ${func.routine_type.toLowerCase()} ${
+        `-- TODO: Create ${(func.routine_type || 'FUNCTION').toLowerCase()} ${
           func.routine_name
         } in prod`
       );
       alterStatements.push(
-        `-- Copy the ${func.routine_type.toLowerCase()} definition from dev schema`
+        `-- Copy the ${(func.routine_type || 'FUNCTION').toLowerCase()} definition from dev schema`
       );
     }
-
-    return alterStatements;
   }
 }

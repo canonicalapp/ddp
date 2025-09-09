@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-import {Client} from 'pg';
-import {program} from 'commander';
-import {SchemaSyncOrchestrator} from './modules/schemaSyncOrchestrator.js';
+import { program } from 'commander';
+import { Client } from 'pg';
+
+import { SchemaSyncOrchestrator } from './modules/schemaSyncOrchestrator.js';
 
 program
   .name('schema-sync-script')
@@ -25,7 +26,7 @@ const client = new Client({
   connectionString: options.conn,
 });
 
-async function main() {
+const main = async () => {
   try {
     const orchestrator = new SchemaSyncOrchestrator(client, options);
     await orchestrator.execute();
@@ -33,7 +34,7 @@ async function main() {
     console.error('Schema sync failed:', error);
     process.exit(1);
   }
-}
+};
 
 main();
 

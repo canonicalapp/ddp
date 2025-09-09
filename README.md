@@ -137,11 +137,9 @@ Shared utility functions used across all modules:
 All destructive operations are designed to preserve data:
 
 1. **Tables**: Renamed with timestamp before drop
-
    - `table_name_dropped_2024-01-15T10-30-45-123Z`
 
 2. **Columns**: Renamed with timestamp before drop
-
    - `column_name_dropped_2024-01-15T10-30-45-123Z`
 
 3. **Functions**: Renamed with timestamp before drop

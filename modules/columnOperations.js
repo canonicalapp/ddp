@@ -3,7 +3,7 @@
  * Handles column comparison, addition, modification, and dropping logic
  */
 
-import {Utils} from './utils.js';
+import { Utils } from './utils.js';
 
 export class ColumnOperations {
   constructor(client, options) {
@@ -39,7 +39,7 @@ export class ColumnOperations {
   groupColumnsByTable(columns) {
     const grouped = {};
 
-    columns.forEach((col) => {
+    columns.forEach(col => {
       if (!grouped[col.table_name]) {
         grouped[col.table_name] = [];
       }
@@ -78,9 +78,9 @@ export class ColumnOperations {
     // Handle nullability change
     if (devCol.is_nullable !== prodCol.is_nullable) {
       if (devCol.is_nullable === 'NO') {
-        alterColumn += ` SET NOT NULL`;
+        alterColumn += ' SET NOT NULL';
       } else {
-        alterColumn += ` DROP NOT NULL`;
+        alterColumn += ' DROP NOT NULL';
       }
     }
 
@@ -89,11 +89,103 @@ export class ColumnOperations {
       if (devCol.column_default) {
         alterColumn += ` SET DEFAULT ${devCol.column_default}`;
       } else {
-        alterColumn += ` DROP DEFAULT`;
+        alterColumn += ' DROP DEFAULT';
       }
     }
 
-    return alterColumn + ';';
+    return `${alterColumn};`;
+  }
+
+  /**
+   * Handle columns that need to be dropped
+   */
+  handleColumnsToDrop(tableName, columnsToDrop, alterStatements) {
+    for (const colToDrop of columnsToDrop) {
+      const backupName = Utils.generateBackupName(colToDrop.column_name);
+
+      alterStatements.push(
+        `-- Column ${colToDrop.column_name} exists in prod but not in dev`
+      );
+      alterStatements.push(
+        '-- Renaming column to preserve data before manual drop'
+      );
+      alterStatements.push(
+        `ALTER TABLE ${this.options.prod}.${tableName} RENAME COLUMN ${colToDrop.column_name} TO ${backupName};`
+      );
+      alterStatements.push(
+        `-- TODO: Manually drop column ${this.options.prod}.${tableName}.${backupName} after confirming data is no longer needed`
+      );
+    }
+  }
+
+  /**
+   * Handle column modification with detailed comments
+   */
+  handleColumnModification(tableName, devCol, prodCol, alterStatements) {
+    const devType = Utils.formatDataType(devCol);
+    const prodType = Utils.formatDataType(prodCol);
+
+    alterStatements.push(
+      `-- Modifying column ${tableName}.${devCol.column_name}`
+    );
+    alterStatements.push(
+      `--   Dev: ${devType} ${
+        devCol.is_nullable === 'NO' ? 'NOT NULL' : ''
+      } ${devCol.column_default ? `DEFAULT ${devCol.column_default}` : ''}`
+    );
+    alterStatements.push(
+      `--   Prod: ${prodType} ${
+        prodCol.is_nullable === 'NO' ? 'NOT NULL' : ''
+      } ${prodCol.column_default ? `DEFAULT ${prodCol.column_default}` : ''}`
+    );
+
+    const alterStatement = this.generateAlterColumnStatement(
+      tableName,
+      devCol,
+      prodCol
+    );
+    alterStatements.push(alterStatement);
+  }
+
+  /**
+   * Handle columns that need to be added or modified
+   */
+  handleColumnsToAddOrModify(
+    tableName,
+    devTableCols,
+    prodTableCols,
+    alterStatements
+  ) {
+    for (const devCol of devTableCols) {
+      const prodCol = prodTableCols.find(
+        p => p.column_name === devCol.column_name
+      );
+
+      if (!prodCol) {
+        // Column exists in dev but not in prod - add it
+        const columnDef = this.generateColumnDefinition(devCol);
+        alterStatements.push(
+          `ALTER TABLE ${this.options.prod}.${tableName} ADD COLUMN ${columnDef};`
+        );
+      } else {
+        // Column exists in both, check for differences
+        const devType = Utils.formatDataType(devCol);
+        const prodType = Utils.formatDataType(prodCol);
+
+        if (
+          devType !== prodType ||
+          devCol.is_nullable !== prodCol.is_nullable ||
+          devCol.column_default !== prodCol.column_default
+        ) {
+          this.handleColumnModification(
+            tableName,
+            devCol,
+            prodCol,
+            alterStatements
+          );
+        }
+      }
+    }
   }
 
   /**
@@ -117,83 +209,19 @@ export class ColumnOperations {
 
         // Find columns that exist in prod but not in dev (need to be dropped)
         const columnsToDrop = prodTableCols.filter(
-          (prodCol) =>
+          prodCol =>
             !devTableCols.some(
-              (devCol) => devCol.column_name === prodCol.column_name
+              devCol => devCol.column_name === prodCol.column_name
             )
         );
 
-        // Handle columns to drop (rename first for data preservation)
-        for (const colToDrop of columnsToDrop) {
-          const backupName = Utils.generateBackupName(colToDrop.column_name);
-
-          alterStatements.push(
-            `-- Column ${colToDrop.column_name} exists in prod but not in dev`
-          );
-          alterStatements.push(
-            `-- Renaming column to preserve data before manual drop`
-          );
-          alterStatements.push(
-            `ALTER TABLE ${this.options.prod}.${tableName} RENAME COLUMN ${colToDrop.column_name} TO ${backupName};`
-          );
-          alterStatements.push(
-            `-- TODO: Manually drop column ${this.options.prod}.${tableName}.${backupName} after confirming data is no longer needed`
-          );
-        }
-
-        // Process columns that exist in dev
-        for (const devCol of devTableCols) {
-          const prodCol = prodTableCols.find(
-            (p) => p.column_name === devCol.column_name
-          );
-
-          if (!prodCol) {
-            // Column exists in dev but not in prod - add it
-            const columnDef = this.generateColumnDefinition(devCol);
-            alterStatements.push(
-              `ALTER TABLE ${this.options.prod}.${tableName} ADD COLUMN ${columnDef};`
-            );
-          } else {
-            // Column exists in both, check for differences
-            const devType = Utils.formatDataType(devCol);
-            const prodType = Utils.formatDataType(prodCol);
-
-            if (
-              devType !== prodType ||
-              devCol.is_nullable !== prodCol.is_nullable ||
-              devCol.column_default !== prodCol.column_default
-            ) {
-              alterStatements.push(
-                `-- Modifying column ${tableName}.${devCol.column_name}`
-              );
-              alterStatements.push(
-                `--   Dev: ${devType} ${
-                  devCol.is_nullable === 'NO' ? 'NOT NULL' : ''
-                } ${
-                  devCol.column_default
-                    ? 'DEFAULT ' + devCol.column_default
-                    : ''
-                }`
-              );
-              alterStatements.push(
-                `--   Prod: ${prodType} ${
-                  prodCol.is_nullable === 'NO' ? 'NOT NULL' : ''
-                } ${
-                  prodCol.column_default
-                    ? 'DEFAULT ' + prodCol.column_default
-                    : ''
-                }`
-              );
-
-              const alterStatement = this.generateAlterColumnStatement(
-                tableName,
-                devCol,
-                prodCol
-              );
-              alterStatements.push(alterStatement);
-            }
-          }
-        }
+        this.handleColumnsToDrop(tableName, columnsToDrop, alterStatements);
+        this.handleColumnsToAddOrModify(
+          tableName,
+          devTableCols,
+          prodTableCols,
+          alterStatements
+        );
       }
     }
 

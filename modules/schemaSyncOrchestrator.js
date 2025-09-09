@@ -3,14 +3,15 @@
  * Coordinates all schema sync operations
  */
 
-import {TableOperations} from './tableOperations.js';
-import {ColumnOperations} from './columnOperations.js';
-import {FunctionOperations} from './functionOperations.js';
-import {ConstraintOperations} from './constraintOperations.js';
-import {TriggerOperations} from './triggerOperations.js';
-import {Utils} from './utils.js';
-import {writeFileSync, mkdirSync} from 'fs';
-import {dirname} from 'path';
+import { writeFileSync, mkdirSync } from 'fs';
+import { dirname } from 'path';
+
+import { ColumnOperations } from './columnOperations.js';
+import { ConstraintOperations } from './constraintOperations.js';
+import { FunctionOperations } from './functionOperations.js';
+import { TableOperations } from './tableOperations.js';
+import { TriggerOperations } from './triggerOperations.js';
+import { Utils } from './utils.js';
 
 export class SchemaSyncOrchestrator {
   constructor(client, options) {
@@ -23,6 +24,46 @@ export class SchemaSyncOrchestrator {
     this.functionOps = new FunctionOperations(client, options);
     this.constraintOps = new ConstraintOperations(client, options);
     this.triggerOps = new TriggerOperations(client, options);
+  }
+
+  /**
+   * Execute all schema operations and collect results
+   */
+  async executeAllOperations(alterStatements) {
+    // 1. Handle table operations
+    alterStatements.push(...Utils.generateSectionHeader('TABLE OPERATIONS'));
+    const tableOps = await this.tableOps.generateTableOperations();
+    alterStatements.push(...tableOps);
+    alterStatements.push('');
+
+    // 2. Handle column operations
+    alterStatements.push(...Utils.generateSectionHeader('COLUMN OPERATIONS'));
+    const columnOps = await this.columnOps.generateColumnOperations();
+    alterStatements.push(...columnOps);
+    alterStatements.push('');
+
+    // 3. Handle function operations
+    alterStatements.push(
+      ...Utils.generateSectionHeader('FUNCTION/PROCEDURE OPERATIONS')
+    );
+    const functionOps = await this.functionOps.generateFunctionOperations();
+    alterStatements.push(...functionOps);
+    alterStatements.push('');
+
+    // 4. Handle constraint operations
+    alterStatements.push(
+      ...Utils.generateSectionHeader('CONSTRAINT/INDEX OPERATIONS')
+    );
+    const constraintOps =
+      await this.constraintOps.generateConstraintOperations();
+    alterStatements.push(...constraintOps);
+    alterStatements.push('');
+
+    // 5. Handle trigger operations
+    alterStatements.push(...Utils.generateSectionHeader('TRIGGER OPERATIONS'));
+    const triggerOps = await this.triggerOps.generateTriggerOperations();
+    alterStatements.push(...triggerOps);
+    alterStatements.push('');
   }
 
   /**
@@ -41,42 +82,7 @@ export class SchemaSyncOrchestrator {
     alterStatements.push('');
 
     try {
-      // 1. Handle table operations
-      alterStatements.push(...Utils.generateSectionHeader('TABLE OPERATIONS'));
-      const tableOps = await this.tableOps.generateTableOperations();
-      alterStatements.push(...tableOps);
-      alterStatements.push('');
-
-      // 2. Handle column operations
-      alterStatements.push(...Utils.generateSectionHeader('COLUMN OPERATIONS'));
-      const columnOps = await this.columnOps.generateColumnOperations();
-      alterStatements.push(...columnOps);
-      alterStatements.push('');
-
-      // 3. Handle function operations
-      alterStatements.push(
-        ...Utils.generateSectionHeader('FUNCTION/PROCEDURE OPERATIONS')
-      );
-      const functionOps = await this.functionOps.generateFunctionOperations();
-      alterStatements.push(...functionOps);
-      alterStatements.push('');
-
-      // 4. Handle constraint operations
-      alterStatements.push(
-        ...Utils.generateSectionHeader('CONSTRAINT/INDEX OPERATIONS')
-      );
-      const constraintOps =
-        await this.constraintOps.generateConstraintOperations();
-      alterStatements.push(...constraintOps);
-      alterStatements.push('');
-
-      // 5. Handle trigger operations
-      alterStatements.push(
-        ...Utils.generateSectionHeader('TRIGGER OPERATIONS')
-      );
-      const triggerOps = await this.triggerOps.generateTriggerOperations();
-      alterStatements.push(...triggerOps);
-      alterStatements.push('');
+      await this.executeAllOperations(alterStatements);
 
       // Add footer
       alterStatements.push(...Utils.generateScriptFooter());
@@ -103,7 +109,7 @@ export class SchemaSyncOrchestrator {
       // Ensure output directory exists
       const outputDir = dirname(filename);
       if (outputDir !== '.') {
-        mkdirSync(outputDir, {recursive: true});
+        mkdirSync(outputDir, { recursive: true });
       }
 
       // Write file
@@ -136,6 +142,8 @@ export class SchemaSyncOrchestrator {
         // Output to console
         console.log(script);
       }
+
+      return script;
     } catch (error) {
       console.error('Schema sync execution failed:', error);
       throw error;

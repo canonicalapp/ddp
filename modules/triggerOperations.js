@@ -40,7 +40,7 @@ export class TriggerOperations {
 
     // Find triggers to drop in prod (exist in prod but not in dev)
     const triggersToDrop = prodTriggers.filter(
-      (p) => !devTriggers.some((d) => d.trigger_name === p.trigger_name)
+      p => !devTriggers.some(d => d.trigger_name === p.trigger_name)
     );
 
     for (const trigger of triggersToDrop) {
@@ -54,7 +54,7 @@ export class TriggerOperations {
 
     // Find triggers to create in prod (exist in dev but not in prod)
     const triggersToCreate = devTriggers.filter(
-      (d) => !prodTriggers.some((p) => p.trigger_name === d.trigger_name)
+      d => !prodTriggers.some(p => p.trigger_name === d.trigger_name)
     );
 
     for (const trigger of triggersToCreate) {

@@ -3,7 +3,7 @@
  * Handles table creation, dropping, and comparison logic
  */
 
-import {Utils} from './utils.js';
+import { Utils } from './utils.js';
 
 export class TableOperations {
   constructor(client, options) {
@@ -59,32 +59,16 @@ export class TableOperations {
     if (columns.length === 0) return null;
 
     const columnDefs = columns
-      .map((col) => Utils.formatColumnDefinition(col))
+      .map(col => Utils.formatColumnDefinition(col))
       .join(',\n  ');
 
     return `CREATE TABLE ${this.options.prod}.${tableName} (\n  ${columnDefs}\n);`;
   }
 
   /**
-   * Generate table operations for schema sync
+   * Handle creation of missing tables
    */
-  async generateTableOperations() {
-    const alterStatements = [];
-
-    const devTables = await this.getTables(this.options.dev);
-    const prodTables = await this.getTables(this.options.prod);
-
-    // Find missing tables in prod (tables in dev but not in prod)
-    const missingTables = devTables.filter(
-      (d) => !prodTables.some((p) => p.table_name === d.table_name)
-    );
-
-    // Find tables to drop in prod (tables in prod but not in dev)
-    const tablesToDrop = prodTables.filter(
-      (p) => !devTables.some((d) => d.table_name === p.table_name)
-    );
-
-    // Create missing tables in prod
+  async handleMissingTables(missingTables, alterStatements) {
     for (const table of missingTables) {
       alterStatements.push(`-- Create missing table ${table.table_name}`);
 
@@ -102,8 +86,12 @@ export class TableOperations {
         alterStatements.push(createStatement);
       }
     }
+  }
 
-    // Handle tables to drop in prod (rename first for data preservation)
+  /**
+   * Handle tables that need to be dropped
+   */
+  handleTablesToDrop(tablesToDrop, alterStatements) {
     for (const table of tablesToDrop) {
       const backupName = Utils.generateBackupName(table.table_name);
 
@@ -112,7 +100,7 @@ export class TableOperations {
       );
 
       alterStatements.push(
-        `-- Renaming table to preserve data before manual drop`
+        '-- Renaming table to preserve data before manual drop'
       );
 
       alterStatements.push(
@@ -123,6 +111,29 @@ export class TableOperations {
         `-- TODO: Manually drop table ${this.options.prod}.${backupName} after confirming data is no longer needed`
       );
     }
+  }
+
+  /**
+   * Generate table operations for schema sync
+   */
+  async generateTableOperations() {
+    const alterStatements = [];
+
+    const devTables = await this.getTables(this.options.dev);
+    const prodTables = await this.getTables(this.options.prod);
+
+    // Find missing tables in prod (tables in dev but not in prod)
+    const missingTables = devTables.filter(
+      d => !prodTables.some(p => p.table_name === d.table_name)
+    );
+
+    // Find tables to drop in prod (tables in prod but not in dev)
+    const tablesToDrop = prodTables.filter(
+      p => !devTables.some(d => d.table_name === p.table_name)
+    );
+
+    await this.handleMissingTables(missingTables, alterStatements);
+    this.handleTablesToDrop(tablesToDrop, alterStatements);
 
     return alterStatements;
   }

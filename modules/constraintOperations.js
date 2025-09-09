@@ -45,8 +45,7 @@ export class ConstraintOperations {
 
     // Find constraints to drop in prod (exist in prod but not in dev)
     const constraintsToDrop = prodConstraints.filter(
-      (p) =>
-        !devConstraints.some((d) => d.constraint_name === p.constraint_name)
+      p => !devConstraints.some(d => d.constraint_name === p.constraint_name)
     );
 
     for (const constraint of constraintsToDrop) {
@@ -60,8 +59,7 @@ export class ConstraintOperations {
 
     // Find constraints to create in prod (exist in dev but not in prod)
     const constraintsToCreate = devConstraints.filter(
-      (d) =>
-        !prodConstraints.some((p) => p.constraint_name === d.constraint_name)
+      d => !prodConstraints.some(p => p.constraint_name === d.constraint_name)
     );
 
     for (const constraint of constraintsToCreate) {
