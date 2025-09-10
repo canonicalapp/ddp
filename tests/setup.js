@@ -65,28 +65,46 @@ global.createMockClient = () => {
     results: results,
   };
 
-  // Add jest-like matchers
+  // Add jest-like spy methods that work with our call tracking
   queryFunction.toHaveBeenCalledWith = (...expectedArgs) => {
-    return calls.some(
-      call =>
-        call.length === expectedArgs.length &&
-        call.every((arg, index) => {
-          const expected = expectedArgs[index];
-          if (
-            typeof expected === 'string' &&
-            expected.includes('expect.stringContaining')
-          ) {
-            // Extract the string from expect.stringContaining('...')
-            const match = expected.match(
-              /expect\.stringContaining\('([^']+)'\)/
-            );
-            if (match) {
-              return arg.includes(match[1]);
-            }
-          }
-          return arg === expected;
-        })
-    );
+    const found = calls.some(call => {
+      if (call.length !== expectedArgs.length) return false;
+
+      return call.every((arg, index) => {
+        const expected = expectedArgs[index];
+
+        // Handle expect.stringContaining
+        if (
+          expected &&
+          typeof expected === 'object' &&
+          expected.asymmetricMatch
+        ) {
+          return expected.asymmetricMatch(arg);
+        }
+
+        // Handle expect.any()
+        if (
+          expected &&
+          typeof expected === 'function' &&
+          expected.name === 'Any'
+        ) {
+          return true;
+        }
+
+        // Handle array comparison
+        if (Array.isArray(expected) && Array.isArray(arg)) {
+          return JSON.stringify(expected) === JSON.stringify(arg);
+        }
+
+        return arg === expected;
+      });
+    });
+
+    return found;
+  };
+
+  queryFunction.toHaveBeenCalledTimes = expectedTimes => {
+    return calls.length === expectedTimes;
   };
 
   const mockClient = {

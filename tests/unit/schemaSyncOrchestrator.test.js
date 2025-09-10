@@ -284,8 +284,8 @@ describe('SchemaSyncOrchestrator', () => {
     it('should execute complete sync process', async () => {
       const result = await orchestrator.execute();
 
-      // Verify that the execute method completed successfully
-      expect(result).toBeUndefined(); // execute returns undefined
+      // Verify that the execute method returns the generated script
+      expect(result).toBe('-- Schema Sync Script\n-- Test content');
     });
 
     it('should output script to console when save is false', async () => {

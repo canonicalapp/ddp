@@ -24,6 +24,19 @@ export class TableOperations {
 
     const result = await this.client.query(tablesQuery, [schemaName]);
 
+    // Validate query result structure
+    if (!result || typeof result !== 'object') {
+      throw new Error('Invalid query result: result is not an object');
+    }
+
+    if (!('rows' in result)) {
+      throw new Error('Invalid query result: missing rows property');
+    }
+
+    if (!Array.isArray(result.rows)) {
+      throw new Error('Invalid query result: rows is not an array');
+    }
+
     return result.rows;
   }
 

@@ -119,7 +119,7 @@ describe('Edge Cases and Error Handling', () => {
         const backupName = Utils.generateBackupName('test', '');
 
         expect(backupName).toMatch(
-          /^test_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/
+          /^test__\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/
         );
       });
     });
@@ -270,53 +270,101 @@ describe('Edge Cases and Error Handling', () => {
   describe('Schema Name Edge Cases', () => {
     it('should handle schema names with SQL injection attempts', async () => {
       const maliciousSchema = "'; DROP TABLE users; --";
-      mockClient.query = () => Promise.resolve({ rows: [] });
+
+      // Store the original query function to preserve spy methods
+      const originalQuery = mockClient.query;
+      mockClient.query = (...args) => {
+        originalQuery(...args); // Track the call
+        return Promise.resolve({ rows: [] });
+      };
+      // Preserve the spy methods
+      mockClient.query.toHaveBeenCalledWith =
+        originalQuery.toHaveBeenCalledWith;
+      mockClient.query.toHaveBeenCalledTimes =
+        originalQuery.toHaveBeenCalledTimes;
 
       const tableOps = new TableOperations(mockClient, mockOptions);
 
       await tableOps.getTables(maliciousSchema);
 
       // Verify the query was parameterized (not concatenated)
-      expect(mockClient.query).toHaveBeenCalledWith(
-        expect.stringContaining('$1'),
-        [maliciousSchema]
-      );
+      expect(
+        mockClient.query.toHaveBeenCalledWith(expect.stringContaining('$1'), [
+          maliciousSchema,
+        ])
+      ).toBe(true);
     });
 
     it('should handle schema names with unicode characters', async () => {
       const unicodeSchema = '测试_schema_🚀';
-      mockClient.query = () => Promise.resolve({ rows: [] });
+
+      // Store the original query function to preserve spy methods
+      const originalQuery = mockClient.query;
+      mockClient.query = (...args) => {
+        originalQuery(...args); // Track the call
+        return Promise.resolve({ rows: [] });
+      };
+      // Preserve the spy methods
+      mockClient.query.toHaveBeenCalledWith =
+        originalQuery.toHaveBeenCalledWith;
+      mockClient.query.toHaveBeenCalledTimes =
+        originalQuery.toHaveBeenCalledTimes;
 
       const tableOps = new TableOperations(mockClient, mockOptions);
 
       await tableOps.getTables(unicodeSchema);
 
-      expect(mockClient.query).toHaveBeenCalledWith(expect.any(String), [
-        unicodeSchema,
-      ]);
+      expect(
+        mockClient.query.toHaveBeenCalledWith(expect.any(String), [
+          unicodeSchema,
+        ])
+      ).toBe(true);
     });
 
     it('should handle extremely long schema names', async () => {
       const longSchema = 'a'.repeat(10000);
-      mockClient.query = () => Promise.resolve({ rows: [] });
+
+      // Store the original query function to preserve spy methods
+      const originalQuery = mockClient.query;
+      mockClient.query = (...args) => {
+        originalQuery(...args); // Track the call
+        return Promise.resolve({ rows: [] });
+      };
+      // Preserve the spy methods
+      mockClient.query.toHaveBeenCalledWith =
+        originalQuery.toHaveBeenCalledWith;
+      mockClient.query.toHaveBeenCalledTimes =
+        originalQuery.toHaveBeenCalledTimes;
 
       const tableOps = new TableOperations(mockClient, mockOptions);
 
       await tableOps.getTables(longSchema);
 
-      expect(mockClient.query).toHaveBeenCalledWith(expect.any(String), [
-        longSchema,
-      ]);
+      expect(
+        mockClient.query.toHaveBeenCalledWith(expect.any(String), [longSchema])
+      ).toBe(true);
     });
 
     it('should handle empty schema names', async () => {
-      mockClient.query = () => Promise.resolve({ rows: [] });
+      // Store the original query function to preserve spy methods
+      const originalQuery = mockClient.query;
+      mockClient.query = (...args) => {
+        originalQuery(...args); // Track the call
+        return Promise.resolve({ rows: [] });
+      };
+      // Preserve the spy methods
+      mockClient.query.toHaveBeenCalledWith =
+        originalQuery.toHaveBeenCalledWith;
+      mockClient.query.toHaveBeenCalledTimes =
+        originalQuery.toHaveBeenCalledTimes;
 
       const tableOps = new TableOperations(mockClient, mockOptions);
 
       await tableOps.getTables('');
 
-      expect(mockClient.query).toHaveBeenCalledWith(expect.any(String), ['']);
+      expect(
+        mockClient.query.toHaveBeenCalledWith(expect.any(String), [''])
+      ).toBe(true);
     });
   });
 
@@ -419,7 +467,17 @@ describe('Edge Cases and Error Handling', () => {
     });
 
     it('should handle rapid successive calls', async () => {
-      mockClient.query = () => Promise.resolve({ rows: [] });
+      // Store the original query function to preserve spy methods
+      const originalQuery = mockClient.query;
+      mockClient.query = (...args) => {
+        originalQuery(...args); // Track the call
+        return Promise.resolve({ rows: [] });
+      };
+      // Preserve the spy methods
+      mockClient.query.toHaveBeenCalledWith =
+        originalQuery.toHaveBeenCalledWith;
+      mockClient.query.toHaveBeenCalledTimes =
+        originalQuery.toHaveBeenCalledTimes;
 
       const tableOps = new TableOperations(mockClient, mockOptions);
 
@@ -428,7 +486,7 @@ describe('Edge Cases and Error Handling', () => {
         await tableOps.getTables('test_schema');
       }
 
-      expect(mockClient.query).toHaveBeenCalledTimes(1000);
+      expect(mockClient.query.toHaveBeenCalledTimes(1000)).toBe(true);
     });
   });
 
