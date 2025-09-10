@@ -201,9 +201,42 @@ ALTER TABLE prod.users ADD COLUMN "status" character varying(20) DEFAULT 'active
 ### Testing
 
 ```bash
-# Test with your database
-npm run start -- --conn "your-connection-string" --dev "dev_schema" --prod "prod_schema"
+# Run all tests
+npm test
+
+# Run tests with cleanup (recommended)
+npm run test:clean
+
+# Run specific test suites
+npm run test:unit
+npm run test:integration
+
+# Run tests with coverage
+npm run test:coverage
 ```
+
+### Cleanup Commands
+
+The project includes several cleanup commands to remove test-generated files:
+
+```bash
+# Clean test-generated files (recommended after testing)
+npm run clean
+
+# Clean only SQL files (preserves test fixtures)
+npm run clean:test-files
+
+# Clean only output directory
+npm run clean:output
+
+# Clean everything including schema-sync files
+npm run clean:all
+
+# Run tests and then clean up automatically
+npm run test:clean
+```
+
+**Note**: Test files are automatically ignored by git via `.gitignore`, but it's good practice to clean them up after testing to keep the workspace tidy.
 
 ## Dependencies
 

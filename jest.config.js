@@ -22,8 +22,7 @@ export default {
     '!**/tests/**',
   ],
 
-  // Setup files
-  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
+  // Setup files - removed setup.js as it only mocks console
 
   // Test timeout
   testTimeout: 30000,

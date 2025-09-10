@@ -21,6 +21,11 @@
     "check": "npm run lint && npm run format:check",
     "fix": "npm run lint:fix && npm run format",
     "check:all": "npm run check && npm run test:ci",
+    "clean": "npm run clean:test-files && npm run clean:output",
+    "clean:test-files": "find . -name '*.sql' -not -path './tests/fixtures/*' -delete",
+    "clean:output": "rm -rf output/",
+    "clean:all": "npm run clean && find . -name 'schema-sync_*' -delete",
+    "test:clean": "npm run test && npm run clean",
     "prepare": "husky"
   },
   "keywords": [],
