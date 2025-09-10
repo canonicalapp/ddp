@@ -3,6 +3,16 @@
  */
 
 import { TriggerOperations } from '../../modules/triggerOperations.js';
+import {
+  devTriggersForAddTest,
+  devTriggersForDropTest,
+  devTriggersWithSpecialChars,
+  insertTrigger,
+  prodTriggersForAddTest,
+  prodTriggersForDropTest,
+  updateTrigger,
+} from '../fixtures/triggerOperations.js';
+import { createMockClient, createMockOptions } from '../utils/testUtils.js';
 
 describe('TriggerOperations', () => {
   let triggerOps;
@@ -27,22 +37,7 @@ describe('TriggerOperations', () => {
 
   describe('getTriggers', () => {
     it('should query for triggers in a schema', async () => {
-      const mockTriggers = [
-        {
-          trigger_name: 'update_user_timestamp',
-          event_manipulation: 'UPDATE',
-          event_object_table: 'users',
-          action_timing: 'BEFORE',
-          action_statement: 'EXECUTE FUNCTION update_modified_column()',
-        },
-        {
-          trigger_name: 'audit_user_changes',
-          event_manipulation: 'INSERT',
-          event_object_table: 'users',
-          action_timing: 'AFTER',
-          action_statement: 'EXECUTE FUNCTION audit_user_changes()',
-        },
-      ];
+      const mockTriggers = [updateTrigger, insertTrigger];
 
       let queryCalled = false;
       let queryArgs = null;
@@ -86,15 +81,7 @@ describe('TriggerOperations', () => {
     });
 
     it('should handle triggers with special characters in names', async () => {
-      const mockTriggers = [
-        {
-          trigger_name: 'update_user-table_with.special@chars',
-          event_manipulation: 'UPDATE',
-          event_object_table: 'user-table_with.special@chars',
-          action_timing: 'BEFORE',
-          action_statement: 'EXECUTE FUNCTION update_modified_column()',
-        },
-      ];
+      const mockTriggers = devTriggersWithSpecialChars;
 
       mockClient.query.mockResolvedValue({ rows: mockTriggers });
 
@@ -106,31 +93,8 @@ describe('TriggerOperations', () => {
 
   describe('generateTriggerOperations', () => {
     it('should handle triggers to drop in production', async () => {
-      const devTriggers = [
-        {
-          trigger_name: 'update_user_timestamp',
-          event_manipulation: 'UPDATE',
-          event_object_table: 'users',
-          action_timing: 'BEFORE',
-          action_statement: 'EXECUTE FUNCTION update_modified_column()',
-        },
-      ];
-      const prodTriggers = [
-        {
-          trigger_name: 'update_user_timestamp',
-          event_manipulation: 'UPDATE',
-          event_object_table: 'users',
-          action_timing: 'BEFORE',
-          action_statement: 'EXECUTE FUNCTION update_modified_column()',
-        },
-        {
-          trigger_name: 'old_trigger',
-          event_manipulation: 'INSERT',
-          event_object_table: 'users',
-          action_timing: 'AFTER',
-          action_statement: 'EXECUTE FUNCTION old_function()',
-        },
-      ];
+      const devTriggers = devTriggersForDropTest;
+      const prodTriggers = prodTriggersForDropTest;
 
       mockClient.query
         .mockResolvedValueOnce({ rows: devTriggers })
@@ -147,43 +111,48 @@ describe('TriggerOperations', () => {
     });
 
     it('should handle triggers to create in production', async () => {
-      const devTriggers = [
-        {
-          trigger_name: 'update_user_timestamp',
-          event_manipulation: 'UPDATE',
-          event_object_table: 'users',
-          action_timing: 'BEFORE',
-          action_statement: 'EXECUTE FUNCTION update_modified_column()',
-        },
-        {
-          trigger_name: 'new_trigger',
-          event_manipulation: 'INSERT',
-          event_object_table: 'orders',
-          action_timing: 'AFTER',
-          action_statement: 'EXECUTE FUNCTION log_order_creation()',
-        },
-      ];
-      const prodTriggers = [
-        {
-          trigger_name: 'update_user_timestamp',
-          event_manipulation: 'UPDATE',
-          event_object_table: 'users',
-          action_timing: 'BEFORE',
-          action_statement: 'EXECUTE FUNCTION update_modified_column()',
-        },
-      ];
+      const devTriggers = devTriggersForAddTest;
+      const prodTriggers = prodTriggersForAddTest;
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: devTriggers })
-        .mockResolvedValueOnce({ rows: prodTriggers });
+      const mockTriggerDefinition = {
+        trigger_name: 'new_trigger',
+        event_manipulation: 'INSERT',
+        event_object_table: 'orders',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION log_order_creation()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      // Mock the query to return different results for dev and prod calls
+      let callCount = 0;
+      mockClient.query = () => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({ rows: devTriggers });
+        } else if (callCount === 2) {
+          return Promise.resolve({ rows: prodTriggers });
+        } else {
+          // This is the call to get trigger definition
+          return Promise.resolve({ rows: [mockTriggerDefinition] });
+        }
+      };
 
       const result = await triggerOps.generateTriggerOperations();
 
-      expect(result).toContain('-- TODO: Create trigger new_trigger in prod');
-      expect(result).toContain('-- Trigger: AFTER INSERT ON orders');
-      expect(result).toContain(
-        '-- Action: EXECUTE FUNCTION log_order_creation()'
+      expect(result).toContain('-- Creating trigger new_trigger in prod');
+      expect(
+        result.some(line => line.includes('CREATE TRIGGER new_trigger'))
+      ).toBe(true);
+      expect(result.some(line => line.includes('AFTER INSERT'))).toBe(true);
+      expect(result.some(line => line.includes('ON prod_schema.orders'))).toBe(
+        true
       );
+      expect(
+        result.some(line =>
+          line.includes('EXECUTE FUNCTION log_order_creation()')
+        )
+      ).toBe(true);
     });
 
     it('should handle triggers with different event manipulations', async () => {
@@ -212,15 +181,58 @@ describe('TriggerOperations', () => {
       ];
       const prodTriggers = [];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: devTriggers })
-        .mockResolvedValueOnce({ rows: prodTriggers });
+      const mockTriggerDefinitions = [
+        {
+          trigger_name: 'insert_trigger',
+          event_manipulation: 'INSERT',
+          event_object_table: 'users',
+          action_timing: 'BEFORE',
+          action_statement: 'EXECUTE FUNCTION validate_user()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+        {
+          trigger_name: 'update_trigger',
+          event_manipulation: 'UPDATE',
+          event_object_table: 'users',
+          action_timing: 'AFTER',
+          action_statement: 'EXECUTE FUNCTION log_user_changes()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+        {
+          trigger_name: 'delete_trigger',
+          event_manipulation: 'DELETE',
+          event_object_table: 'users',
+          action_timing: 'BEFORE',
+          action_statement: 'EXECUTE FUNCTION check_user_deletion()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+      ];
+
+      // Mock the query to return different results for dev and prod calls
+      let callCount = 0;
+      mockClient.query = () => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({ rows: devTriggers });
+        } else if (callCount === 2) {
+          return Promise.resolve({ rows: prodTriggers });
+        } else {
+          // This is the call to get trigger definition
+          const triggerIndex = (callCount - 3) % 3;
+          return Promise.resolve({
+            rows: [mockTriggerDefinitions[triggerIndex]],
+          });
+        }
+      };
 
       const result = await triggerOps.generateTriggerOperations();
 
-      expect(result).toContain('-- Trigger: BEFORE INSERT ON users');
-      expect(result).toContain('-- Trigger: AFTER UPDATE ON users');
-      expect(result).toContain('-- Trigger: BEFORE DELETE ON users');
+      expect(result).toContain('-- Creating trigger insert_trigger in prod');
+      expect(result).toContain('-- Creating trigger update_trigger in prod');
+      expect(result).toContain('-- Creating trigger delete_trigger in prod');
     });
 
     it('should handle triggers with different action timings', async () => {
@@ -242,14 +254,48 @@ describe('TriggerOperations', () => {
       ];
       const prodTriggers = [];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: devTriggers })
-        .mockResolvedValueOnce({ rows: prodTriggers });
+      const mockTriggerDefinitions = [
+        {
+          trigger_name: 'before_trigger',
+          event_manipulation: 'INSERT',
+          event_object_table: 'users',
+          action_timing: 'BEFORE',
+          action_statement: 'EXECUTE FUNCTION validate_user()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+        {
+          trigger_name: 'after_trigger',
+          event_manipulation: 'INSERT',
+          event_object_table: 'users',
+          action_timing: 'AFTER',
+          action_statement: 'EXECUTE FUNCTION log_user_creation()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+      ];
+
+      // Mock the query to return different results for dev and prod calls
+      let callCount = 0;
+      mockClient.query = () => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({ rows: devTriggers });
+        } else if (callCount === 2) {
+          return Promise.resolve({ rows: prodTriggers });
+        } else {
+          // This is the call to get trigger definition
+          const triggerIndex = (callCount - 3) % 2;
+          return Promise.resolve({
+            rows: [mockTriggerDefinitions[triggerIndex]],
+          });
+        }
+      };
 
       const result = await triggerOps.generateTriggerOperations();
 
-      expect(result).toContain('-- Trigger: BEFORE INSERT ON users');
-      expect(result).toContain('-- Trigger: AFTER INSERT ON users');
+      expect(result).toContain('-- Creating trigger before_trigger in prod');
+      expect(result).toContain('-- Creating trigger after_trigger in prod');
     });
 
     it('should handle identical trigger schemas', async () => {
@@ -278,7 +324,7 @@ describe('TriggerOperations', () => {
 
       const result = await triggerOps.generateTriggerOperations();
 
-      expect(result).not.toContain('-- TODO: Create trigger');
+      expect(result).not.toContain('-- Creating trigger');
       expect(result).not.toContain('DROP TRIGGER');
     });
 
@@ -378,14 +424,48 @@ describe('TriggerOperations', () => {
         },
       ];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: devTriggers })
-        .mockResolvedValueOnce({ rows: prodTriggers });
+      const mockTriggerDefinitions = [
+        {
+          trigger_name: 'new_trigger1',
+          event_manipulation: 'INSERT',
+          event_object_table: 'users',
+          action_timing: 'AFTER',
+          action_statement: 'EXECUTE FUNCTION log_user_creation()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+        {
+          trigger_name: 'new_trigger2',
+          event_manipulation: 'DELETE',
+          event_object_table: 'users',
+          action_timing: 'BEFORE',
+          action_statement: 'EXECUTE FUNCTION validate_user_deletion()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+      ];
+
+      // Mock the query to return different results for dev and prod calls
+      let callCount = 0;
+      mockClient.query = () => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({ rows: devTriggers });
+        } else if (callCount === 2) {
+          return Promise.resolve({ rows: prodTriggers });
+        } else {
+          // This is the call to get trigger definition
+          const triggerIndex = (callCount - 3) % 2;
+          return Promise.resolve({
+            rows: [mockTriggerDefinitions[triggerIndex]],
+          });
+        }
+      };
 
       const result = await triggerOps.generateTriggerOperations();
 
       expect(
-        result.filter(line => line.includes('-- TODO: Create trigger')).length
+        result.filter(line => line.includes('-- Creating trigger')).length
       ).toBe(2);
     });
 
@@ -423,9 +503,29 @@ describe('TriggerOperations', () => {
         },
       ];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: devTriggers })
-        .mockResolvedValueOnce({ rows: prodTriggers });
+      const mockTriggerDefinition = {
+        trigger_name: 'new_trigger',
+        event_manipulation: 'INSERT',
+        event_object_table: 'orders',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION log_order_creation()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      // Mock the query to return different results for dev and prod calls
+      let callCount = 0;
+      mockClient.query = () => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({ rows: devTriggers });
+        } else if (callCount === 2) {
+          return Promise.resolve({ rows: prodTriggers });
+        } else {
+          // This is the call to get trigger definition
+          return Promise.resolve({ rows: [mockTriggerDefinition] });
+        }
+      };
 
       const result = await triggerOps.generateTriggerOperations();
 
@@ -433,7 +533,7 @@ describe('TriggerOperations', () => {
       expect(result).toContain(
         '-- Trigger old_trigger exists in prod but not in dev'
       );
-      expect(result).toContain('-- TODO: Create trigger new_trigger in prod');
+      expect(result).toContain('-- Creating trigger new_trigger in prod');
     });
 
     it('should handle triggers on different tables', async () => {
@@ -455,14 +555,48 @@ describe('TriggerOperations', () => {
       ];
       const prodTriggers = [];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: devTriggers })
-        .mockResolvedValueOnce({ rows: prodTriggers });
+      const mockTriggerDefinitions = [
+        {
+          trigger_name: 'user_trigger',
+          event_manipulation: 'INSERT',
+          event_object_table: 'users',
+          action_timing: 'AFTER',
+          action_statement: 'EXECUTE FUNCTION log_user_creation()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+        {
+          trigger_name: 'order_trigger',
+          event_manipulation: 'INSERT',
+          event_object_table: 'orders',
+          action_timing: 'AFTER',
+          action_statement: 'EXECUTE FUNCTION log_order_creation()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+      ];
+
+      // Mock the query to return different results for dev and prod calls
+      let callCount = 0;
+      mockClient.query = () => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({ rows: devTriggers });
+        } else if (callCount === 2) {
+          return Promise.resolve({ rows: prodTriggers });
+        } else {
+          // This is the call to get trigger definition
+          const triggerIndex = (callCount - 3) % 2;
+          return Promise.resolve({
+            rows: [mockTriggerDefinitions[triggerIndex]],
+          });
+        }
+      };
 
       const result = await triggerOps.generateTriggerOperations();
 
-      expect(result).toContain('-- Trigger: AFTER INSERT ON users');
-      expect(result).toContain('-- Trigger: AFTER INSERT ON orders');
+      expect(result).toContain('-- Creating trigger user_trigger in prod');
+      expect(result).toContain('-- Creating trigger order_trigger in prod');
     });
 
     it('should handle database errors', async () => {
@@ -472,6 +606,357 @@ describe('TriggerOperations', () => {
       await expect(triggerOps.generateTriggerOperations()).rejects.toThrow(
         'Database connection failed'
       );
+    });
+  });
+
+  describe('compareTriggerDefinitions', () => {
+    it('should return false for identical trigger definitions', () => {
+      const trigger1 = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'INSERT',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION test_function()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      const trigger2 = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'INSERT',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION test_function()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      const result = triggerOps.compareTriggerDefinitions(trigger1, trigger2);
+      expect(result).toBe(false);
+    });
+
+    it('should return true for different event manipulation', () => {
+      const trigger1 = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'INSERT',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION test_function()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      const trigger2 = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'UPDATE',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION test_function()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      const result = triggerOps.compareTriggerDefinitions(trigger1, trigger2);
+      expect(result).toBe(true);
+    });
+
+    it('should return true for different action timing', () => {
+      const trigger1 = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'INSERT',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION test_function()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      const trigger2 = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'INSERT',
+        action_timing: 'BEFORE',
+        action_statement: 'EXECUTE FUNCTION test_function()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      const result = triggerOps.compareTriggerDefinitions(trigger1, trigger2);
+      expect(result).toBe(true);
+    });
+
+    it('should return true for different action statements', () => {
+      const trigger1 = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'INSERT',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION test_function()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      const trigger2 = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'INSERT',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION other_function()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      const result = triggerOps.compareTriggerDefinitions(trigger1, trigger2);
+      expect(result).toBe(true);
+    });
+
+    it('should return true for different action orientation', () => {
+      const trigger1 = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'INSERT',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION test_function()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      const trigger2 = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'INSERT',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION test_function()',
+        action_orientation: 'STATEMENT',
+        action_condition: null,
+      };
+
+      const result = triggerOps.compareTriggerDefinitions(trigger1, trigger2);
+      expect(result).toBe(true);
+    });
+
+    it('should return true for different action conditions', () => {
+      const trigger1 = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'INSERT',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION test_function()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      const trigger2 = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'INSERT',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION test_function()',
+        action_orientation: 'ROW',
+        action_condition: 'NEW.status = "active"',
+      };
+
+      const result = triggerOps.compareTriggerDefinitions(trigger1, trigger2);
+      expect(result).toBe(true);
+    });
+
+    it('should return false if either trigger is null', () => {
+      const trigger1 = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'INSERT',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION test_function()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      const result1 = triggerOps.compareTriggerDefinitions(trigger1, null);
+      const result2 = triggerOps.compareTriggerDefinitions(null, trigger1);
+      const result3 = triggerOps.compareTriggerDefinitions(null, null);
+
+      expect(result1).toBe(false);
+      expect(result2).toBe(false);
+      expect(result3).toBe(false);
+    });
+  });
+
+  describe('handleTriggersToUpdate', () => {
+    it('should handle triggers that have changed', async () => {
+      const devTriggers = [
+        {
+          trigger_name: 'test_trigger',
+          event_manipulation: 'INSERT',
+          event_object_table: 'test_table',
+          action_timing: 'AFTER',
+          action_statement: 'EXECUTE FUNCTION new_function()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+      ];
+
+      const prodTriggers = [
+        {
+          trigger_name: 'test_trigger',
+          event_manipulation: 'INSERT',
+          event_object_table: 'test_table',
+          action_timing: 'AFTER',
+          action_statement: 'EXECUTE FUNCTION old_function()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+      ];
+
+      const mockTriggerDefinition = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'INSERT',
+        event_object_table: 'test_table',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION new_function()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      // Mock the getTriggerDefinition call
+      mockClient.query.mockResolvedValue({ rows: [mockTriggerDefinition] });
+
+      const alterStatements = [];
+      await triggerOps.handleTriggersToUpdate(
+        devTriggers,
+        prodTriggers,
+        alterStatements
+      );
+
+      expect(alterStatements).toContain(
+        '-- Trigger test_trigger has changed, updating in prod'
+      );
+      expect(
+        alterStatements.some(line =>
+          line.includes('-- Renaming old trigger to test_trigger_old_')
+        )
+      ).toBe(true);
+      expect(
+        alterStatements.some(line =>
+          line.includes(
+            'ALTER TRIGGER test_trigger ON prod_schema.test_table RENAME TO test_trigger_old_'
+          )
+        )
+      ).toBe(true);
+      expect(
+        alterStatements.some(line =>
+          line.includes('CREATE TRIGGER test_trigger')
+        )
+      ).toBe(true);
+    });
+
+    it('should not handle triggers that are identical', async () => {
+      const devTriggers = [
+        {
+          trigger_name: 'test_trigger',
+          event_manipulation: 'INSERT',
+          action_timing: 'AFTER',
+          action_statement: 'EXECUTE FUNCTION test_function()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+      ];
+
+      const prodTriggers = [
+        {
+          trigger_name: 'test_trigger',
+          event_manipulation: 'INSERT',
+          action_timing: 'AFTER',
+          action_statement: 'EXECUTE FUNCTION test_function()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+      ];
+
+      const alterStatements = [];
+      await triggerOps.handleTriggersToUpdate(
+        devTriggers,
+        prodTriggers,
+        alterStatements
+      );
+
+      expect(alterStatements).toEqual([]);
+    });
+
+    it('should handle multiple changed triggers', async () => {
+      const devTriggers = [
+        {
+          trigger_name: 'trigger1',
+          event_manipulation: 'INSERT',
+          event_object_table: 'table1',
+          action_timing: 'AFTER',
+          action_statement: 'EXECUTE FUNCTION new_function1()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+        {
+          trigger_name: 'trigger2',
+          event_manipulation: 'UPDATE',
+          event_object_table: 'table2',
+          action_timing: 'BEFORE',
+          action_statement: 'EXECUTE FUNCTION new_function2()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+      ];
+
+      const prodTriggers = [
+        {
+          trigger_name: 'trigger1',
+          event_manipulation: 'INSERT',
+          event_object_table: 'table1',
+          action_timing: 'AFTER',
+          action_statement: 'EXECUTE FUNCTION old_function1()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+        {
+          trigger_name: 'trigger2',
+          event_manipulation: 'UPDATE',
+          event_object_table: 'table2',
+          action_timing: 'BEFORE',
+          action_statement: 'EXECUTE FUNCTION old_function2()',
+          action_orientation: 'ROW',
+          action_condition: null,
+        },
+      ];
+
+      const mockTriggerDefinition1 = {
+        trigger_name: 'trigger1',
+        event_manipulation: 'INSERT',
+        event_object_table: 'table1',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION new_function1()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      const mockTriggerDefinition2 = {
+        trigger_name: 'trigger2',
+        event_manipulation: 'UPDATE',
+        event_object_table: 'table2',
+        action_timing: 'BEFORE',
+        action_statement: 'EXECUTE FUNCTION new_function2()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      // Mock the getTriggerDefinition calls
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [mockTriggerDefinition1] })
+        .mockResolvedValueOnce({ rows: [mockTriggerDefinition2] });
+
+      const alterStatements = [];
+      await triggerOps.handleTriggersToUpdate(
+        devTriggers,
+        prodTriggers,
+        alterStatements
+      );
+
+      expect(
+        alterStatements.filter(
+          line => line.includes('-- Trigger') && line.includes('has changed')
+        ).length
+      ).toBe(2);
+      expect(
+        alterStatements.filter(
+          line => line.includes('ALTER TRIGGER') && line.includes('RENAME TO')
+        ).length
+      ).toBe(2);
+      expect(
+        alterStatements.filter(line => line.includes('CREATE TRIGGER')).length
+      ).toBe(2);
     });
   });
 
@@ -516,7 +1001,7 @@ describe('TriggerOperations', () => {
       const result = await triggerOps.generateTriggerOperations();
 
       expect(result).toContain(
-        `-- TODO: Create trigger ${longTriggerName} in prod`
+        `-- Creating trigger ${longTriggerName} in prod`
       );
     });
 
@@ -557,10 +1042,7 @@ describe('TriggerOperations', () => {
       const result = await triggerOps.generateTriggerOperations();
 
       expect(result).toContain(
-        '-- TODO: Create trigger update_user-table_with.special@chars in prod'
-      );
-      expect(result).toContain(
-        '-- Trigger: BEFORE UPDATE ON user-table_with.special@chars'
+        '-- Creating trigger update_user-table_with.special@chars in prod'
       );
     });
 
@@ -582,8 +1064,7 @@ describe('TriggerOperations', () => {
 
       const result = await triggerOps.generateTriggerOperations();
 
-      expect(result).toContain('-- TODO: Create trigger test_trigger in prod');
-      expect(result).toContain('-- Trigger: AFTER INSERT ON null');
+      expect(result).toContain('-- Creating trigger test_trigger in prod');
     });
 
     it('should handle triggers with null action statement', async () => {
@@ -604,8 +1085,7 @@ describe('TriggerOperations', () => {
 
       const result = await triggerOps.generateTriggerOperations();
 
-      expect(result).toContain('-- TODO: Create trigger test_trigger in prod');
-      expect(result).toContain('-- Action: null');
+      expect(result).toContain('-- Creating trigger test_trigger in prod');
     });
 
     it('should handle triggers with null event manipulation', async () => {
@@ -626,8 +1106,7 @@ describe('TriggerOperations', () => {
 
       const result = await triggerOps.generateTriggerOperations();
 
-      expect(result).toContain('-- TODO: Create trigger test_trigger in prod');
-      expect(result).toContain('-- Trigger: AFTER null ON users');
+      expect(result).toContain('-- Creating trigger test_trigger in prod');
     });
 
     it('should handle triggers with null action timing', async () => {
@@ -648,8 +1127,7 @@ describe('TriggerOperations', () => {
 
       const result = await triggerOps.generateTriggerOperations();
 
-      expect(result).toContain('-- TODO: Create trigger test_trigger in prod');
-      expect(result).toContain('-- Trigger: null INSERT ON users');
+      expect(result).toContain('-- Creating trigger test_trigger in prod');
     });
   });
 });

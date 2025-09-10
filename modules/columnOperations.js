@@ -3,7 +3,7 @@
  * Handles column comparison, addition, modification, and dropping logic
  */
 
-import { Utils } from './utils.js';
+import { Utils } from '../utils/utils.js';
 
 export class ColumnOperations {
   constructor(client, options) {

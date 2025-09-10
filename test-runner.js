@@ -5,7 +5,7 @@
  * This script runs a subset of tests to show the comprehensive test coverage
  */
 
-import { Utils } from './modules/utils.js';
+import { Utils } from './utils/utils.js';
 
 console.log('🧪 Schema Sync Script - Test Suite Demo\n');
 

@@ -3,7 +3,7 @@
  * Handles table creation, dropping, and comparison logic
  */
 
-import { Utils } from './utils.js';
+import { Utils } from '../utils/utils.js';
 
 export class TableOperations {
   constructor(client, options) {

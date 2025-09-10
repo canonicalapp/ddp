@@ -3,7 +3,8 @@
  */
 
 import { SchemaSyncOrchestrator } from '../../modules/schemaSyncOrchestrator.js';
-import { Utils } from '../../modules/utils.js';
+import { Utils } from '../../utils/utils.js';
+import { createMockClient, createMockOptions } from '../utils/testUtils.js';
 
 describe('SchemaSyncOrchestrator', () => {
   let orchestrator;
@@ -13,6 +14,7 @@ describe('SchemaSyncOrchestrator', () => {
   let mockColumnOps;
   let mockFunctionOps;
   let mockConstraintOps;
+  let mockIndexOps;
   let mockTriggerOps;
 
   beforeEach(() => {
@@ -52,6 +54,14 @@ describe('SchemaSyncOrchestrator', () => {
     };
     mockConstraintOps.generateConstraintOperations.called = false;
 
+    mockIndexOps = {
+      generateIndexOperations: () => {
+        mockIndexOps.generateIndexOperations.called = true;
+        return Promise.resolve(['-- Index operations']);
+      },
+    };
+    mockIndexOps.generateIndexOperations.called = false;
+
     mockTriggerOps = {
       generateTriggerOperations: () => {
         mockTriggerOps.generateTriggerOperations.called = true;
@@ -87,6 +97,7 @@ describe('SchemaSyncOrchestrator', () => {
     orchestrator.columnOps = mockColumnOps;
     orchestrator.functionOps = mockFunctionOps;
     orchestrator.constraintOps = mockConstraintOps;
+    orchestrator.indexOps = mockIndexOps;
     orchestrator.triggerOps = mockTriggerOps;
   });
 
@@ -102,6 +113,7 @@ describe('SchemaSyncOrchestrator', () => {
       expect(orchestrator.columnOps).toBeDefined();
       expect(orchestrator.functionOps).toBeDefined();
       expect(orchestrator.constraintOps).toBeDefined();
+      expect(orchestrator.indexOps).toBeDefined();
       expect(orchestrator.triggerOps).toBeDefined();
     });
 
@@ -110,6 +122,7 @@ describe('SchemaSyncOrchestrator', () => {
       expect(orchestrator.columnOps).toBe(mockColumnOps);
       expect(orchestrator.functionOps).toBe(mockFunctionOps);
       expect(orchestrator.constraintOps).toBe(mockConstraintOps);
+      expect(orchestrator.indexOps).toBe(mockIndexOps);
       expect(orchestrator.triggerOps).toBe(mockTriggerOps);
     });
   });
@@ -128,7 +141,8 @@ describe('SchemaSyncOrchestrator', () => {
       expect(result).toContain('-- TABLE OPERATIONS');
       expect(result).toContain('-- COLUMN OPERATIONS');
       expect(result).toContain('-- FUNCTION/PROCEDURE OPERATIONS');
-      expect(result).toContain('-- CONSTRAINT/INDEX OPERATIONS');
+      expect(result).toContain('-- CONSTRAINT OPERATIONS');
+      expect(result).toContain('-- INDEX OPERATIONS');
       expect(result).toContain('-- TRIGGER OPERATIONS');
       expect(result).toContain('-- END OF SCHEMA SYNC SCRIPT');
     });
@@ -140,6 +154,7 @@ describe('SchemaSyncOrchestrator', () => {
       expect(mockColumnOps.generateColumnOperations.called).toBe(true);
       expect(mockFunctionOps.generateFunctionOperations.called).toBe(true);
       expect(mockConstraintOps.generateConstraintOperations.called).toBe(true);
+      expect(mockIndexOps.generateIndexOperations.called).toBe(true);
       expect(mockTriggerOps.generateTriggerOperations.called).toBe(true);
     });
 
@@ -150,6 +165,7 @@ describe('SchemaSyncOrchestrator', () => {
       expect(result).toContain('-- Column operations');
       expect(result).toContain('-- Function operations');
       expect(result).toContain('-- Constraint operations');
+      expect(result).toContain('-- Index operations');
       expect(result).toContain('-- Trigger operations');
     });
 
@@ -159,6 +175,7 @@ describe('SchemaSyncOrchestrator', () => {
       mockFunctionOps.generateFunctionOperations = () => Promise.resolve([]);
       mockConstraintOps.generateConstraintOperations = () =>
         Promise.resolve([]);
+      mockIndexOps.generateIndexOperations = () => Promise.resolve([]);
       mockTriggerOps.generateTriggerOperations = () => Promise.resolve([]);
 
       const result = await orchestrator.generateSyncScript();
@@ -166,7 +183,8 @@ describe('SchemaSyncOrchestrator', () => {
       expect(result).toContain('-- TABLE OPERATIONS');
       expect(result).toContain('-- COLUMN OPERATIONS');
       expect(result).toContain('-- FUNCTION/PROCEDURE OPERATIONS');
-      expect(result).toContain('-- CONSTRAINT/INDEX OPERATIONS');
+      expect(result).toContain('-- CONSTRAINT OPERATIONS');
+      expect(result).toContain('-- INDEX OPERATIONS');
       expect(result).toContain('-- TRIGGER OPERATIONS');
     });
 
@@ -468,6 +486,7 @@ describe('SchemaSyncOrchestrator', () => {
       mockFunctionOps.generateFunctionOperations = () => Promise.resolve([]);
       mockConstraintOps.generateConstraintOperations = () =>
         Promise.resolve([]);
+      mockIndexOps.generateIndexOperations = () => Promise.resolve([]);
       mockTriggerOps.generateTriggerOperations = () => Promise.resolve([]);
 
       const result = await orchestrator.generateSyncScript();
@@ -482,6 +501,7 @@ describe('SchemaSyncOrchestrator', () => {
       mockFunctionOps.generateFunctionOperations = () => Promise.resolve([]);
       mockConstraintOps.generateConstraintOperations = () =>
         Promise.resolve([]);
+      mockIndexOps.generateIndexOperations = () => Promise.resolve([]);
       mockTriggerOps.generateTriggerOperations = () => Promise.resolve([]);
 
       const result = await orchestrator.generateSyncScript();

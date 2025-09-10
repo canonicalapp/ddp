@@ -3,15 +3,17 @@
  * Coordinates all schema sync operations
  */
 
-import { writeFileSync, mkdirSync } from 'fs';
+import { mkdirSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
+
+import { Utils } from '../utils/utils.js';
 
 import { ColumnOperations } from './columnOperations.js';
 import { ConstraintOperations } from './constraintOperations.js';
 import { FunctionOperations } from './functionOperations.js';
+import { IndexOperations } from './indexOperations.js';
 import { TableOperations } from './tableOperations.js';
 import { TriggerOperations } from './triggerOperations.js';
-import { Utils } from './utils.js';
 
 export class SchemaSyncOrchestrator {
   constructor(client, options) {
@@ -23,6 +25,7 @@ export class SchemaSyncOrchestrator {
     this.columnOps = new ColumnOperations(client, options);
     this.functionOps = new FunctionOperations(client, options);
     this.constraintOps = new ConstraintOperations(client, options);
+    this.indexOps = new IndexOperations(client, options);
     this.triggerOps = new TriggerOperations(client, options);
   }
 
@@ -52,14 +55,20 @@ export class SchemaSyncOrchestrator {
 
     // 4. Handle constraint operations
     alterStatements.push(
-      ...Utils.generateSectionHeader('CONSTRAINT/INDEX OPERATIONS')
+      ...Utils.generateSectionHeader('CONSTRAINT OPERATIONS')
     );
     const constraintOps =
       await this.constraintOps.generateConstraintOperations();
     alterStatements.push(...constraintOps);
     alterStatements.push('');
 
-    // 5. Handle trigger operations
+    // 5. Handle index operations
+    alterStatements.push(...Utils.generateSectionHeader('INDEX OPERATIONS'));
+    const indexOps = await this.indexOps.generateIndexOperations();
+    alterStatements.push(...indexOps);
+    alterStatements.push('');
+
+    // 6. Handle trigger operations
     alterStatements.push(...Utils.generateSectionHeader('TRIGGER OPERATIONS'));
     const triggerOps = await this.triggerOps.generateTriggerOperations();
     alterStatements.push(...triggerOps);

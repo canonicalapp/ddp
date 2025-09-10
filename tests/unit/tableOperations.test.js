@@ -3,7 +3,17 @@
  */
 
 import { TableOperations } from '../../modules/tableOperations.js';
-import { Utils } from '../../modules/utils.js';
+import { Utils } from '../../utils/utils.js';
+import {
+  devTablesForAddTest,
+  devTablesForDropTest,
+  mockColumns,
+  ordersTable,
+  prodTablesForAddTest,
+  prodTablesForDropTest,
+  usersTable,
+} from '../fixtures/tableOperations.js';
+import { createMockClient, createMockOptions } from '../utils/testUtils.js';
 
 describe('TableOperations', () => {
   let tableOps;
@@ -43,7 +53,7 @@ describe('TableOperations', () => {
 
   describe('getTables', () => {
     it('should query for tables in a schema', async () => {
-      const mockTables = [{ table_name: 'users' }, { table_name: 'orders' }];
+      const mockTables = [usersTable, ordersTable];
 
       mockClient.query.mockResolvedValue({ rows: mockTables });
 
@@ -210,18 +220,8 @@ describe('TableOperations', () => {
 
   describe('generateTableOperations', () => {
     it('should create missing tables in production', async () => {
-      const devTables = [{ table_name: 'users' }, { table_name: 'orders' }];
-      const prodTables = [{ table_name: 'users' }];
-      const mockColumns = [
-        {
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
+      const devTables = devTablesForAddTest;
+      const prodTables = prodTablesForAddTest;
 
       mockClient.query
         .mockResolvedValueOnce({ rows: devTables }) // getTables for dev
@@ -237,8 +237,8 @@ describe('TableOperations', () => {
     });
 
     it('should handle tables to drop in production', async () => {
-      const devTables = [{ table_name: 'users' }];
-      const prodTables = [{ table_name: 'users' }, { table_name: 'old_table' }];
+      const devTables = devTablesForDropTest;
+      const prodTables = prodTablesForDropTest;
 
       mockClient.query
         .mockResolvedValueOnce({ rows: devTables })

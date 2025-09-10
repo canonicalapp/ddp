@@ -1,12 +1,19 @@
 /**
  * Constraint Operations Module
- * Handles constraints, indexes, and foreign keys sync logic
+ * Main orchestrator for constraint and index operations
  */
+
+import { ConstraintDefinitions } from './constraintDefinitions.js';
+import { ConstraintHandlers } from './constraintHandlers.js';
+import { IndexOperations } from './indexOperations.js';
 
 export class ConstraintOperations {
   constructor(client, options) {
     this.client = client;
     this.options = options;
+    this.indexOperations = new IndexOperations(client, options);
+    this.constraintDefinitions = new ConstraintDefinitions(client, options);
+    this.constraintHandlers = new ConstraintHandlers(client, options);
   }
 
   /**
@@ -35,6 +42,113 @@ export class ConstraintOperations {
   }
 
   /**
+   * Get detailed constraint definition from dev schema
+   */
+  async getConstraintDefinition(schemaName, constraintName, tableName) {
+    return this.constraintDefinitions.getConstraintDefinition(
+      schemaName,
+      constraintName,
+      tableName
+    );
+  }
+
+  /**
+   * Generate constraint type specific clause
+   */
+  generateConstraintClause(params) {
+    return this.constraintDefinitions.generateConstraintClause(params);
+  }
+
+  /**
+   * Compare two constraint definitions to detect changes
+   */
+  compareConstraintDefinitions(devConstraint, prodConstraint) {
+    return this.constraintDefinitions.compareConstraintDefinitions(
+      devConstraint,
+      prodConstraint
+    );
+  }
+
+  /**
+   * Generate CREATE CONSTRAINT statement
+   */
+  generateCreateConstraintStatement(constraintRows, targetSchema) {
+    return this.constraintDefinitions.generateCreateConstraintStatement(
+      constraintRows,
+      targetSchema
+    );
+  }
+
+  /**
+   * Get all indexes from a schema
+   */
+  async getIndexes(schemaName) {
+    return this.indexOperations.getIndexes(schemaName);
+  }
+
+  /**
+   * Generate CREATE INDEX statement
+   */
+  generateCreateIndexStatement(indexDef, targetSchema) {
+    return this.indexOperations.generateCreateIndexStatement(
+      indexDef,
+      targetSchema
+    );
+  }
+
+  /**
+   * Generate index operations for schema sync
+   */
+  async generateIndexOperations() {
+    return this.indexOperations.generateIndexOperations();
+  }
+
+  /**
+   * Handle constraints that have changed
+   */
+  async handleConstraintsToUpdate(
+    devConstraints,
+    prodConstraints,
+    alterStatements
+  ) {
+    return this.constraintHandlers.handleConstraintsToUpdate(
+      devConstraints,
+      prodConstraints,
+      alterStatements
+    );
+  }
+
+  /**
+   * Handle constraints to drop in production
+   */
+  async handleConstraintsToDrop(
+    devConstraints,
+    prodConstraints,
+    alterStatements
+  ) {
+    return this.constraintHandlers.handleConstraintsToDrop(
+      devConstraints,
+      prodConstraints,
+      alterStatements
+    );
+  }
+
+  /**
+   * Handle constraints to create in production
+   */
+  async handleConstraintsToCreate(
+    devConstraints,
+    prodConstraints,
+    alterStatements
+  ) {
+    return this.constraintHandlers.handleConstraintsToCreate(
+      devConstraints,
+      prodConstraints,
+      alterStatements
+    );
+  }
+
+  /**
    * Generate constraint operations for schema sync
    */
   async generateConstraintOperations() {
@@ -43,36 +157,21 @@ export class ConstraintOperations {
     const devConstraints = await this.getConstraints(this.options.dev);
     const prodConstraints = await this.getConstraints(this.options.prod);
 
-    // Find constraints to drop in prod (exist in prod but not in dev)
-    const constraintsToDrop = prodConstraints.filter(
-      p => !devConstraints.some(d => d.constraint_name === p.constraint_name)
+    await this.handleConstraintsToDrop(
+      devConstraints,
+      prodConstraints,
+      alterStatements
     );
-
-    for (const constraint of constraintsToDrop) {
-      alterStatements.push(
-        `-- Constraint ${constraint.constraint_name} exists in prod but not in dev`
-      );
-      alterStatements.push(
-        `ALTER TABLE ${this.options.prod}.${constraint.table_name} DROP CONSTRAINT ${constraint.constraint_name};`
-      );
-    }
-
-    // Find constraints to create in prod (exist in dev but not in prod)
-    const constraintsToCreate = devConstraints.filter(
-      d => !prodConstraints.some(p => p.constraint_name === d.constraint_name)
+    await this.handleConstraintsToCreate(
+      devConstraints,
+      prodConstraints,
+      alterStatements
     );
-
-    for (const constraint of constraintsToCreate) {
-      alterStatements.push(
-        `-- TODO: Create constraint ${constraint.constraint_name} in prod`
-      );
-      alterStatements.push(`-- Constraint type: ${constraint.constraint_type}`);
-      if (constraint.constraint_type === 'FOREIGN KEY') {
-        alterStatements.push(
-          `-- Foreign key: ${constraint.column_name} -> ${constraint.foreign_table_name}.${constraint.foreign_column_name}`
-        );
-      }
-    }
+    await this.handleConstraintsToUpdate(
+      devConstraints,
+      prodConstraints,
+      alterStatements
+    );
 
     return alterStatements;
   }

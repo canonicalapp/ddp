@@ -5,7 +5,17 @@
 import { ColumnOperations } from '../../modules/columnOperations.js';
 import { SchemaSyncOrchestrator } from '../../modules/schemaSyncOrchestrator.js';
 import { TableOperations } from '../../modules/tableOperations.js';
-import { Utils } from '../../modules/utils.js';
+import { Utils } from '../../utils/utils.js';
+import {
+  corruptedResult,
+  createCircularReference,
+  createLargeTableList,
+  extremeLengthColumn,
+  malformedResult,
+  nullColumn,
+  undefinedColumn,
+} from '../fixtures/edgeCasesData.js';
+import { createMockClient, createMockOptions } from '../utils/testUtils.js';
 
 describe('Edge Cases and Error Handling', () => {
   let mockClient;
@@ -126,44 +136,20 @@ describe('Edge Cases and Error Handling', () => {
 
     describe('formatColumnDefinition', () => {
       it('should handle columns with null values', () => {
-        const column = {
-          column_name: null,
-          data_type: null,
-          character_maximum_length: null,
-          is_nullable: null,
-          column_default: null,
-        };
-
-        const result = Utils.formatColumnDefinition(column);
+        const result = Utils.formatColumnDefinition(nullColumn);
 
         expect(result).toBeDefined();
         expect(result).toContain('null');
       });
 
       it('should handle columns with undefined values', () => {
-        const column = {
-          column_name: undefined,
-          data_type: undefined,
-          character_maximum_length: undefined,
-          is_nullable: undefined,
-          column_default: undefined,
-        };
-
-        const result = Utils.formatColumnDefinition(column);
+        const result = Utils.formatColumnDefinition(undefinedColumn);
 
         expect(result).toBeDefined();
       });
 
       it('should handle columns with extreme values', () => {
-        const column = {
-          column_name: 'a'.repeat(1000),
-          data_type: 'character varying',
-          character_maximum_length: 999999999,
-          is_nullable: 'NO',
-          column_default: 'a'.repeat(1000),
-        };
-
-        const result = Utils.formatColumnDefinition(column);
+        const result = Utils.formatColumnDefinition(extremeLengthColumn);
 
         expect(result).toContain('a'.repeat(1000));
         expect(result).toContain('character varying(999999999)');
@@ -243,9 +229,7 @@ describe('Edge Cases and Error Handling', () => {
     });
 
     it('should handle extremely large result sets', async () => {
-      const largeResult = Array.from({ length: 100000 }, (_, i) => ({
-        table_name: `table_${i}`,
-      }));
+      const largeResult = createLargeTableList(100000);
       mockClient.query = () => Promise.resolve({ rows: largeResult });
 
       const tableOps = new TableOperations(mockClient, mockOptions);
@@ -255,8 +239,7 @@ describe('Edge Cases and Error Handling', () => {
     });
 
     it('should handle query with circular references', async () => {
-      const circularResult = { table_name: 'test' };
-      circularResult.self = circularResult;
+      const circularResult = createCircularReference();
       mockClient.query = () => Promise.resolve({ rows: [circularResult] });
 
       const tableOps = new TableOperations(mockClient, mockOptions);
@@ -631,20 +614,6 @@ describe('Edge Cases and Error Handling', () => {
 
   describe('Data Corruption Edge Cases', () => {
     it('should handle corrupted query results', async () => {
-      const corruptedResult = {
-        rows: [
-          { table_name: 'users' },
-          null,
-          undefined,
-          { table_name: null },
-          { table_name: undefined },
-          { table_name: '' },
-          { table_name: 123 },
-          { table_name: {} },
-          { table_name: [] },
-        ],
-      };
-
       mockClient.query = () => Promise.resolve(corruptedResult);
 
       const tableOps = new TableOperations(mockClient, mockOptions);
@@ -655,10 +624,6 @@ describe('Edge Cases and Error Handling', () => {
     });
 
     it('should handle malformed JSON in query results', async () => {
-      const malformedResult = {
-        rows: [{ table_name: 'users', metadata: '{"invalid": json}' }],
-      };
-
       mockClient.query = () => Promise.resolve(malformedResult);
 
       const tableOps = new TableOperations(mockClient, mockOptions);

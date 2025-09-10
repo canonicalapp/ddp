@@ -3,7 +3,39 @@
  */
 
 import { ColumnOperations } from '../../modules/columnOperations.js';
-import { Utils } from '../../modules/utils.js';
+import { Utils } from '../../utils/utils.js';
+import {
+  basicColumn,
+  columnsForGrouping,
+  columnsWithNullTableNames,
+  createColumn,
+  dataTypeChangeColumns,
+  defaultValueChangeColumns,
+  devColumnsForAddTest,
+  devColumnsForDropTest,
+  devColumnsForIdenticalTest,
+  devColumnsForModifyTest,
+  devColumnsForNewTableTest,
+  devColumnsForOldTableTest,
+  devColumnsWithLongName,
+  devColumnsWithMalformedData,
+  devColumnsWithNullName,
+  devColumnsWithSpecialChars,
+  dropDefaultColumns,
+  dropNotNullColumns,
+  multipleChangesColumns,
+  nullabilityChangeColumns,
+  prodColumnsForAddTest,
+  prodColumnsForDropTest,
+  prodColumnsForIdenticalTest,
+  prodColumnsForLongName,
+  prodColumnsForModifyTest,
+  prodColumnsForNewTableTest,
+  prodColumnsForOldTableTest,
+  prodColumnsForSpecialChars,
+  singleTableColumns,
+} from '../fixtures/columnOperations.js';
+import { createMockClient, createMockOptions } from '../utils/testUtils.js';
 
 describe('ColumnOperations', () => {
   let columnOps;
@@ -48,17 +80,7 @@ describe('ColumnOperations', () => {
 
   describe('getColumns', () => {
     it('should query for columns in a schema', async () => {
-      const mockColumns = [
-        {
-          table_name: 'users',
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: "nextval('users_id_seq'::regclass)",
-          ordinal_position: 1,
-        },
-      ];
+      const mockColumns = [basicColumn];
 
       mockClient.query.mockResolvedValue({ rows: mockColumns });
 
@@ -99,23 +121,26 @@ describe('ColumnOperations', () => {
 
   describe('groupColumnsByTable', () => {
     it('should group columns by table name', () => {
-      const columns = [
-        { table_name: 'users', column_name: 'id' },
-        { table_name: 'users', column_name: 'name' },
-        { table_name: 'orders', column_name: 'id' },
-        { table_name: 'orders', column_name: 'user_id' },
-      ];
-
-      const result = columnOps.groupColumnsByTable(columns);
+      const result = columnOps.groupColumnsByTable(columnsForGrouping);
 
       expect(result).toEqual({
         users: [
-          { table_name: 'users', column_name: 'id' },
-          { table_name: 'users', column_name: 'name' },
+          createColumn(),
+          createColumn({
+            column_name: 'name',
+            data_type: 'character varying',
+            character_maximum_length: 255,
+          }),
         ],
         orders: [
-          { table_name: 'orders', column_name: 'id' },
-          { table_name: 'orders', column_name: 'user_id' },
+          createColumn({
+            table_name: 'orders',
+          }),
+          createColumn({
+            table_name: 'orders',
+            column_name: 'user_id',
+            data_type: 'integer',
+          }),
         ],
       });
     });
@@ -127,32 +152,36 @@ describe('ColumnOperations', () => {
     });
 
     it('should handle single table', () => {
-      const columns = [
-        { table_name: 'users', column_name: 'id' },
-        { table_name: 'users', column_name: 'name' },
-      ];
-
-      const result = columnOps.groupColumnsByTable(columns);
+      const result = columnOps.groupColumnsByTable(singleTableColumns);
 
       expect(result).toEqual({
         users: [
-          { table_name: 'users', column_name: 'id' },
-          { table_name: 'users', column_name: 'name' },
+          createColumn(),
+          createColumn({
+            column_name: 'name',
+            data_type: 'character varying',
+            character_maximum_length: 255,
+          }),
         ],
       });
     });
 
     it('should handle columns with null table names', () => {
-      const columns = [
-        { table_name: null, column_name: 'id' },
-        { table_name: 'users', column_name: 'name' },
-      ];
-
-      const result = columnOps.groupColumnsByTable(columns);
+      const result = columnOps.groupColumnsByTable(columnsWithNullTableNames);
 
       expect(result).toEqual({
-        null: [{ table_name: null, column_name: 'id' }],
-        users: [{ table_name: 'users', column_name: 'name' }],
+        null: [
+          createColumn({
+            table_name: null,
+          }),
+        ],
+        users: [
+          createColumn({
+            column_name: 'name',
+            data_type: 'character varying',
+            character_maximum_length: 255,
+          }),
+        ],
       });
     });
   });
@@ -177,25 +206,10 @@ describe('ColumnOperations', () => {
 
   describe('generateAlterColumnStatement', () => {
     it('should generate ALTER COLUMN for data type change', () => {
-      const devCol = {
-        column_name: 'name',
-        data_type: 'character varying',
-        character_maximum_length: 255,
-        is_nullable: 'NO',
-        column_default: null,
-      };
-      const prodCol = {
-        column_name: 'name',
-        data_type: 'text',
-        character_maximum_length: null,
-        is_nullable: 'NO',
-        column_default: null,
-      };
-
       const result = columnOps.generateAlterColumnStatement(
         'users',
-        devCol,
-        prodCol
+        dataTypeChangeColumns.dev,
+        dataTypeChangeColumns.prod
       );
 
       expect(result).toBe(
@@ -204,25 +218,10 @@ describe('ColumnOperations', () => {
     });
 
     it('should generate ALTER COLUMN for nullability change', () => {
-      const devCol = {
-        column_name: 'email',
-        data_type: 'text',
-        character_maximum_length: null,
-        is_nullable: 'NO',
-        column_default: null,
-      };
-      const prodCol = {
-        column_name: 'email',
-        data_type: 'text',
-        character_maximum_length: null,
-        is_nullable: 'YES',
-        column_default: null,
-      };
-
       const result = columnOps.generateAlterColumnStatement(
         'users',
-        devCol,
-        prodCol
+        nullabilityChangeColumns.dev,
+        nullabilityChangeColumns.prod
       );
 
       expect(result).toBe(
@@ -231,25 +230,10 @@ describe('ColumnOperations', () => {
     });
 
     it('should generate ALTER COLUMN for default value change', () => {
-      const devCol = {
-        column_name: 'created_at',
-        data_type: 'timestamp',
-        character_maximum_length: null,
-        is_nullable: 'NO',
-        column_default: 'CURRENT_TIMESTAMP',
-      };
-      const prodCol = {
-        column_name: 'created_at',
-        data_type: 'timestamp',
-        character_maximum_length: null,
-        is_nullable: 'NO',
-        column_default: null,
-      };
-
       const result = columnOps.generateAlterColumnStatement(
         'users',
-        devCol,
-        prodCol
+        defaultValueChangeColumns.dev,
+        defaultValueChangeColumns.prod
       );
 
       expect(result).toBe(
@@ -258,25 +242,10 @@ describe('ColumnOperations', () => {
     });
 
     it('should generate ALTER COLUMN for multiple changes', () => {
-      const devCol = {
-        column_name: 'status',
-        data_type: 'character varying',
-        character_maximum_length: 20,
-        is_nullable: 'NO',
-        column_default: "'active'",
-      };
-      const prodCol = {
-        column_name: 'status',
-        data_type: 'text',
-        character_maximum_length: null,
-        is_nullable: 'YES',
-        column_default: null,
-      };
-
       const result = columnOps.generateAlterColumnStatement(
         'users',
-        devCol,
-        prodCol
+        multipleChangesColumns.dev,
+        multipleChangesColumns.prod
       );
 
       expect(result).toBe(
@@ -285,25 +254,10 @@ describe('ColumnOperations', () => {
     });
 
     it('should handle dropping default value', () => {
-      const devCol = {
-        column_name: 'updated_at',
-        data_type: 'timestamp',
-        character_maximum_length: null,
-        is_nullable: 'YES',
-        column_default: null,
-      };
-      const prodCol = {
-        column_name: 'updated_at',
-        data_type: 'timestamp',
-        character_maximum_length: null,
-        is_nullable: 'YES',
-        column_default: 'CURRENT_TIMESTAMP',
-      };
-
       const result = columnOps.generateAlterColumnStatement(
         'users',
-        devCol,
-        prodCol
+        dropDefaultColumns.dev,
+        dropDefaultColumns.prod
       );
 
       expect(result).toBe(
@@ -312,25 +266,10 @@ describe('ColumnOperations', () => {
     });
 
     it('should handle dropping NOT NULL constraint', () => {
-      const devCol = {
-        column_name: 'description',
-        data_type: 'text',
-        character_maximum_length: null,
-        is_nullable: 'YES',
-        column_default: null,
-      };
-      const prodCol = {
-        column_name: 'description',
-        data_type: 'text',
-        character_maximum_length: null,
-        is_nullable: 'NO',
-        column_default: null,
-      };
-
       const result = columnOps.generateAlterColumnStatement(
         'products',
-        devCol,
-        prodCol
+        dropNotNullColumns.dev,
+        dropNotNullColumns.prod
       );
 
       expect(result).toBe(
@@ -341,41 +280,9 @@ describe('ColumnOperations', () => {
 
   describe('generateColumnOperations', () => {
     it('should add missing columns to production', async () => {
-      const devColumns = [
-        {
-          table_name: 'users',
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-        {
-          table_name: 'users',
-          column_name: 'email',
-          data_type: 'character varying',
-          character_maximum_length: 255,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 2,
-        },
-      ];
-      const prodColumns = [
-        {
-          table_name: 'users',
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
-
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumns })
-        .mockResolvedValueOnce({ rows: prodColumns });
+        .mockResolvedValueOnce({ rows: devColumnsForAddTest })
+        .mockResolvedValueOnce({ rows: prodColumnsForAddTest });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -385,41 +292,9 @@ describe('ColumnOperations', () => {
     });
 
     it('should handle columns to drop in production', async () => {
-      const devColumns = [
-        {
-          table_name: 'users',
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
-      const prodColumns = [
-        {
-          table_name: 'users',
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-        {
-          table_name: 'users',
-          column_name: 'old_column',
-          data_type: 'text',
-          character_maximum_length: null,
-          is_nullable: 'YES',
-          column_default: null,
-          ordinal_position: 2,
-        },
-      ];
-
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumns })
-        .mockResolvedValueOnce({ rows: prodColumns });
+        .mockResolvedValueOnce({ rows: devColumnsForDropTest })
+        .mockResolvedValueOnce({ rows: prodColumnsForDropTest });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -438,32 +313,9 @@ describe('ColumnOperations', () => {
     });
 
     it('should handle column modifications', async () => {
-      const devColumns = [
-        {
-          table_name: 'users',
-          column_name: 'name',
-          data_type: 'character varying',
-          character_maximum_length: 255,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
-      const prodColumns = [
-        {
-          table_name: 'users',
-          column_name: 'name',
-          data_type: 'text',
-          character_maximum_length: null,
-          is_nullable: 'YES',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
-
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumns })
-        .mockResolvedValueOnce({ rows: prodColumns });
+        .mockResolvedValueOnce({ rows: devColumnsForModifyTest })
+        .mockResolvedValueOnce({ rows: prodColumnsForModifyTest });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -480,32 +332,9 @@ describe('ColumnOperations', () => {
     });
 
     it('should handle identical columns', async () => {
-      const devColumns = [
-        {
-          table_name: 'users',
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
-      const prodColumns = [
-        {
-          table_name: 'users',
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
-
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumns })
-        .mockResolvedValueOnce({ rows: prodColumns });
+        .mockResolvedValueOnce({ rows: devColumnsForIdenticalTest })
+        .mockResolvedValueOnce({ rows: prodColumnsForIdenticalTest });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -514,41 +343,9 @@ describe('ColumnOperations', () => {
     });
 
     it('should handle tables that exist only in development', async () => {
-      const devColumns = [
-        {
-          table_name: 'users',
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-        {
-          table_name: 'new_table',
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
-      const prodColumns = [
-        {
-          table_name: 'users',
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
-
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumns })
-        .mockResolvedValueOnce({ rows: prodColumns });
+        .mockResolvedValueOnce({ rows: devColumnsForNewTableTest })
+        .mockResolvedValueOnce({ rows: prodColumnsForNewTableTest });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -557,41 +354,9 @@ describe('ColumnOperations', () => {
     });
 
     it('should handle tables that exist only in production', async () => {
-      const devColumns = [
-        {
-          table_name: 'users',
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
-      const prodColumns = [
-        {
-          table_name: 'users',
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-        {
-          table_name: 'old_table',
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
-
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumns })
-        .mockResolvedValueOnce({ rows: prodColumns });
+        .mockResolvedValueOnce({ rows: devColumnsForOldTableTest })
+        .mockResolvedValueOnce({ rows: prodColumnsForOldTableTest });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -621,54 +386,18 @@ describe('ColumnOperations', () => {
 
   describe('Edge cases and error handling', () => {
     it('should handle null column names', async () => {
-      const devColumns = [
-        {
-          table_name: 'users',
-          column_name: null,
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
-      const prodColumns = [];
-
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumns })
-        .mockResolvedValueOnce({ rows: prodColumns });
+        .mockResolvedValueOnce({ rows: devColumnsWithNullName })
+        .mockResolvedValueOnce({ rows: [] });
 
       const result = await columnOps.generateColumnOperations();
       expect(result).toBeDefined();
     });
 
     it('should handle special characters in column names', async () => {
-      const devColumns = [
-        {
-          table_name: 'users',
-          column_name: 'user-id_with.special@chars',
-          data_type: 'text',
-          character_maximum_length: null,
-          is_nullable: 'YES',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
-      const prodColumns = [
-        {
-          table_name: 'users',
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
-
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumns }) // getColumns for dev
-        .mockResolvedValueOnce({ rows: prodColumns }); // getColumns for prod
+        .mockResolvedValueOnce({ rows: devColumnsWithSpecialChars }) // getColumns for dev
+        .mockResolvedValueOnce({ rows: prodColumnsForSpecialChars }); // getColumns for prod
 
       const result = await columnOps.generateColumnOperations();
 
@@ -683,32 +412,9 @@ describe('ColumnOperations', () => {
 
     it('should handle very long column names', async () => {
       const longColumnName = 'a'.repeat(100);
-      const devColumns = [
-        {
-          table_name: 'users',
-          column_name: longColumnName,
-          data_type: 'text',
-          character_maximum_length: null,
-          is_nullable: 'YES',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
-      const prodColumns = [
-        {
-          table_name: 'users',
-          column_name: 'id',
-          data_type: 'integer',
-          character_maximum_length: null,
-          is_nullable: 'NO',
-          column_default: null,
-          ordinal_position: 1,
-        },
-      ];
-
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumns }) // getColumns for dev
-        .mockResolvedValueOnce({ rows: prodColumns }); // getColumns for prod
+        .mockResolvedValueOnce({ rows: devColumnsWithLongName(longColumnName) }) // getColumns for dev
+        .mockResolvedValueOnce({ rows: prodColumnsForLongName }); // getColumns for prod
 
       const result = await columnOps.generateColumnOperations();
 
@@ -722,18 +428,9 @@ describe('ColumnOperations', () => {
     });
 
     it('should handle malformed column data', async () => {
-      const devColumns = [
-        {
-          table_name: 'users',
-          column_name: 'id',
-          // missing other properties
-        },
-      ];
-      const prodColumns = [];
-
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumns })
-        .mockResolvedValueOnce({ rows: prodColumns });
+        .mockResolvedValueOnce({ rows: devColumnsWithMalformedData })
+        .mockResolvedValueOnce({ rows: [] });
 
       // Should not throw, but may produce unexpected results
       const result = await columnOps.generateColumnOperations();

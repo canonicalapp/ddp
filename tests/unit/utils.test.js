@@ -2,7 +2,7 @@
  * Unit tests for Utils module
  */
 
-import { Utils } from '../../modules/utils.js';
+import { Utils } from '../../utils/utils.js';
 
 describe('Utils', () => {
   describe('generateTimestamp', () => {
