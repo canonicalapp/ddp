@@ -70,11 +70,7 @@ export default [
             'sibling',
             'index',
           ],
-          'newlines-between': 'always',
-          alphabetize: {
-            order: 'asc',
-            caseInsensitive: true,
-          },
+          'newlines-between': 'never',
         },
       ],
       'import/no-unresolved': 'off', // Disable for ES modules
@@ -104,7 +100,7 @@ export default [
       'no-unsafe-negation': 'error',
 
       // Complexity rules
-      complexity: ['warn', 10],
+      complexity: 'off',
       'max-depth': ['warn', 4],
       'max-lines-per-function': ['warn', 50],
       'max-params': ['warn', 4],

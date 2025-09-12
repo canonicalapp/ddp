@@ -1,8 +1,11 @@
 {
-  "name": "schema-sync-script",
+  "name": "cid",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Continuous Integration for Database - CID CLI tool",
+  "main": "src/cli.js",
+  "bin": {
+    "cid": "./src/cli.js"
+  },
   "type": "module",
   "scripts": {
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
@@ -12,7 +15,7 @@
     "test:integration": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/integration",
     "test:verbose": "node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose",
     "test:ci": "node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage --watchAll=false",
-    "start": "node index.js",
+    "start": "node src/cli.js",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
     "format": "prettier --write .",
@@ -33,6 +36,7 @@
   "license": "ISC",
   "dependencies": {
     "commander": "^14.0.0",
+    "find-up": "^7.0.0",
     "pg": "^8.16.3"
   },
   "devDependencies": {

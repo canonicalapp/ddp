@@ -4,20 +4,16 @@ export default {
 
   // ES modules support
   transform: {},
-  moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1',
-  },
 
   // Test file patterns
-  testMatch: ['**/tests/**/*.test.js', '**/tests/**/*.spec.js'],
+  testMatch: ['<rootDir>/tests/**/*.test.js', '<rootDir>/tests/**/*.spec.js'],
 
   // Coverage configuration
   collectCoverage: true,
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   collectCoverageFrom: [
-    'modules/**/*.js',
-    'index.js',
+    '<rootDir>/src/**/*.js',
     '!**/node_modules/**',
     '!**/tests/**',
   ],
