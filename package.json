@@ -1,10 +1,10 @@
 {
-  "name": "cid",
+  "name": "ddp",
   "version": "1.0.0",
-  "description": "Continuous Integration for Database - CID CLI tool",
+  "description": "Declarative Database Provisioning - DDP CLI tool",
   "main": "src/cli.js",
   "bin": {
-    "cid": "./src/cli.js"
+    "ddp": "./src/cli.js"
   },
   "type": "module",
   "scripts": {

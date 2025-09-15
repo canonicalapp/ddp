@@ -193,7 +193,7 @@ describe('CLI Interface', () => {
       // The sync command validates credentials after building connection details
       // It will fail with either missing target credentials or connection error
       expect(result.stderr).toMatch(
-        /Target database credentials are required|CID SYNC failed/
+        /Target database credentials are required|DDP SYNC failed/
       );
       expect(result.code).not.toBe(0);
     });
@@ -503,7 +503,7 @@ describe('CLI Interface', () => {
         'targetpass',
       ]);
 
-      expect(result.stderr).toContain('CID SYNC failed');
+      expect(result.stderr).toContain('DDP SYNC failed');
       expect(result.code).not.toBe(0);
     });
 

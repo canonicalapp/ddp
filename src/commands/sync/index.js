@@ -81,7 +81,7 @@ export const syncCommand = async options => {
     const sourceConnectionString = buildConnectionString(sourceDetails);
     const targetConnectionString = buildConnectionString(targetDetails);
 
-    console.log('CID SYNC - Comparing databases and generating alter.sql...');
+    console.log('DDP SYNC - Comparing databases and generating alter.sql...');
     console.log(`Source: ${sourceDetails.database}.${sourceDetails.schema}`);
     console.log(`Target: ${targetDetails.database}.${targetDetails.schema}`);
     console.log(`Output: ${options.output}`);
@@ -103,7 +103,7 @@ export const syncCommand = async options => {
     const orchestrator = new SchemaSyncOrchestrator(client, syncOptions);
     await orchestrator.execute();
   } catch (error) {
-    console.error('CID SYNC failed:', error.message);
+    console.error('DDP SYNC failed:', error.message);
     process.exit(1);
   }
 };

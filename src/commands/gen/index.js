@@ -48,7 +48,7 @@ export const genCommand = async options => {
       process.exit(1);
     }
 
-    console.log('CID GEN - Generating schema definitions...');
+    console.log('DDP GEN - Generating schema definitions...');
     console.log(`Database: ${database}`);
     console.log(`Schema: ${schema}`);
     console.log(`Output: ${options.stdout ? 'stdout' : options.output}`);
@@ -60,7 +60,7 @@ export const genCommand = async options => {
     console.log('- procs.sql (functions, procedures)');
     console.log('- triggers.sql (triggers)');
   } catch (error) {
-    console.error('CID GEN failed:', error.message);
+    console.error('DDP GEN failed:', error.message);
     process.exit(1);
   }
 };

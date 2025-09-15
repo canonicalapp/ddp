@@ -4,11 +4,11 @@ import { genCommand } from './commands/gen/index.js';
 import { syncCommand } from './commands/sync/index.js';
 
 program
-  .name('cid')
-  .description('Continuous Integration for Database - CID CLI tool')
+  .name('ddp')
+  .description('Declarative Database Provisioning - DDP CLI tool')
   .version('1.0.0');
 
-// CID GEN command
+// DDP GEN command
 program
   .command('gen')
   .description('Generate schema definitions from a live database')
@@ -29,7 +29,7 @@ program
   .option('--triggers-only', 'Generate only triggers.sql')
   .action(genCommand);
 
-// CID SYNC command
+// DDP SYNC command
 program
   .command('sync')
   .description(
