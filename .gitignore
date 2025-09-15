@@ -180,3 +180,4 @@ Thumbs.db
 # Log files specific to this project
 schema-sync-*.log
 sync-*.log
+.git-*
