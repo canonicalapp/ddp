@@ -11,7 +11,13 @@ import { Client } from 'pg';
  */
 export const buildConnectionString = (config: IDatabaseConnection): string => {
   const { host, port, database, username, password } = config;
-  return `postgresql://${username}:${password}@${host}:${port}/${database}`;
+
+  // URL encode the credentials to handle special characters
+  const encodedUsername = encodeURIComponent(username);
+  const encodedPassword = encodeURIComponent(password);
+  const encodedDatabase = encodeURIComponent(database);
+
+  return `postgresql://${encodedUsername}:${encodedPassword}@${host}:${port}/${encodedDatabase}`;
 };
 
 /**
@@ -64,7 +70,7 @@ export const validateReadOnlyAccess = async (
       FROM information_schema.tables 
       WHERE table_schema = $1
     `,
-      [config.schema || 'public']
+      [config.schema ?? 'public']
     );
 
     // If we can read from information_schema, we have read access
@@ -90,6 +96,7 @@ export const testConnection = async (
   try {
     // Test basic connection
     const connected = await validateConnection(config);
+
     if (!connected) {
       return {
         connected: false,
@@ -100,6 +107,7 @@ export const testConnection = async (
 
     // Test read-only access
     const readOnly = await validateReadOnlyAccess(config);
+
     if (!readOnly) {
       return {
         connected: true,
