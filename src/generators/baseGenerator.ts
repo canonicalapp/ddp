@@ -129,16 +129,17 @@ export abstract class BaseGenerator {
     const database = this.connection.database;
     const schema = this.schema;
 
-    return `-- ===========================================
-            -- ${title}
-            -- ===========================================
-            -- Generated: ${timestamp}
-            -- Database: ${database}
-            -- Schema: ${schema}
-            -- Description: ${description}
-            -- ===========================================
+    return `
+-- ===========================================
+-- ${title}
+-- ===========================================
+-- Generated: ${timestamp}
+-- Database: ${database}
+-- Schema: ${schema}
+-- Description: ${description}
+-- ===========================================
 
-            `;
+`;
   }
 
   /**
@@ -146,10 +147,10 @@ export abstract class BaseGenerator {
    */
   protected generateFooter(): string {
     return `
-          -- ===========================================
-          -- END OF ${this.getGeneratorName().toUpperCase()}
-          -- ===========================================
-          `;
+-- ===========================================
+-- END OF ${this.getGeneratorName().toUpperCase()}
+-- ===========================================
+`;
   }
 
   /**
@@ -159,7 +160,11 @@ export abstract class BaseGenerator {
     const indent = '  '.repeat(indentLevel);
     return sql
       .split('\n')
-      .map(line => (line.trim() ? `${indent}${line}` : ''))
+      .map(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return '';
+        return `${indent}${trimmed}`;
+      })
       .join('\n');
   }
 
@@ -193,10 +198,10 @@ export abstract class BaseGenerator {
    */
   protected generateSectionHeader(title: string): string {
     return `
-          -- ===========================================
-          -- ${title}
-          -- ===========================================
-          `;
+-- ===========================================
+-- ${title}
+-- ===========================================
+`;
   }
 
   /**

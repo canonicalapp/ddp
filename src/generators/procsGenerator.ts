@@ -109,14 +109,8 @@ export class ProcsGenerator extends BaseGenerator {
     procedures: IFunctionDefinition[];
   } {
     return {
-      functions: functions.filter(
-        f =>
-          f.name.toLowerCase().includes('function') || f.returnType !== 'void'
-      ),
-      procedures: functions.filter(
-        f =>
-          f.name.toLowerCase().includes('procedure') || f.returnType === 'void'
-      ),
+      functions: functions.filter(f => f.returnType !== 'void'),
+      procedures: functions.filter(f => f.returnType === 'void'),
     };
   }
 
@@ -124,15 +118,20 @@ export class ProcsGenerator extends BaseGenerator {
     funcData: TUnknownOrAny
   ): IFunctionDefinition {
     return {
-      name: funcData.routine_name,
+      name: funcData.function_name ?? 'unknown_function',
       schema: this.schema,
-      parameters: [], // TODO: Parse parameters from routine_definition
-      returnType: funcData.data_type ?? 'void',
-      language: 'plpgsql', // Default language
-      body: funcData.routine_definition ?? '-- Function body not available',
-      volatility: 'VOLATILE', // Default volatility
-      security: 'DEFINER', // Default security
-      comment: funcData.comment ?? undefined,
+      parameters: [], // TODO: Parse parameters from arguments
+      returnType: funcData.return_type ?? 'void',
+      language: funcData.language_name ?? 'plpgsql',
+      body: funcData.function_body ?? '-- Function body not available',
+      volatility:
+        funcData.volatility === 'v'
+          ? 'VOLATILE'
+          : funcData.volatility === 's'
+            ? 'STABLE'
+            : 'IMMUTABLE',
+      security: funcData.security_definer ? 'DEFINER' : 'INVOKER',
+      comment: funcData.function_comment || undefined,
     };
   }
 
@@ -173,7 +172,7 @@ export class ProcsGenerator extends BaseGenerator {
 
     // Function body
     sql += '\nAS\n';
-    sql += this.formatSQL(this.escapeString(func.body), 1);
+    sql += this.formatSQL(func.body, 1);
     sql += '\n;\n\n';
 
     return sql;

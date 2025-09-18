@@ -202,10 +202,14 @@ ddp/
 │   ├── integration/              # Integration tests
 │   ├── e2e/                      # End-to-end tests
 │   └── fixtures/                 # Test fixtures
+├── test-database-setup.sql       # Test database setup script
+├── test-runner.sh                # Automated test runner script
 ├── docs/                         # Documentation
 │   ├── api/                      # API documentation
 │   ├── commands/                 # Command documentation
-│   └── examples/                 # Usage examples
+│   ├── examples/                 # Usage examples
+│   ├── README_TESTING.md         # Testing quick reference
+│   └── TESTING_GUIDE.md          # Detailed testing instructions
 └── package.json                  # Package configuration
 ```
 
@@ -380,6 +384,24 @@ npm run test:coverage
 # Run tests and cleanup
 npm run test:clean
 ```
+
+#### Manual Testing
+
+For comprehensive manual testing of the `gen` and `sync` commands, DDP provides:
+
+- **Test Database Setup**: Complete test schemas with realistic data
+- **Automated Test Runner**: Script to run setup, tests, and cleanup
+- **Detailed Documentation**: Step-by-step testing instructions
+
+```bash
+# Quick start with automated test runner
+./test-runner.sh setup --database mydb --username myuser --password mypass
+./test-runner.sh test-gen --database mydb --username myuser --password mypass
+./test-runner.sh test-sync --database mydb --username myuser --password mypass
+./test-runner.sh clean --database mydb --username myuser --password mypass
+```
+
+See [docs/README_TESTING.md](docs/README_TESTING.md) for quick reference or [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) for detailed instructions.
 
 ### Code Quality
 

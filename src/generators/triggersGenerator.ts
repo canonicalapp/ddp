@@ -37,11 +37,8 @@ export class TriggersGenerator extends BaseGenerator {
   }
 
   protected override async validateData(): Promise<void> {
-    const triggers = await this.introspection.getTriggers();
-
-    if (triggers.length === 0) {
-      throw new Error(`No triggers found in schema '${this.schema}'`);
-    }
+    // No validation needed - triggers are optional
+    // If no triggers exist, we'll generate an empty file
   }
 
   async generate(): Promise<IGeneratedFile[]> {

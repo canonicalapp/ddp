@@ -24,7 +24,7 @@ export const GET_TABLES_QUERY = `
  * Get all columns for a specific table with detailed metadata
  */
 export const GET_TABLE_COLUMNS_QUERY = `
-  SELECT 
+  SELECT DISTINCT
     c.column_name,
     c.ordinal_position,
     c.column_default,
@@ -48,7 +48,7 @@ export const GET_TABLE_COLUMNS_QUERY = `
     c.generation_expression,
     COALESCE(col_description(pgc.oid, c.ordinal_position), '') as column_comment
   FROM information_schema.columns c
-  LEFT JOIN pg_class pgc ON pgc.relname = c.table_name
+  LEFT JOIN pg_class pgc ON pgc.relname = c.table_name AND pgc.relkind = 'r'
   LEFT JOIN pg_namespace pgn ON pgn.oid = pgc.relnamespace AND pgn.nspname = c.table_schema
   WHERE c.table_schema = $1 
     AND c.table_name = $2
@@ -64,7 +64,7 @@ export const GET_TABLE_CONSTRAINTS_QUERY = `
     tc.constraint_type,
     tc.table_name,
     tc.table_schema,
-    kcu.column_name,
+    STRING_AGG(kcu.column_name, ',' ORDER BY kcu.ordinal_position) as column_names,
     ccu.table_name AS foreign_table_name,
     ccu.column_name AS foreign_column_name,
     rc.update_rule,
@@ -87,14 +87,17 @@ export const GET_TABLE_CONSTRAINTS_QUERY = `
     AND tc.table_schema = cc.constraint_schema
   WHERE tc.table_schema = $1 
     AND tc.table_name = $2
-  ORDER BY tc.constraint_name, kcu.ordinal_position;
+  GROUP BY tc.constraint_name, tc.constraint_type, tc.table_name, tc.table_schema, 
+           ccu.table_name, ccu.column_name, rc.update_rule, rc.delete_rule, 
+           cc.check_clause, tc.is_deferrable, tc.initially_deferred
+  ORDER BY tc.constraint_name;
 `;
 
 /**
  * Get all indexes for a specific table
  */
 export const GET_TABLE_INDEXES_QUERY = `
-  SELECT 
+  SELECT DISTINCT
     i.indexname,
     i.tablename,
     i.schemaname,
@@ -110,7 +113,13 @@ export const GET_TABLE_INDEXES_QUERY = `
     CASE 
       WHEN i.indexdef LIKE '%PRIMARY%' THEN true 
       ELSE false 
-    END as is_primary
+    END as is_primary,
+    -- Extract column names from indexdef
+    CASE 
+      WHEN i.indexdef ~ '\\([^)]+\\)' THEN 
+        SUBSTRING(i.indexdef FROM '\\(([^)]+)\\)')
+      ELSE ''
+    END as column_names
   FROM pg_indexes i
   LEFT JOIN pg_class ON pg_class.relname = i.indexname
   LEFT JOIN pg_am ON pg_am.oid = pg_class.relam
