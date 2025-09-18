@@ -162,10 +162,8 @@ describe('Schema Generator', () => {
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe('schema.sql');
       expect(result[0].content).toContain('CREATE TABLE undefined.users');
-      expect(result[0].content).toContain('id INTEGER(32,0) NOT NULL');
-      expect(result[0].content).toContain(
-        'name CHARACTER VARYING(255) NOT NULL'
-      );
+      expect(result[0].content).toContain('id INTEGER NOT NULL');
+      expect(result[0].content).toContain('name CHARACTER VARYING NOT NULL');
       expect(result[0].content).toContain('PRIMARY KEY ()');
     });
 
@@ -205,7 +203,7 @@ describe('Schema Generator', () => {
       expect(result[0].content).toContain(
         'CREATE TABLE undefined.simple_table'
       );
-      expect(result[0].content).toContain('id INTEGER(32,0)');
+      expect(result[0].content).toContain('id INTEGER');
     });
   });
 

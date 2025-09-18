@@ -106,6 +106,14 @@ export class TriggersGenerator extends BaseGenerator {
       grouped.get(tableName)?.push(trigger);
     }
 
+    // Sort triggers alphabetically within each table
+    for (const [tableName, tableTriggers] of grouped) {
+      grouped.set(
+        tableName,
+        tableTriggers.sort((a, b) => a.name.localeCompare(b.name))
+      );
+    }
+
     return grouped;
   }
 

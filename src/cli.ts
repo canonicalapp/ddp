@@ -19,7 +19,7 @@ program
   .option('--database <name>', 'Database name')
   .option('--username <user>', 'Database username')
   .option('--password <pass>', 'Database password')
-  .option('--schema <name>', 'Schema name to introspect', 'public')
+  .option('--schema <name>', 'Schema name to introspect')
   .option('--output <dir>', 'Output directory for generated files', './output')
   .option(
     '--stdout',
