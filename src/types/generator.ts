@@ -8,13 +8,17 @@ import type {
   ITriggerDefinition,
 } from './database';
 
-// Generator Types
-export interface IGeneratorOptions {
-  outputDir: string;
-  stdout?: boolean;
+// Base filtering options that can be shared across commands
+export interface IObjectFilterOptions {
   schemaOnly?: boolean;
   procsOnly?: boolean;
   triggersOnly?: boolean;
+}
+
+// Generator Types
+export interface IGeneratorOptions extends IObjectFilterOptions {
+  outputDir: string;
+  stdout?: boolean;
 }
 
 export interface IGeneratorResult {

@@ -1,10 +1,17 @@
-import type { IGenCommandOptions, TRecord } from '@/types';
+import { buildConnectionString, testConnection } from '@/database/connection';
+import { IntrospectionService } from '@/database/introspection';
+import { ProcsGenerator } from '@/generators/procsGenerator';
+import { SchemaGenerator } from '@/generators/schemaGenerator';
+import { TriggersGenerator } from '@/generators/triggersGenerator';
+import type {
+  IDatabaseConnection,
+  IGenCommandOptions,
+  IGeneratorOptions,
+  TRecord,
+} from '@/types';
 import { findUp } from 'find-up';
 import { readFileSync } from 'fs';
 import { Client } from 'pg';
-import { testConnection, buildConnectionString } from '@/database/connection';
-import { IntrospectionService } from '@/database/introspection';
-import type { IDatabaseConnection } from '@/types/database';
 
 /**
  * Determines what database objects should be introspected based on command options
@@ -34,6 +41,11 @@ const determineIntrospectionPlan = (
   // If no specific type is requested, introspect all types
   return { schema: true, procs: true, triggers: true };
 };
+
+/**
+ * Type for introspection plan
+ */
+type IntrospectionPlan = ReturnType<typeof determineIntrospectionPlan>;
 
 // Load environment variables from .env file
 const loadEnvFile = async (): Promise<void> => {
@@ -117,14 +129,8 @@ export const genCommand = async (
         console.log('✅ Read-only access validation skipped (test mode)');
         console.log(`Output: ${options.stdout ? 'stdout' : options.output}`);
 
-        // TODO: Implement actual generation logic
-        // This is a placeholder for now
-        console.log(
-          'Schema generation not yet implemented. This will generate:'
-        );
-        console.log('- schema.sql (tables, columns, constraints, indexes)');
-        console.log('- procs.sql (functions, procedures)');
-        console.log('- triggers.sql (triggers)');
+        // Generate placeholder files in test mode
+        await generatePlaceholderFiles(options);
         return;
       }
 
@@ -208,11 +214,14 @@ export const genCommand = async (
 
       console.log('✅ Database introspection completed successfully');
       console.log('');
-      console.log('📝 Generation logic will be implemented in Phase 2');
-      console.log('This will generate:');
-      console.log('- schema.sql (tables, columns, constraints, indexes)');
-      console.log('- procs.sql (functions, procedures)');
-      console.log('- triggers.sql (triggers)');
+
+      // Generate SQL files using the generators
+      await generateSQLFiles(
+        client,
+        connectionConfig,
+        options,
+        introspectionPlan
+      );
     } finally {
       await client.end();
     }
@@ -221,5 +230,113 @@ export const genCommand = async (
       error instanceof Error ? error.message : 'Unknown error';
     console.error('DDP GEN failed:', errorMessage);
     process.exit(1);
+  }
+};
+
+/**
+ * Convert CLI options to generator options
+ */
+const convertToGeneratorOptions = (
+  options: IGenCommandOptions
+): IGeneratorOptions => {
+  return {
+    outputDir: options.output ?? './output',
+    stdout: options.stdout ?? false,
+    schemaOnly: options.schemaOnly ?? false,
+    procsOnly: options.procsOnly ?? false,
+    triggersOnly: options.triggersOnly ?? false,
+  };
+};
+
+/**
+ * Generate SQL files using the appropriate generators
+ */
+const generateSQLFiles = async (
+  client: Client,
+  connectionConfig: IDatabaseConnection,
+  options: IGenCommandOptions,
+  introspectionPlan: IntrospectionPlan
+): Promise<void> => {
+  const generatorOptions = convertToGeneratorOptions(options);
+
+  const generators = [];
+
+  // Initialize generators based on introspection plan
+  if (introspectionPlan.schema) {
+    generators.push(
+      new SchemaGenerator(client, connectionConfig, generatorOptions)
+    );
+  }
+  if (introspectionPlan.procs) {
+    generators.push(
+      new ProcsGenerator(client, connectionConfig, generatorOptions)
+    );
+  }
+  if (introspectionPlan.triggers) {
+    generators.push(
+      new TriggersGenerator(client, connectionConfig, generatorOptions)
+    );
+  }
+
+  // Execute all generators
+  for (const generator of generators) {
+    const result = await generator.execute();
+
+    if (!result.success) {
+      throw new Error(`Generator failed: ${result.error}`);
+    }
+  }
+
+  console.log('🎉 All SQL files generated successfully!');
+};
+
+/**
+ * Generate placeholder files for test mode
+ */
+const generatePlaceholderFiles = async (
+  options: IGenCommandOptions
+): Promise<void> => {
+  const outputDir = options.output ?? './output';
+
+  if (options.stdout) {
+    console.log('-- Placeholder schema.sql');
+    console.log(
+      '-- This would contain table definitions, constraints, and indexes'
+    );
+    console.log('');
+    console.log('-- Placeholder procs.sql');
+    console.log('-- This would contain function and procedure definitions');
+    console.log('');
+    console.log('-- Placeholder triggers.sql');
+    console.log('-- This would contain trigger definitions');
+  } else {
+    const { writeFileSync, mkdirSync } = await import('fs');
+    const { join } = await import('path');
+
+    mkdirSync(outputDir, { recursive: true });
+
+    const files = [
+      {
+        name: 'schema.sql',
+        content:
+          '-- Placeholder schema.sql\n-- This would contain table definitions, constraints, and indexes',
+      },
+      {
+        name: 'procs.sql',
+        content:
+          '-- Placeholder procs.sql\n-- This would contain function and procedure definitions',
+      },
+      {
+        name: 'triggers.sql',
+        content:
+          '-- Placeholder triggers.sql\n-- This would contain trigger definitions',
+      },
+    ];
+
+    for (const file of files) {
+      const filePath = join(outputDir, file.name);
+      writeFileSync(filePath, file.content, 'utf8');
+      console.log(`📄 Generated: ${filePath}`);
+    }
   }
 };

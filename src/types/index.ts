@@ -21,7 +21,11 @@ export type {
 } from './database';
 
 // CLI Types
-export type { IGenCommandOptions, ISyncCommandOptions } from './cli';
+export type {
+  IGenCommandOptions,
+  ISyncCommandOptions,
+  IDatabaseConnectionOptions,
+} from './cli';
 
 // Generator Types
 export type {
@@ -30,6 +34,7 @@ export type {
   IGeneratedFile,
   TGeneratorDataType,
   TGeneratorOutputFormat,
+  IObjectFilterOptions,
 } from './generator';
 
 // Sync Types

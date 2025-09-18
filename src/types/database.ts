@@ -2,6 +2,8 @@
  * Database-related types and interfaces
  */
 
+import type { TOptional } from './app';
+
 // Database Connection Types
 export interface IDatabaseConnection {
   host: string;
@@ -26,18 +28,20 @@ export interface IColumnDefinition {
   precision?: number;
   scale?: number;
   isIdentity?: boolean;
-  identityGeneration?: 'ALWAYS' | 'BY DEFAULT';
-  generated?: 'ALWAYS' | 'BY DEFAULT' | 'NEVER';
+  identityGeneration?: 'ALWAYS' | 'BY DEFAULT' | undefined;
+  generated?: 'ALWAYS' | 'BY DEFAULT' | 'NEVER' | undefined;
 }
 
 export interface IConstraintDefinition {
   name: string;
   type: 'PRIMARY KEY' | 'FOREIGN KEY' | 'UNIQUE' | 'CHECK' | 'NOT NULL';
   columns: string[];
-  references?: {
-    table: string;
-    column: string;
-  };
+  references?:
+    | {
+        table: string;
+        column: string;
+      }
+    | undefined;
   checkClause?: string;
   deferrable?: boolean;
   initiallyDeferred?: boolean;
@@ -60,7 +64,7 @@ export interface ITableDefinition {
   columns: IColumnDefinition[];
   constraints: IConstraintDefinition[];
   indexes: IIndexDefinition[];
-  comment?: string;
+  comment?: TOptional<string>;
 }
 
 export interface IFunctionDefinition {
@@ -72,7 +76,7 @@ export interface IFunctionDefinition {
   body: string;
   volatility: 'VOLATILE' | 'STABLE' | 'IMMUTABLE';
   security: 'DEFINER' | 'INVOKER';
-  comment?: string;
+  comment?: TOptional<string>;
 }
 
 export interface IFunctionParameter {
@@ -90,7 +94,7 @@ export interface ITriggerDefinition {
   timing: 'BEFORE' | 'AFTER' | 'INSTEAD OF';
   function: string;
   condition?: string;
-  comment?: string;
+  comment?: TOptional<string>;
 }
 
 // Database Utility Types

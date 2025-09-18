@@ -2,8 +2,10 @@
  * CLI command types and interfaces
  */
 
-// CLI Command Types
-export interface IGenCommandOptions {
+import type { IObjectFilterOptions } from './generator';
+
+// Base database connection options
+export interface IDatabaseConnectionOptions {
   env?: string;
   host?: string;
   port?: string;
@@ -11,11 +13,14 @@ export interface IGenCommandOptions {
   username?: string;
   password?: string;
   schema?: string;
+}
+
+// CLI Command Types
+export interface IGenCommandOptions
+  extends IDatabaseConnectionOptions,
+    IObjectFilterOptions {
   output?: string;
   stdout?: boolean;
-  schemaOnly?: boolean;
-  procsOnly?: boolean;
-  triggersOnly?: boolean;
 }
 
 export interface ISyncCommandOptions {

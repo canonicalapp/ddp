@@ -22,7 +22,7 @@ export default {
 
   // Path mapping to match tsconfig.json
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1',
+    '^@/fixtures/(.*)$': '<rootDir>/tests/fixtures/$1',
     '^@/types/(.*)$': '<rootDir>/src/types/$1',
     '^@/commands/(.*)$': '<rootDir>/src/commands/$1',
     '^@/sync/(.*)$': '<rootDir>/src/sync/$1',
@@ -31,6 +31,7 @@ export default {
     '^@/database/(.*)$': '<rootDir>/src/database/$1',
     '^@/file/(.*)$': '<rootDir>/src/file/$1',
     '^@/generators/(.*)$': '<rootDir>/src/generators/$1',
+    '^@/(.*)$': '<rootDir>/src/$1',
   },
 
   // Coverage configuration
