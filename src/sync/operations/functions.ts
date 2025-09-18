@@ -112,9 +112,7 @@ export class FunctionOperations {
     devFunction: IFunctionDefinition,
     prodFunction: IFunctionDefinition
   ): boolean {
-    if (!devFunction || !prodFunction) {
-      return false;
-    }
+    // Both functions are guaranteed to be defined by TypeScript
 
     // Compare key properties that define function behavior
     const devProps = {
@@ -303,7 +301,7 @@ export class FunctionOperations {
 
     for (const func of functionsToCreate) {
       alterStatements.push(
-        `-- Creating ${func.routine_type?.toLowerCase() ?? 'function'} ${
+        `-- Creating ${func.routine_type.toLowerCase()} ${
           func.routine_name
         } in prod`
       );

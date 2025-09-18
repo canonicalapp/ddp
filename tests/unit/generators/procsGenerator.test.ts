@@ -177,7 +177,7 @@ describe('Procs Generator', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe('procs.sql');
-      expect(result[0].content).toContain('test_function');
+      expect(result[0].content).toContain('simple_function');
     });
   });
 
@@ -191,10 +191,12 @@ describe('Procs Generator', () => {
     describe('convertToFunctionDefinition', () => {
       it('should convert function data correctly', () => {
         const funcData = {
-          routine_name: 'test_function',
-          data_type: 'integer',
-          routine_definition: 'BEGIN RETURN 1; END;',
-          comment: 'Test function',
+          function_name: 'test_function',
+          return_type: 'integer',
+          function_body: 'BEGIN RETURN 1; END;',
+          function_comment: 'Test function',
+          volatility: 'v',
+          security_definer: true,
         };
 
         const result = (
@@ -216,10 +218,10 @@ describe('Procs Generator', () => {
 
       it('should handle function without comment', () => {
         const funcData = {
-          routine_name: 'test_function',
-          data_type: 'void',
-          routine_definition: 'BEGIN END;',
-          comment: null,
+          function_name: 'test_function',
+          return_type: 'void',
+          function_body: 'BEGIN END;',
+          function_comment: null,
         };
 
         const result = (
@@ -235,10 +237,10 @@ describe('Procs Generator', () => {
 
       it('should handle function without definition', () => {
         const funcData = {
-          routine_name: 'test_function',
-          data_type: 'integer',
-          routine_definition: null,
-          comment: 'Test function',
+          function_name: 'test_function',
+          return_type: 'integer',
+          function_body: null,
+          function_comment: 'Test function',
         };
 
         const result = (

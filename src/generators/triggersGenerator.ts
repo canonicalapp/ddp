@@ -118,10 +118,25 @@ export class TriggersGenerator extends BaseGenerator {
       schema: this.schema,
       event: triggerData.event_manipulation,
       timing: triggerData.action_timing,
-      function: triggerData.action_statement ?? 'unknown_function',
+      function: this.extractFunctionName(triggerData.action_statement),
       condition: triggerData.action_condition ?? undefined,
       comment: undefined,
     };
+  }
+
+  private extractFunctionName(
+    actionStatement: string | null | undefined
+  ): string {
+    if (!actionStatement) {
+      return 'unknown_function';
+    }
+
+    // Extract function name from action statement like "test_function()" or "EXECUTE FUNCTION test_function()"
+    const match = actionStatement.match(
+      /(?:EXECUTE FUNCTION\s+)?(\w+)(?:\(\))?/i
+    );
+
+    return match?.[1] ?? 'unknown_function';
   }
 
   private generateTriggerSQL(trigger: ITriggerDefinition): string {

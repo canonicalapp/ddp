@@ -123,21 +123,21 @@ export const createMockTableData = (overrides = {}) => ({
  * Create mock function data for procs generator tests
  */
 export const createMockFunctionData = (overrides = {}) => ({
-  routine_name: 'test_function',
+  function_name: 'test_function',
   routine_type: 'FUNCTION',
-  routine_definition: 'BEGIN RETURN 1; END;',
+  function_body: 'BEGIN RETURN 1; END;',
   language_oid: 1,
   language_name: 'plpgsql',
-  volatility: 'VOLATILE',
+  volatility: 'v',
   security_definer: false,
   is_strict: false,
   returns_set: false,
   cost: 100,
   estimated_rows: 0,
-  data_type: 'integer',
+  return_type: 'integer',
   arguments: 'id integer',
   full_definition: 'BEGIN RETURN 1; END;',
-  comment: 'Test function',
+  function_comment: 'Test function',
   ...overrides,
 });
 

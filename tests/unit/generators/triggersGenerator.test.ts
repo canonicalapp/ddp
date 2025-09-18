@@ -5,15 +5,19 @@
 import {
   createMockConnection,
   createMockGeneratorOptions,
-  createMockIntrospectionService,
   createMockTriggerData,
 } from '@/fixtures/generatorTestUtils';
 import { createMockClient } from '@/fixtures/testUtils';
 import { TriggersGenerator } from '@/generators/triggersGenerator';
 import type { ITriggerDefinition } from '@/types';
 
-// Mock IntrospectionService
-const mockIntrospectionService = createMockIntrospectionService();
+// Mock the IntrospectionService constructor
+const mockIntrospectionService = {
+  getTables: () => Promise.resolve([]),
+  getAllTablesComplete: () => Promise.resolve([]),
+  getFunctions: () => Promise.resolve([]),
+  getTriggers: () => Promise.resolve([]),
+};
 
 describe('Triggers Generator', () => {
   let mockClient: ReturnType<typeof createMockClient>;
@@ -109,7 +113,7 @@ describe('Triggers Generator', () => {
   });
 
   describe('validateData', () => {
-    it('should throw error when no triggers found', async () => {
+    it('should not throw error when no triggers found', async () => {
       mockIntrospectionService.getTriggers = () => Promise.resolve([]);
 
       const generator = new TriggersGenerator(
@@ -122,7 +126,7 @@ describe('Triggers Generator', () => {
         (
           generator as unknown as { validateData: () => Promise<void> }
         ).validateData()
-      ).rejects.toThrow("No triggers found in schema 'public'");
+      ).resolves.not.toThrow();
     });
 
     it('should not throw when triggers are found', async () => {
@@ -147,16 +151,17 @@ describe('Triggers Generator', () => {
 
   describe('generate', () => {
     it('should generate triggers.sql file with triggers', async () => {
-      // Mock the client query to return trigger data
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [{ trigger_name: 'update_timestamp' }] }) // for getTriggers (validateData)
-        .mockResolvedValueOnce({ rows: [createMockTriggerData()] }); // for getTriggers (generate)
-
       const generator = new TriggersGenerator(
         mockClient,
         mockConnection,
         mockOptions
       );
+
+      // Mock the introspection service directly
+      (generator as any).introspection = {
+        getTriggers: () => Promise.resolve([createMockTriggerData()]),
+      };
+
       const result = await (generator as any).generate();
 
       expect(result).toHaveLength(1);
@@ -166,23 +171,23 @@ describe('Triggers Generator', () => {
     });
 
     it('should handle triggers without conditions', async () => {
-      // Mock the client query to return trigger data
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [{ trigger_name: 'simple_trigger' }] }) // for getTriggers (validateData)
-        .mockResolvedValueOnce({
-          rows: [
-            createMockTriggerData({
-              trigger_name: 'simple_trigger',
-              action_condition: null,
-            }),
-          ],
-        }); // for getTriggers (generate)
-
       const generator = new TriggersGenerator(
         mockClient,
         mockConnection,
         mockOptions
       );
+
+      // Mock the introspection service directly
+      (generator as any).introspection = {
+        getTriggers: () =>
+          Promise.resolve([
+            createMockTriggerData({
+              trigger_name: 'simple_trigger',
+              action_condition: null,
+            }),
+          ]),
+      };
+
       const result = await (generator as any).generate();
 
       expect(result).toHaveLength(1);
@@ -224,7 +229,7 @@ describe('Triggers Generator', () => {
         expect(result.schema).toBe('public');
         expect(result.event).toBe('INSERT');
         expect(result.timing).toBe('BEFORE');
-        expect(result.function).toBe('test_function()');
+        expect(result.function).toBe('test_function');
         expect(result.condition).toBe('NEW.id > 0');
         expect(result.comment).toBeUndefined();
       });

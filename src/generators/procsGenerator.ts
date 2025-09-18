@@ -131,7 +131,7 @@ export class ProcsGenerator extends BaseGenerator {
             ? 'STABLE'
             : 'IMMUTABLE',
       security: funcData.security_definer ? 'DEFINER' : 'INVOKER',
-      comment: funcData.function_comment || undefined,
+      comment: funcData.function_comment ?? undefined,
     };
   }
 
