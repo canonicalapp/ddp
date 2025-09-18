@@ -10,6 +10,9 @@ npm run test:unit
 echo "Running integration tests..."
 npm run test:integration
 
+echo "Building app..."
+npm run build
+
 echo "Running linting..."
 npm run lint
 
