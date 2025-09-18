@@ -115,7 +115,9 @@ export class TriggerOperations {
     devTrigger: ITriggerDefinition,
     prodTrigger: ITriggerDefinition
   ): boolean {
-    // Both triggers are guaranteed to be defined by TypeScript
+    if (!devTrigger || !prodTrigger) {
+      return false;
+    }
 
     // Compare key properties that define trigger behavior
     const devProps = {

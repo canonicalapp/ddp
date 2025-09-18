@@ -134,7 +134,9 @@ export class ConstraintDefinitions {
     devConstraint: IConstraintRow,
     prodConstraint: IConstraintRow
   ): boolean {
-    // Both constraints are guaranteed to be defined by TypeScript
+    if (!devConstraint || !prodConstraint) {
+      return false;
+    }
 
     // Compare key properties that define constraint behavior
     const devProps = {
