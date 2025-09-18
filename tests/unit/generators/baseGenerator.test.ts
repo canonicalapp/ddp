@@ -234,7 +234,7 @@ describe('Base Generator', () => {
     let generator: TestGenerator;
 
     beforeEach(() => {
-      generator = new TestGenerator();
+      generator = new TestGenerator(mockClient, mockConnection, mockOptions);
     });
 
     describe('generateComment', () => {
