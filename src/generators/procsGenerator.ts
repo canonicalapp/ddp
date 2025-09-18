@@ -109,8 +109,13 @@ export class ProcsGenerator extends BaseGenerator {
     procedures: IFunctionDefinition[];
   } {
     return {
-      functions: functions.filter(f => f.returnType !== 'void'),
-      procedures: functions.filter(f => f.returnType === 'void'),
+      functions: functions
+        .filter(f => f.returnType !== 'void')
+        .sort((a, b) => a.name.localeCompare(b.name)),
+
+      procedures: functions
+        .filter(f => f.returnType === 'void')
+        .sort((a, b) => a.name.localeCompare(b.name)),
     };
   }
 

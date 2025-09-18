@@ -78,8 +78,8 @@ export class SchemaGenerator extends BaseGenerator {
       'Complete database schema including tables, columns, constraints, and indexes'
     );
 
-    // Generate tables in dependency order (tables with foreign keys last)
-    const sortedTables = this.sortTablesByDependencies(tables);
+    // Generate tables in alphabetical order (as per DDP specification)
+    const sortedTables = this.sortTablesAlphabetically(tables);
 
     for (const table of sortedTables) {
       sql += this.generateTableSQL(table);
@@ -102,8 +102,11 @@ export class SchemaGenerator extends BaseGenerator {
     // CREATE TABLE statement
     sql += `CREATE TABLE ${this.escapeIdentifier(table.schema)}.${this.escapeIdentifier(table.name)} (\n`;
 
-    // Columns
-    const columnDefinitions = table.columns.map(col =>
+    // Columns (ensure ordinal order as per CID specification)
+    const sortedColumns = [...table.columns].sort(
+      (a, b) => a.ordinalPosition - b.ordinalPosition
+    );
+    const columnDefinitions = sortedColumns.map(col =>
       this.generateColumnDefinition(col)
     );
 
@@ -146,17 +149,20 @@ export class SchemaGenerator extends BaseGenerator {
   private generateColumnDefinition(column: IColumnDefinition): string {
     let definition = `${this.escapeIdentifier(column.name)} ${this.generateDataType(column)}`;
 
-    // NOT NULL constraint
+    // NOT NULL constraint (only if not nullable - default is nullable)
     if (!column.nullable) {
       definition += ' NOT NULL';
     }
 
-    // DEFAULT value
-    if (column.defaultValue) {
+    // DEFAULT value (only if explicitly set and not a default default)
+    if (
+      column.defaultValue &&
+      !this.isDefaultDefaultValue(column.defaultValue)
+    ) {
       definition += ` DEFAULT ${column.defaultValue}`;
     }
 
-    // Identity column
+    // Identity column (only if explicitly set)
     if (column.isIdentity) {
       if (column.identityGeneration === 'ALWAYS') {
         definition += ' GENERATED ALWAYS AS IDENTITY';
@@ -165,7 +171,7 @@ export class SchemaGenerator extends BaseGenerator {
       }
     }
 
-    // Generated column
+    // Generated column (only if not NEVER - which is the default)
     if (column.generated && column.generated !== 'NEVER') {
       definition += ` GENERATED ${column.generated}`;
     }
@@ -173,24 +179,114 @@ export class SchemaGenerator extends BaseGenerator {
     return definition;
   }
 
+  /**
+   * Check if a default value is a "default default" that should be omitted
+   * @param defaultValue - The default value to check
+   * @returns true if this is a default default value that should be omitted
+   */
+  private isDefaultDefaultValue(defaultValue: string): boolean {
+    const defaultDefaults = [
+      'NULL',
+      'null',
+      'DEFAULT NULL',
+      'default null',
+      '::text',
+      '::character varying',
+      '::integer',
+      '::bigint',
+      '::numeric',
+      '::boolean',
+      '::timestamp without time zone',
+      '::timestamp with time zone',
+      '::date',
+      '::time without time zone',
+      '::time with time zone',
+    ];
+
+    return defaultDefaults.some(defaultVal =>
+      defaultValue.toLowerCase().includes(defaultVal.toLowerCase())
+    );
+  }
+
   private generateDataType(column: IColumnDefinition): string {
     let type = column.type.toUpperCase();
 
-    // Add length/precision for character types
+    // Add length/precision for character types (only if not default)
     if (column.length && (type.includes('CHAR') || type.includes('VARCHAR'))) {
-      type += `(${column.length})`;
+      // Only add length if it's not a default length
+      if (!this.isDefaultLength(type, column.length)) {
+        type += `(${column.length})`;
+      }
     }
 
-    // Add precision and scale for numeric types
+    // Add precision and scale for numeric types (only if not default)
     if (column.precision !== undefined) {
       if (column.scale !== undefined) {
-        type += `(${column.precision},${column.scale})`;
+        // Only add precision/scale if they're not defaults
+        if (
+          !this.isDefaultNumericPrecision(type, column.precision, column.scale)
+        ) {
+          type += `(${column.precision},${column.scale})`;
+        }
       } else {
-        type += `(${column.precision})`;
+        // Only add precision if it's not a default
+        if (!this.isDefaultNumericPrecision(type, column.precision, 0)) {
+          type += `(${column.precision})`;
+        }
       }
     }
 
     return type;
+  }
+
+  /**
+   * Check if a character length is a default that should be omitted
+   * @param type - The data type
+   * @param length - The length value
+   * @returns true if this is a default length that should be omitted
+   */
+  private isDefaultLength(type: string, length: number): boolean {
+    // Common default lengths that should be omitted
+    const defaultLengths: { [key: string]: number } = {
+      VARCHAR: 255,
+      CHAR: 1,
+      'CHARACTER VARYING': 255,
+      CHARACTER: 1,
+      TEXT: 0, // TEXT doesn't need length specification
+    };
+
+    return defaultLengths[type] === length;
+  }
+
+  /**
+   * Check if numeric precision/scale are defaults that should be omitted
+   * @param type - The data type
+   * @param precision - The precision value
+   * @param scale - The scale value
+   * @returns true if these are default values that should be omitted
+   */
+  private isDefaultNumericPrecision(
+    type: string,
+    precision: number,
+    scale: number
+  ): boolean {
+    // Common default precisions that should be omitted
+    const defaultPrecisions: {
+      [key: string]: { precision: number; scale: number };
+    } = {
+      INTEGER: { precision: 32, scale: 0 },
+      BIGINT: { precision: 64, scale: 0 },
+      SMALLINT: { precision: 16, scale: 0 },
+      NUMERIC: { precision: 0, scale: 0 }, // Default numeric without precision
+      DECIMAL: { precision: 0, scale: 0 }, // Default decimal without precision
+    };
+
+    const defaultPrecision = defaultPrecisions[type];
+    return !!(
+      defaultPrecision &&
+      defaultPrecision.precision === precision &&
+      defaultPrecision.scale === scale
+    );
   }
 
   private convertToTableDefinition(data: {
@@ -230,6 +326,7 @@ export class SchemaGenerator extends BaseGenerator {
         | 'BY DEFAULT'
         | 'NEVER'
         | undefined,
+      ordinalPosition: column.ordinal_position ?? 0,
     };
   }
 
@@ -351,6 +448,12 @@ export class SchemaGenerator extends BaseGenerator {
     sql += ';';
 
     return sql;
+  }
+
+  private sortTablesAlphabetically(
+    tables: ITableDefinition[]
+  ): ITableDefinition[] {
+    return [...tables].sort((a, b) => a.name.localeCompare(b.name));
   }
 
   private sortTablesByDependencies(

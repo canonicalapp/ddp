@@ -30,6 +30,7 @@ export interface IColumnDefinition {
   isIdentity?: boolean;
   identityGeneration?: 'ALWAYS' | 'BY DEFAULT' | undefined;
   generated?: 'ALWAYS' | 'BY DEFAULT' | 'NEVER' | undefined;
+  ordinalPosition: number;
 }
 
 export interface IConstraintDefinition {
