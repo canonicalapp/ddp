@@ -89,12 +89,9 @@ export const genCommand = async (
     const schema = options.schema ?? process.env.DB_SCHEMA ?? 'public';
 
     if (!database || !username || !password) {
-      console.error(
-        'Error: Database credentials are required. Provide via options or .env file.'
-      );
+      console.error('Database credentials are required');
       console.error('Required: --database, --username, --password');
-      console.error('Or set in .env: DB_NAME, DB_USER, DB_PASSWORD');
-      process.exit(1);
+      throw new Error('Failed to establish database connection');
     }
 
     // Build connection configuration

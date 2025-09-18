@@ -28,7 +28,14 @@ program
   .option('--schema-only', 'Generate only schema.sql')
   .option('--procs-only', 'Generate only procs.sql')
   .option('--triggers-only', 'Generate only triggers.sql')
-  .action((options: IGenCommandOptions) => genCommand(options));
+  .action(async (options: IGenCommandOptions) => {
+    try {
+      await genCommand(options);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : 'Unknown error');
+      process.exit(1);
+    }
+  });
 
 // DDP SYNC command
 program
@@ -51,7 +58,14 @@ program
   .option('--target-schema <name>', 'Target schema name')
   .option('--output <file>', 'Output file for alter.sql', 'alter.sql')
   .option('--dry-run', 'Show what would be changed without executing')
-  .action((options: ISyncCommandOptions) => syncCommand(options));
+  .action(async (options: ISyncCommandOptions) => {
+    try {
+      await syncCommand(options);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : 'Unknown error');
+      process.exit(1);
+    }
+  });
 
 // Parse command line arguments
 program.parse();
