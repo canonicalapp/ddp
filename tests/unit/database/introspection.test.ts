@@ -70,22 +70,6 @@ describe('Database Introspection', () => {
       expect(typeof service.getTriggers).toBe('function');
     });
 
-    it('should have getSequences method', () => {
-      expect(typeof service.getSequences).toBe('function');
-    });
-
-    it('should have getViews method', () => {
-      expect(typeof service.getViews).toBe('function');
-    });
-
-    it('should have getEnums method', () => {
-      expect(typeof service.getEnums).toBe('function');
-    });
-
-    it('should have getDomains method', () => {
-      expect(typeof service.getDomains).toBe('function');
-    });
-
     it('should have getSchemaInfo method', () => {
       expect(typeof service.getSchemaInfo).toBe('function');
     });

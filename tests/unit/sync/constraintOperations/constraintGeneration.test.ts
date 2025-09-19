@@ -2,13 +2,13 @@
  * Unit tests for ConstraintOperations constraint generation
  */
 
-import { ConstraintOperations } from '../../../../../src/sync/operations/constraints.ts';
+import { ConstraintOperations } from '../../../../src/sync/operations/constraints.ts';
 import {
   checkConstraint,
   primaryKeyConstraint,
   uniqueConstraint,
-} from '../../../../fixtures/constraintOperations/basicConstraints.ts';
-import { constraintDefinitions } from '../../../../fixtures/constraintOperations/constraintDefinitions.ts';
+} from '../../../fixtures/constraintOperations/basicConstraints.ts';
+import { constraintDefinitions } from '../../../fixtures/constraintOperations/constraintDefinitions.ts';
 import {
   devConstraintsComplexTest,
   devConstraintsForAddTest,
@@ -20,11 +20,11 @@ import {
   prodConstraintsForDropTest,
   prodConstraintsForIdenticalTest,
   prodConstraintsWithOldConstraints,
-} from '../../../../fixtures/constraintOperations/testScenarios.ts';
+} from '../../../fixtures/constraintOperations/testScenarios.ts';
 import {
   createMockClient,
   createMockOptions,
-} from '../../../../fixtures/testUtils.ts';
+} from '../../../fixtures/testUtils.ts';
 
 describe('ConstraintOperations - Constraint Generation', () => {
   let constraintOps;

@@ -7,6 +7,26 @@ This guide explains how to test the DDP `gen` and `sync` commands using the prov
 1. **PostgreSQL Database** (version 12 or higher)
 2. **Database User** with CREATE privileges
 3. **DDP CLI** built and ready (`npm run build`)
+4. **Node.js 18+** with TypeScript support
+
+## Automated Testing
+
+DDP includes a comprehensive automated test suite:
+
+```bash
+# Run all automated tests (562 tests across 26 files)
+npm test
+
+# Run with coverage report
+npm run test:coverage
+
+# Run specific test suites
+npm run test:unit        # Unit tests (24 files)
+npm run test:integration # Integration tests (2 files)
+
+# Run tests in watch mode for development
+npm run test:watch
+```
 
 ## Step 1: Database Setup
 

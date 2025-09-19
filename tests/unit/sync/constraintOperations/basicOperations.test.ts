@@ -2,16 +2,16 @@
  * Unit tests for ConstraintOperations basic operations
  */
 
-import { ConstraintOperations } from '../../../../../src/sync/operations/constraints.ts';
+import { ConstraintOperations } from '../../../../src/sync/operations/constraints.ts';
 import {
   devConstraintsWithSpecialChars,
   foreignKeyConstraint,
   primaryKeyConstraint,
-} from '../../../../fixtures/constraintOperations/basicConstraints.ts';
+} from '../../../fixtures/constraintOperations/basicConstraints.ts';
 import {
   createMockClient,
   createMockOptions,
-} from '../../../../fixtures/testUtils.ts';
+} from '../../../fixtures/testUtils.ts';
 
 describe('ConstraintOperations - Basic Operations', () => {
   let constraintOps;

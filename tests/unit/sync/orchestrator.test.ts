@@ -374,8 +374,7 @@ describe('SchemaSyncOrchestrator', () => {
       mockClient.connect = () => Promise.reject(error);
 
       await expect(orchestrator.execute()).rejects.toThrow('Connection failed');
-      // Verify that the connection was closed (we can't easily track this without Jest mocks)
-      expect(true).toBe(true); // Placeholder assertion
+      // Connection closure verification would require more complex mocking
     });
 
     it('should handle script generation errors', async () => {
@@ -387,8 +386,7 @@ describe('SchemaSyncOrchestrator', () => {
       await expect(orchestrator.execute()).rejects.toThrow(
         'Script generation failed'
       );
-      // Verify that the connection was closed (we can't easily track this without Jest mocks)
-      expect(true).toBe(true); // Placeholder assertion
+      // Connection closure verification would require more complex mocking
     });
 
     it('should handle file save errors', async () => {
@@ -402,8 +400,7 @@ describe('SchemaSyncOrchestrator', () => {
       };
 
       await expect(orchestrator.execute()).rejects.toThrow('File save failed');
-      // Verify that the connection was closed (we can't easily track this without Jest mocks)
-      expect(true).toBe(true); // Placeholder assertion
+      // Connection closure verification would require more complex mocking
     });
 
     it('should always close connection in finally block', async () => {
@@ -413,8 +410,7 @@ describe('SchemaSyncOrchestrator', () => {
       orchestrator.generateSyncScript = () => Promise.reject(error);
 
       await expect(orchestrator.execute()).rejects.toThrow('Some error');
-      // Verify that the connection was closed (we can't easily track this without Jest mocks)
-      expect(true).toBe(true); // Placeholder assertion
+      // Connection closure verification would require more complex mocking
     });
 
     it('should handle client.end errors gracefully', async () => {

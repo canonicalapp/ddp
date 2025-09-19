@@ -2,11 +2,11 @@
  * Unit tests for ConstraintOperations index operations
  */
 
-import { ConstraintOperations } from '../../../../../src/sync/operations/constraints.ts';
+import { ConstraintOperations } from '../../../../src/sync/operations/constraints.ts';
 import {
   createMockClient,
   createMockOptions,
-} from '../../../../fixtures/testUtils.ts';
+} from '../../../fixtures/testUtils.ts';
 
 describe('ConstraintOperations - Index Operations', () => {
   let constraintOps;

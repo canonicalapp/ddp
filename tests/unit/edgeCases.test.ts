@@ -14,11 +14,8 @@ import {
   malformedResult,
   nullColumn,
   undefinedColumn,
-} from '../../fixtures/edgeCasesData.ts';
-import {
-  createMockClient,
-  createMockOptions,
-} from '../../fixtures/testUtils.ts';
+} from '../fixtures/edgeCasesData.ts';
+import { createMockClient, createMockOptions } from '../fixtures/testUtils.ts';
 
 describe('Edge Cases and Error Handling', () => {
   let mockClient;

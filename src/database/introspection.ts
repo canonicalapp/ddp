@@ -3,22 +3,17 @@
  * Provides methods to introspect database schema and objects
  */
 
-import type { TUnknownOrAny } from '@/types';
 import type { Client } from 'pg';
 import {
   GET_DATABASE_INFO_QUERY,
-  GET_DOMAINS_QUERY,
-  GET_ENUMS_QUERY,
   GET_FUNCTIONS_QUERY,
   GET_FUNCTION_PARAMETERS_QUERY,
   GET_SCHEMA_INFO_QUERY,
-  GET_SEQUENCES_QUERY,
   GET_TABLES_QUERY,
   GET_TABLE_COLUMNS_QUERY,
   GET_TABLE_CONSTRAINTS_QUERY,
   GET_TABLE_INDEXES_QUERY,
   GET_TRIGGERS_QUERY,
-  GET_VIEWS_QUERY,
 } from './queries';
 
 export interface ITableInfo {
@@ -211,38 +206,6 @@ export class IntrospectionService {
    */
   async getTriggers(): Promise<ITriggerInfo[]> {
     const result = await this.client.query(GET_TRIGGERS_QUERY, [this.schema]);
-    return result.rows;
-  }
-
-  /**
-   * Get all sequences in the schema
-   */
-  async getSequences(): Promise<any[]> {
-    const result = await this.client.query(GET_SEQUENCES_QUERY, [this.schema]);
-    return result.rows;
-  }
-
-  /**
-   * Get all views in the schema
-   */
-  async getViews(): Promise<any[]> {
-    const result = await this.client.query(GET_VIEWS_QUERY, [this.schema]);
-    return result.rows;
-  }
-
-  /**
-   * Get all enums in the schema
-   */
-  async getEnums(): Promise<any[]> {
-    const result = await this.client.query(GET_ENUMS_QUERY, [this.schema]);
-    return result.rows;
-  }
-
-  /**
-   * Get all domains in the schema
-   */
-  async getDomains(): Promise<TUnknownOrAny[]> {
-    const result = await this.client.query(GET_DOMAINS_QUERY, [this.schema]);
     return result.rows;
   }
 
