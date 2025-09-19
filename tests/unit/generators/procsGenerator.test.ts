@@ -201,9 +201,12 @@ describe('Procs Generator', () => {
 
         const result = (
           generator as unknown as {
-            convertToFunctionDefinition: (data: any) => IFunctionDefinition;
+            convertToFunctionDefinition: (
+              data: any,
+              params: any[]
+            ) => IFunctionDefinition;
           }
-        ).convertToFunctionDefinition(funcData);
+        ).convertToFunctionDefinition(funcData, []);
 
         expect(result.name).toBe('test_function');
         expect(result.schema).toBe('public');
@@ -226,9 +229,12 @@ describe('Procs Generator', () => {
 
         const result = (
           generator as unknown as {
-            convertToFunctionDefinition: (data: any) => IFunctionDefinition;
+            convertToFunctionDefinition: (
+              data: any,
+              params: any[]
+            ) => IFunctionDefinition;
           }
-        ).convertToFunctionDefinition(funcData);
+        ).convertToFunctionDefinition(funcData, []);
 
         expect(result.name).toBe('test_function');
         expect(result.returnType).toBe('void');
@@ -245,9 +251,12 @@ describe('Procs Generator', () => {
 
         const result = (
           generator as unknown as {
-            convertToFunctionDefinition: (data: any) => IFunctionDefinition;
+            convertToFunctionDefinition: (
+              data: any,
+              params: any[]
+            ) => IFunctionDefinition;
           }
-        ).convertToFunctionDefinition(funcData);
+        ).convertToFunctionDefinition(funcData, []);
 
         expect(result.name).toBe('test_function');
         expect(result.body).toBe('-- Function body not available');

@@ -41,9 +41,10 @@ program
 program
   .command('sync')
   .description(
-    'Compare two live databases and generate alter.sql to sync target with source'
+    'Compare databases or schema files and generate alter.sql to sync target with source'
   )
   .option('--env <path>', 'Path to .env file (default: auto-discover)')
+  // Database sync options
   .option('--source-host <host>', 'Source database host')
   .option('--source-port <port>', 'Source database port', '5432')
   .option('--source-database <name>', 'Source database name')
@@ -56,6 +57,26 @@ program
   .option('--target-username <user>', 'Target database username')
   .option('--target-password <pass>', 'Target database password')
   .option('--target-schema <name>', 'Target schema name')
+  // File-based sync options
+  .option(
+    '--source-dir <path>',
+    'Source directory containing schema files (schema.sql, procs.sql, triggers.sql)'
+  )
+  .option(
+    '--target-dir <path>',
+    'Target directory containing schema files (schema.sql, procs.sql, triggers.sql)'
+  )
+  .option(
+    '--source-repo <url>',
+    'Source repository URL for GitHub Actions integration'
+  )
+  .option(
+    '--target-repo <url>',
+    'Target repository URL for GitHub Actions integration'
+  )
+  .option('--source-branch <name>', 'Source repository branch', 'main')
+  .option('--target-branch <name>', 'Target repository branch', 'main')
+  // Common options
   .option('--output <file>', 'Output file for alter.sql', 'alter.sql')
   .option('--dry-run', 'Show what would be changed without executing')
   .action(async (options: ISyncCommandOptions) => {

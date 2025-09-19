@@ -25,6 +25,7 @@ export interface IGenCommandOptions
 
 export interface ISyncCommandOptions {
   env?: string;
+  // Database sync options
   sourceHost?: string;
   sourcePort?: string;
   sourceDatabase?: string;
@@ -37,6 +38,14 @@ export interface ISyncCommandOptions {
   targetUsername?: string;
   targetPassword?: string;
   targetSchema?: string;
+  // File-based sync options
+  sourceDir?: string;
+  targetDir?: string;
+  sourceRepo?: string;
+  targetRepo?: string;
+  sourceBranch?: string;
+  targetBranch?: string;
+  // Common options
   output?: string;
   dryRun?: boolean;
 }

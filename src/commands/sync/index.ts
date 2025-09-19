@@ -2,6 +2,8 @@ import { readFileSync } from 'fs';
 import { findUp } from 'find-up';
 import { Client } from 'pg';
 import { SchemaSyncOrchestrator } from '@/sync/orchestrator';
+import { FileSyncOrchestrator } from '@/sync/fileSyncOrchestrator';
+import { RepoIntegration } from '@/sync/repoIntegration';
 import type {
   ISyncCommandOptions,
   IDatabaseConnection,
@@ -83,39 +85,17 @@ export const syncCommand = async (
   try {
     await loadEnvFile();
 
-    // Build connection details
-    const sourceDetails = buildConnectionDetails(options, 'source');
-    const targetDetails = buildConnectionDetails(options, 'target');
-
-    // Validate credentials
-    validateCredentials(sourceDetails, 'Source');
-    validateCredentials(targetDetails, 'Target');
-
-    // Build connection strings
-    const sourceConnectionString = buildConnectionString(sourceDetails);
-    const targetConnectionString = buildConnectionString(targetDetails);
-
-    console.log('DDP SYNC - Comparing databases and generating alter.sql...');
-    console.log(`Source: ${sourceDetails.database}.${sourceDetails.schema}`);
-    console.log(`Target: ${targetDetails.database}.${targetDetails.schema}`);
-    console.log(`Output: ${options.output}`);
-
-    // Use existing sync functionality
-    const client = new Client({
-      connectionString: sourceConnectionString,
-    });
-
-    const syncOptions = {
-      conn: sourceConnectionString,
-      dev: sourceDetails.schema ?? 'public',
-      prod: targetDetails.schema ?? 'public',
-      targetConn: targetConnectionString,
-      output: options.output ?? 'alter.sql',
-      dryRun: options.dryRun ?? false,
-    };
-
-    const orchestrator = new SchemaSyncOrchestrator(client, syncOptions);
-    await orchestrator.execute();
+    // Check sync mode
+    if (options.sourceRepo && options.targetRepo) {
+      // Repository sync mode
+      await executeRepoSync(options);
+    } else if (options.sourceDir && options.targetDir) {
+      // File-based sync mode
+      await executeFileSync(options);
+    } else {
+      // Database sync mode (existing functionality)
+      await executeDatabaseSync(options);
+    }
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';
@@ -123,3 +103,90 @@ export const syncCommand = async (
     process.exit(1);
   }
 };
+
+/**
+ * Execute repository sync
+ */
+async function executeRepoSync(options: ISyncCommandOptions): Promise<void> {
+  if (!options.sourceRepo || !options.targetRepo) {
+    console.error(
+      'Error: Both --source-repo and --target-repo are required for repository sync'
+    );
+    process.exit(1);
+  }
+
+  const repoSyncOptions = {
+    sourceRepo: options.sourceRepo,
+    targetRepo: options.targetRepo,
+    sourceBranch: options.sourceBranch ?? 'main',
+    targetBranch: options.targetBranch ?? 'main',
+    output: options.output ?? 'alter.sql',
+    dryRun: options.dryRun ?? false,
+  };
+
+  const orchestrator = new RepoIntegration(repoSyncOptions);
+  await orchestrator.execute();
+}
+
+/**
+ * Execute file-based sync
+ */
+async function executeFileSync(options: ISyncCommandOptions): Promise<void> {
+  if (!options.sourceDir || !options.targetDir) {
+    console.error(
+      'Error: Both --source-dir and --target-dir are required for file-based sync'
+    );
+    process.exit(1);
+  }
+
+  const fileSyncOptions = {
+    sourceDir: options.sourceDir,
+    targetDir: options.targetDir,
+    output: options.output ?? 'alter.sql',
+    dryRun: options.dryRun ?? false,
+  };
+
+  const orchestrator = new FileSyncOrchestrator(fileSyncOptions);
+  await orchestrator.execute();
+}
+
+/**
+ * Execute database sync (existing functionality)
+ */
+async function executeDatabaseSync(
+  options: ISyncCommandOptions
+): Promise<void> {
+  // Build connection details
+  const sourceDetails = buildConnectionDetails(options, 'source');
+  const targetDetails = buildConnectionDetails(options, 'target');
+
+  // Validate credentials
+  validateCredentials(sourceDetails, 'Source');
+  validateCredentials(targetDetails, 'Target');
+
+  // Build connection strings
+  const sourceConnectionString = buildConnectionString(sourceDetails);
+  const targetConnectionString = buildConnectionString(targetDetails);
+
+  console.log('DDP SYNC - Comparing databases and generating alter.sql...');
+  console.log(`Source: ${sourceDetails.database}.${sourceDetails.schema}`);
+  console.log(`Target: ${targetDetails.database}.${targetDetails.schema}`);
+  console.log(`Output: ${options.output}`);
+
+  // Use existing sync functionality
+  const client = new Client({
+    connectionString: sourceConnectionString,
+  });
+
+  const syncOptions = {
+    conn: sourceConnectionString,
+    dev: sourceDetails.schema ?? 'public',
+    prod: targetDetails.schema ?? 'public',
+    targetConn: targetConnectionString,
+    output: options.output ?? 'alter.sql',
+    dryRun: options.dryRun ?? false,
+  };
+
+  const orchestrator = new SchemaSyncOrchestrator(client, syncOptions);
+  await orchestrator.execute();
+}

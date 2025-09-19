@@ -2,7 +2,7 @@
   "compilerOptions": {
     // Target and Module
     "target": "ES2022",
-    "module": "ESNext",
+    "module": "CommonJS",
     "moduleResolution": "Node",
     "lib": ["ES2022"],
 

@@ -42,5 +42,6 @@ export const constraintDefinitions = {
     foreign_column_name: null,
     update_rule: null,
     delete_rule: null,
+    check_clause: 'age >= 0',
   },
 };

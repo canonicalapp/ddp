@@ -9,13 +9,15 @@ export default {
   ],
 
   // TypeScript support
-  preset: 'ts-jest/presets/default-esm',
-  extensionsToTreatAsEsm: ['.ts'],
+  preset: 'ts-jest/presets/default',
   transform: {
     '^.+\\.ts$': [
       'ts-jest',
       {
-        useESM: true,
+        useESM: false,
+        tsconfig: {
+          module: 'commonjs',
+        },
       },
     ],
   },
@@ -32,6 +34,8 @@ export default {
     '^@/file/(.*)$': '<rootDir>/src/file/$1',
     '^@/generators/(.*)$': '<rootDir>/src/generators/$1',
     '^@/(.*)$': '<rootDir>/src/$1',
+    // Mock find-up module to avoid ES module issues
+    '^find-up$': '<rootDir>/tests/fixtures/mocks/find-up.js',
   },
 
   // Coverage configuration

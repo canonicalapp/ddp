@@ -37,6 +37,7 @@ export const checkConstraint = createConstraint({
   constraint_name: 'users_age_check',
   constraint_type: 'CHECK',
   column_name: 'age',
+  check_clause: 'age >= 0',
 });
 
 // Edge case data
