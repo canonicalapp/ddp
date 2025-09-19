@@ -2,7 +2,7 @@
  * Unit tests for ConstraintOperations constraint comparison
  */
 
-import { ConstraintOperations } from '../../../../../src/sync/operations/constraints.ts';
+import { ConstraintOperations } from '../../../../src/sync/operations/constraints.ts';
 import {
   identicalConstraints,
   differentConstraintTypes,
@@ -10,11 +10,11 @@ import {
   differentForeignTables,
   differentUpdateRules,
   differentDeleteRules,
-} from '../../../../fixtures/constraintOperations/comparisonData.ts';
+} from '../../../fixtures/constraintOperations/comparisonData.ts';
 import {
   createMockClient,
   createMockOptions,
-} from '../../../../fixtures/testUtils.ts';
+} from '../../../fixtures/testUtils.ts';
 
 describe('ConstraintOperations - Constraint Comparison', () => {
   let constraintOps;

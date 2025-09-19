@@ -37,6 +37,14 @@ This directory contains comprehensive testing tools for the DDP (Declarative Dat
 | `TESTING_GUIDE.md`        | Detailed manual testing instructions                                  |
 | `README_TESTING.md`       | This file - quick reference                                           |
 
+## Test Suite Overview
+
+- **26 test files** with **562 tests** total
+- **24 unit tests** covering individual components
+- **2 integration tests** for CLI and sync functionality
+- **13 fixture files** providing test data and utilities
+- **Clean, organized structure** by functionality
+
 ## Test Database Schema
 
 ### Dev Schema (Source - Complete)

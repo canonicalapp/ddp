@@ -2,11 +2,11 @@
  * Unit tests for ConstraintOperations edge cases and error handling
  */
 
-import { ConstraintOperations } from '../../../../../src/sync/operations/constraints.ts';
+import { ConstraintOperations } from '../../../../src/sync/operations/constraints.ts';
 import {
   createMockClient,
   createMockOptions,
-} from '../../../../fixtures/testUtils.ts';
+} from '../../../fixtures/testUtils.ts';
 
 describe('ConstraintOperations - Edge Cases and Error Handling', () => {
   let constraintOps;

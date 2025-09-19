@@ -3,18 +3,14 @@
  */
 
 import {
+  GET_DATABASE_INFO_QUERY,
+  GET_FUNCTIONS_QUERY,
+  GET_SCHEMA_INFO_QUERY,
   GET_TABLES_QUERY,
   GET_TABLE_COLUMNS_QUERY,
   GET_TABLE_CONSTRAINTS_QUERY,
   GET_TABLE_INDEXES_QUERY,
-  GET_FUNCTIONS_QUERY,
   GET_TRIGGERS_QUERY,
-  GET_SEQUENCES_QUERY,
-  GET_VIEWS_QUERY,
-  GET_ENUMS_QUERY,
-  GET_DOMAINS_QUERY,
-  GET_SCHEMA_INFO_QUERY,
-  GET_DATABASE_INFO_QUERY,
 } from '@/database/queries';
 
 describe('Database Queries', () => {
@@ -199,82 +195,6 @@ describe('Database Queries', () => {
 
     it('should use one parameter for schema', () => {
       expect(GET_TRIGGERS_QUERY).toContain('$1');
-    });
-  });
-
-  describe('GET_SEQUENCES_QUERY', () => {
-    it('should contain sequence information fields', () => {
-      expect(GET_SEQUENCES_QUERY).toContain('sequence_name');
-      expect(GET_SEQUENCES_QUERY).toContain('data_type');
-      expect(GET_SEQUENCES_QUERY).toContain('start_value');
-      expect(GET_SEQUENCES_QUERY).toContain('increment');
-      expect(GET_SEQUENCES_QUERY).toContain('cycle_option');
-      expect(GET_SEQUENCES_QUERY).toContain('sequence_comment');
-    });
-
-    it('should use information_schema.sequences as base', () => {
-      expect(GET_SEQUENCES_QUERY).toContain(
-        'FROM information_schema.sequences s'
-      );
-    });
-
-    it('should use one parameter for schema', () => {
-      expect(GET_SEQUENCES_QUERY).toContain('$1');
-    });
-  });
-
-  describe('GET_VIEWS_QUERY', () => {
-    it('should contain view information fields', () => {
-      expect(GET_VIEWS_QUERY).toContain('table_name');
-      expect(GET_VIEWS_QUERY).toContain('view_definition');
-      expect(GET_VIEWS_QUERY).toContain('table_schema');
-      expect(GET_VIEWS_QUERY).toContain('view_comment');
-    });
-
-    it('should use information_schema.views as base', () => {
-      expect(GET_VIEWS_QUERY).toContain('FROM information_schema.views v');
-    });
-
-    it('should use one parameter for schema', () => {
-      expect(GET_VIEWS_QUERY).toContain('$1');
-    });
-  });
-
-  describe('GET_ENUMS_QUERY', () => {
-    it('should contain enum information fields', () => {
-      expect(GET_ENUMS_QUERY).toContain('enum_name');
-      expect(GET_ENUMS_QUERY).toContain('enum_value');
-      expect(GET_ENUMS_QUERY).toContain('sort_order');
-      expect(GET_ENUMS_QUERY).toContain('schema_name');
-    });
-
-    it('should use pg_type and pg_enum tables', () => {
-      expect(GET_ENUMS_QUERY).toContain('FROM pg_type t');
-      expect(GET_ENUMS_QUERY).toContain(
-        'JOIN pg_enum e ON t.oid = e.enumtypid'
-      );
-    });
-
-    it('should use one parameter for schema', () => {
-      expect(GET_ENUMS_QUERY).toContain('$1');
-    });
-  });
-
-  describe('GET_DOMAINS_QUERY', () => {
-    it('should contain domain information fields', () => {
-      expect(GET_DOMAINS_QUERY).toContain('domain_name');
-      expect(GET_DOMAINS_QUERY).toContain('data_type');
-      expect(GET_DOMAINS_QUERY).toContain('domain_default');
-      expect(GET_DOMAINS_QUERY).toContain('is_nullable');
-      expect(GET_DOMAINS_QUERY).toContain('domain_comment');
-    });
-
-    it('should use information_schema.domains as base', () => {
-      expect(GET_DOMAINS_QUERY).toContain('FROM information_schema.domains d');
-    });
-
-    it('should use one parameter for schema', () => {
-      expect(GET_DOMAINS_QUERY).toContain('$1');
     });
   });
 

@@ -158,50 +158,90 @@ TARGET_DB_SCHEMA=public
 ```
 ddp/
 ├── src/
-│   ├── cli.js                    # Main CLI entry point
+│   ├── cli.ts                    # Main CLI entry point
 │   ├── commands/
-│   │   ├── gen/                  # Schema generation command
-│   │   │   ├── index.js         # Gen command handler
-│   │   │   ├── procs.js         # Procedures generation
-│   │   │   ├── schema.js        # Schema generation
-│   │   │   └── triggers.js      # Triggers generation
-│   │   └── sync/                 # Schema synchronization command
-│   │       ├── index.js         # Sync command handler
-│   │       └── database.js      # Database comparison logic
+│   │   ├── gen/
+│   │   │   └── index.ts         # Gen command handler
+│   │   └── sync/
+│   │       └── index.ts         # Sync command handler
 │   ├── generators/               # Schema generation modules
-│   │   ├── baseGenerator.js     # Base generator class
-│   │   ├── procsGenerator.js    # Procedures generator
-│   │   ├── schemaGenerator.js   # Schema generator
-│   │   └── triggersGenerator.js # Triggers generator
+│   │   ├── baseGenerator.ts     # Base generator class
+│   │   ├── procsGenerator.ts    # Procedures generator
+│   │   ├── schemaGenerator.ts   # Schema generator
+│   │   └── triggersGenerator.ts # Triggers generator
 │   ├── sync/                     # Schema synchronization modules
-│   │   ├── orchestrator.js      # Main sync orchestrator
+│   │   ├── orchestrator.ts      # Main sync orchestrator
+│   │   ├── fileSyncOrchestrator.ts # File sync orchestrator
+│   │   ├── repoIntegration.ts   # Repository integration
 │   │   └── operations/          # Individual operation modules
-│   │       ├── columns.js       # Column operations
-│   │       ├── constraints.js   # Constraint operations
-│   │       ├── functions.js     # Function operations
-│   │       ├── indexes.js       # Index operations
-│   │       ├── tables.js        # Table operations
-│   │       └── triggers.js      # Trigger operations
+│   │       ├── columns.ts       # Column operations
+│   │       ├── constraints.ts   # Constraint operations
+│   │       ├── functions.ts     # Function operations
+│   │       ├── indexes.ts       # Index operations
+│   │       ├── tables.ts        # Table operations
+│   │       └── triggers.ts      # Trigger operations
 │   ├── database/                 # Database layer
-│   │   ├── connection.js        # Database connections
-│   │   ├── introspection.js     # Schema introspection
-│   │   └── queries.js           # Database queries
-│   ├── file/                     # File operations
-│   │   ├── generator.js         # File generation
-│   │   └── output.js            # Output management
+│   │   ├── connection.ts        # Database connections
+│   │   ├── introspection.ts     # Schema introspection
+│   │   └── queries.ts           # Database queries
 │   ├── utils/                    # Shared utilities
-│   │   ├── comparison.js        # Comparison utilities
-│   │   ├── formatting.js        # Formatting utilities
-│   │   ├── naming.js            # Naming conventions
-│   │   ├── preservation.js      # Data preservation
-│   │   └── validation.js        # Validation utilities
-│   └── types/                    # Type definitions
-│       └── index.js             # Type definitions
-├── tests/                        # Comprehensive test suite
-│   ├── unit/                     # Unit tests
-│   ├── integration/              # Integration tests
-│   ├── e2e/                      # End-to-end tests
-│   └── fixtures/                 # Test fixtures
+│   │   ├── constraintDefinitions.ts # Constraint definitions
+│   │   ├── constraintHandlers.ts    # Constraint handlers
+│   │   └── formatting.ts        # Formatting utilities
+│   └── types/                    # Type definitions (11 files)
+│       ├── app.ts               # Application types
+│       ├── cli.ts               # CLI types
+│       ├── database.ts          # Database types
+│       ├── environment.ts       # Environment types
+│       ├── errors.ts            # Error types
+│       ├── file.ts              # File types
+│       ├── generator.ts         # Generator types
+│       ├── index.ts             # Main type exports
+│       ├── sync.ts              # Sync types
+│       ├── utils.ts             # Utility types
+│       └── validation.ts        # Validation types
+├── tests/                        # Comprehensive test suite (26 test files)
+│   ├── unit/                     # Unit tests (24 files)
+│   │   ├── cli.test.ts          # CLI unit tests
+│   │   ├── commands/
+│   │   │   └── gen.test.ts      # Generation command tests
+│   │   ├── database/            # Database layer tests
+│   │   │   ├── connection.test.ts
+│   │   │   ├── introspection.test.ts
+│   │   │   └── queries.test.ts
+│   │   ├── generators/          # Generator tests
+│   │   │   ├── baseGenerator.test.ts
+│   │   │   ├── procsGenerator.test.ts
+│   │   │   ├── schemaGenerator.test.ts
+│   │   │   └── triggersGenerator.test.ts
+│   │   ├── sync/                # Sync functionality tests
+│   │   │   ├── orchestrator.test.ts
+│   │   │   ├── fileSyncOrchestrator.test.ts
+│   │   │   ├── operations/      # Individual operation tests
+│   │   │   │   ├── columns.test.ts
+│   │   │   │   ├── constraints.test.ts
+│   │   │   │   ├── functions.test.ts
+│   │   │   │   ├── indexes.test.ts
+│   │   │   │   ├── tables.test.ts
+│   │   │   │   └── triggers.test.ts
+│   │   │   └── constraintOperations/ # Constraint-specific tests
+│   │   │       ├── basicOperations.test.ts
+│   │   │       ├── constraintComparison.test.ts
+│   │   │       ├── constraintGeneration.test.ts
+│   │   │       ├── edgeCases.test.ts
+│   │   │       └── indexOperations.test.ts
+│   │   ├── utils/
+│   │   │   └── formatting.test.ts
+│   │   └── edgeCases.test.ts    # Edge case testing
+│   ├── integration/              # Integration tests (2 files)
+│   │   ├── commands/
+│   │   │   └── cli.test.ts      # CLI integration tests
+│   │   └── sync/
+│   │       └── orchestrator.test.ts # Sync integration tests
+│   └── fixtures/                 # Test fixtures (13 files)
+│       ├── constraintOperations/ # Constraint test data
+│       ├── mocks/               # Mock implementations
+│       └── *.ts                 # Test utilities and data
 ├── test-database-setup.sql       # Test database setup script
 ├── test-runner.sh                # Automated test runner script
 ├── docs/                         # Documentation
@@ -367,22 +407,27 @@ npm run test:clean
 
 ### Testing
 
-DDP includes a comprehensive test suite with **91.59% code coverage**:
+DDP includes a comprehensive test suite with **562 tests across 26 test files**:
 
 ```bash
-# Run all tests (348 tests across 15 files)
+# Run all tests (562 tests across 26 files)
 npm test
 
 # Run specific test suites
-npm run test:unit        # Unit tests
-npm run test:integration # Integration tests
-npm run test:e2e         # End-to-end tests
+npm run test:unit        # Unit tests (24 files)
+npm run test:integration # Integration tests (2 files)
 
 # Run with coverage
 npm run test:coverage
 
-# Run tests and cleanup
-npm run test:clean
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with verbose output
+npm run test:verbose
+
+# Run tests for CI
+npm run test:ci
 ```
 
 #### Manual Testing
@@ -464,8 +509,10 @@ For support, questions, or feature requests, please open an issue on the GitHub 
 - Initial release
 - Schema generation from live databases
 - Schema synchronization between databases
-- Comprehensive test suite (91.59% coverage)
+- Comprehensive test suite (562 tests across 26 files)
 - Data preservation strategy
 - CLI interface with full argument parsing
 - Environment variable support
-- Modular architecture
+- Modular TypeScript architecture
+- Clean, organized test structure
+- Complete type safety with TypeScript

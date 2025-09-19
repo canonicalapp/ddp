@@ -4,8 +4,8 @@
  */
 
 // Import all feature-specific test suites
-import './constraintOperations/basicOperations.test.ts';
-import './constraintOperations/constraintGeneration.test.ts';
-import './constraintOperations/indexOperations.test.ts';
-import './constraintOperations/constraintComparison.test.ts';
-import './constraintOperations/edgeCases.test.ts';
+import '../constraintOperations/basicOperations.test.ts';
+import '../constraintOperations/constraintGeneration.test.ts';
+import '../constraintOperations/indexOperations.test.ts';
+import '../constraintOperations/constraintComparison.test.ts';
+import '../constraintOperations/edgeCases.test.ts';
