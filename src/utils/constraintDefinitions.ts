@@ -15,6 +15,7 @@ interface IConstraintRow {
   foreign_column_name: TNullable<string>;
   update_rule: TNullable<string>;
   delete_rule: TNullable<string>;
+  check_clause?: TNullable<string>;
 }
 
 interface IConstraintClauseParams {
@@ -24,6 +25,7 @@ interface IConstraintClauseParams {
   foreignColumnName?: TNullable<string>;
   updateRule?: TNullable<string>;
   deleteRule?: TNullable<string>;
+  checkClause?: TNullable<string>;
   targetSchema: string;
 }
 
@@ -54,7 +56,8 @@ export class ConstraintDefinitions {
           ccu.table_name AS foreign_table_name,
           ccu.column_name AS foreign_column_name,
           rc.update_rule,
-          rc.delete_rule
+          rc.delete_rule,
+          cc.check_clause
         FROM information_schema.table_constraints tc
         LEFT JOIN information_schema.key_column_usage kcu 
           ON tc.constraint_name = kcu.constraint_name
@@ -62,6 +65,8 @@ export class ConstraintDefinitions {
           ON ccu.constraint_name = tc.constraint_name
         LEFT JOIN information_schema.referential_constraints rc
           ON tc.constraint_name = rc.constraint_name
+        LEFT JOIN information_schema.check_constraints cc
+          ON tc.constraint_name = cc.constraint_name
         WHERE tc.table_schema = $1 
         AND tc.constraint_name = $2
         AND tc.table_name = $3
@@ -119,8 +124,15 @@ export class ConstraintDefinitions {
         return clause;
       }
 
-      case 'CHECK':
-        return ` CHECK (/* TODO: Add check condition */)`;
+      case 'CHECK': {
+        if (!params.checkClause) {
+          return ` /* TODO: CHECK constraint missing condition */`;
+        }
+        return ` CHECK (${params.checkClause})`;
+      }
+
+      case 'EXCLUDE':
+        return ` EXCLUDE (${columns})`;
 
       default:
         return ` /* TODO: Unsupported constraint type: ${constraintType} */`;
@@ -134,6 +146,7 @@ export class ConstraintDefinitions {
     devConstraint: IConstraintRow,
     prodConstraint: IConstraintRow
   ): boolean {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!devConstraint || !prodConstraint) {
       return false;
     }
@@ -192,6 +205,7 @@ export class ConstraintDefinitions {
       foreign_column_name,
       update_rule,
       delete_rule,
+      check_clause,
     } = firstRow;
 
     // Get all columns for multi-column constraints
@@ -208,6 +222,7 @@ export class ConstraintDefinitions {
       foreignColumnName: foreign_column_name,
       updateRule: update_rule,
       deleteRule: delete_rule,
+      checkClause: check_clause ?? null,
       targetSchema,
     });
 

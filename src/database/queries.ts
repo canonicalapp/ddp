@@ -7,7 +7,7 @@
  * Get all tables in a schema with basic metadata
  */
 export const GET_TABLES_QUERY = `
-  SELECT 
+  SELECT DISTINCT
     t.table_name,
     t.table_type,
     t.table_schema,
@@ -154,6 +154,27 @@ export const GET_FUNCTIONS_QUERY = `
   WHERE n.nspname = $1
     AND p.prokind IN ('f', 'p') -- 'f' = function, 'p' = procedure
   ORDER BY p.proname;
+`;
+
+/**
+ * Get function parameters from information_schema.parameters
+ */
+export const GET_FUNCTION_PARAMETERS_QUERY = `
+  SELECT 
+    p.specific_name,
+    p.parameter_name,
+    p.data_type,
+    p.parameter_mode,
+    p.parameter_default,
+    p.ordinal_position,
+    proc.proname as function_name
+  FROM information_schema.parameters p
+  JOIN pg_proc proc ON p.specific_name LIKE '%_' || proc.oid::text
+  JOIN pg_namespace n ON proc.pronamespace = n.oid
+  WHERE p.specific_schema = $1
+    AND p.parameter_name IS NOT NULL
+    AND n.nspname = $1
+  ORDER BY proc.proname, p.ordinal_position;
 `;
 
 /**

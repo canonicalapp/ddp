@@ -10,6 +10,7 @@ import {
   GET_DOMAINS_QUERY,
   GET_ENUMS_QUERY,
   GET_FUNCTIONS_QUERY,
+  GET_FUNCTION_PARAMETERS_QUERY,
   GET_SCHEMA_INFO_QUERY,
   GET_SEQUENCES_QUERY,
   GET_TABLES_QUERY,
@@ -98,6 +99,16 @@ export interface IFunctionInfo {
   function_comment: string;
 }
 
+export interface IFunctionParameterInfo {
+  specific_name: string;
+  parameter_name: string;
+  data_type: string;
+  parameter_mode: string;
+  parameter_default: string | null;
+  ordinal_position: number;
+  function_name: string;
+}
+
 export interface ITriggerInfo {
   trigger_name: string;
   event_manipulation: string;
@@ -182,6 +193,16 @@ export class IntrospectionService {
    */
   async getFunctions(): Promise<IFunctionInfo[]> {
     const result = await this.client.query(GET_FUNCTIONS_QUERY, [this.schema]);
+    return result.rows;
+  }
+
+  /**
+   * Get function parameters for all functions in the schema
+   */
+  async getFunctionParameters(): Promise<IFunctionParameterInfo[]> {
+    const result = await this.client.query(GET_FUNCTION_PARAMETERS_QUERY, [
+      this.schema,
+    ]);
     return result.rows;
   }
 

@@ -55,12 +55,13 @@ export class ProcsGenerator extends BaseGenerator {
 
     console.log('⚙️  Discovering functions and procedures...');
     const functionsData = await this.introspection.getFunctions();
+    const parametersData = await this.introspection.getFunctionParameters();
 
     console.log(`   Found ${functionsData.length} functions/procedures`);
 
     // Convert introspection data to generator types
-    const functions = functionsData.map(
-      this.convertToFunctionDefinition.bind(this)
+    const functions = functionsData.map(funcData =>
+      this.convertToFunctionDefinition(funcData, parametersData)
     );
 
     const content = await this.generateProcsSQL(functions);
@@ -120,12 +121,26 @@ export class ProcsGenerator extends BaseGenerator {
   }
 
   private convertToFunctionDefinition(
-    funcData: TUnknownOrAny
+    funcData: TUnknownOrAny,
+    parametersData: TUnknownOrAny[]
   ): IFunctionDefinition {
+    // Get parameters for this specific function
+    const functionParameters = parametersData.filter(
+      param => param.function_name === funcData.function_name
+    );
+
+    // Convert parameters to IFunctionParameter format
+    const parameters = functionParameters.map(param => ({
+      name: param.parameter_name,
+      type: param.data_type,
+      mode: this.mapParameterMode(param.parameter_mode),
+      defaultValue: param.parameter_default ?? undefined,
+    }));
+
     return {
       name: funcData.function_name ?? 'unknown_function',
       schema: this.schema,
-      parameters: [], // TODO: Parse parameters from arguments
+      parameters,
       returnType: funcData.return_type ?? 'void',
       language: funcData.language_name ?? 'plpgsql',
       body: funcData.function_body ?? '-- Function body not available',
@@ -138,6 +153,24 @@ export class ProcsGenerator extends BaseGenerator {
       security: funcData.security_definer ? 'DEFINER' : 'INVOKER',
       comment: funcData.function_comment ?? undefined,
     };
+  }
+
+  /**
+   * Map parameter mode from information_schema to our interface
+   */
+  private mapParameterMode(mode: string): 'IN' | 'OUT' | 'INOUT' | 'VARIADIC' {
+    switch (mode.toUpperCase()) {
+      case 'IN':
+        return 'IN';
+      case 'OUT':
+        return 'OUT';
+      case 'INOUT':
+        return 'INOUT';
+      case 'VARIADIC':
+        return 'VARIADIC';
+      default:
+        return 'IN'; // Default to IN if unknown
+    }
   }
 
   private generateFunctionSQL(func: IFunctionDefinition): string {
