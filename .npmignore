@@ -1,0 +1,55 @@
+# Source files (only include compiled dist)
+src/
+tests/
+test-runner.sh
+test-database-setup.sql
+
+# Development files
+.eslintrc*
+eslint.config.ts
+jest.config.ts
+tsconfig.json
+tsconfig.*.json
+
+# Documentation (keep README.md and LICENSE)
+docs/
+*.md
+!README.md
+!LICENSE
+
+# Test and coverage files
+coverage/
+test-output/
+output/
+custom-output/
+*.log
+npm-debug.log*
+
+# Development dependencies and config
+node_modules/
+.git/
+.gitignore
+.husky/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+alter.sql
+alter_*
+schema-sync_*
+*.sql
+!test-database-setup.sql
+
+# Build artifacts that aren't needed
+*.tsbuildinfo

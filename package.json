@@ -1,10 +1,10 @@
 {
-  "name": "ddp",
-  "version": "1.0.0",
+  "name": "@advcomm/ddp",
+  "version": "1.0.1",
   "description": "Declarative Database Provisioning - DDP CLI tool",
   "main": "dist/cli.js",
   "bin": {
-    "ddp": "./dist/cli.js"
+    "ddp": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc && tsc-alias",
@@ -42,11 +42,46 @@
     "clean:logs": "find . -name '*.log' -delete && find . -name 'npm-debug.log*' -delete",
     "clean:coverage": "rm -rf coverage/",
     "clean:build": "rm -rf dist/ && npm run build",
-    "prepare": "husky"
+    "prepare": "husky",
+    "prepublishOnly": "npm run build"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "postgresql",
+    "database",
+    "schema",
+    "migration",
+    "sync",
+    "cli",
+    "ddp",
+    "declarative",
+    "provisioning",
+    "postgres",
+    "sql",
+    "database-management",
+    "schema-generation",
+    "database-sync"
+  ],
+  "author": {
+    "name": "advcomm",
+    "email": "dev2@advcomm.ca"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/canonicalapp/ddp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/canonicalapp/ddp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/canonicalapp/ddp/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "commander": "^14.0.0",
     "find-up": "^7.0.0",

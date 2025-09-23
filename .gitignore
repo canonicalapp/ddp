@@ -188,3 +188,4 @@ Thumbs.db
 schema-sync-*.log
 sync-*.log
 .git-*
+.npmrc
