@@ -88,9 +88,15 @@ parse_args() {
                 DB_PASSWORD="$2"
                 shift 2
                 ;;
+            --name)
+                DB_NAME="$2"
+                shift 2
+                ;;
             *)
-                COMMAND="$1"
-                shift
+                print_error "Unknown option: $1"
+                echo ""
+                show_usage
+                exit 1
                 ;;
         esac
     done

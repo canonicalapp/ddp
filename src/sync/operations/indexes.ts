@@ -4,17 +4,7 @@
  */
 
 import type { Client } from 'pg';
-
-interface SyncOptions {
-  conn: string;
-  dev: string;
-  prod: string;
-  targetConn: string;
-  output?: string;
-  dryRun?: boolean;
-  save?: boolean;
-  [key: string]: unknown;
-}
+import type { ILegacySyncOptions } from '@/types';
 
 interface IIndexRow {
   schemaname: string;
@@ -32,9 +22,9 @@ interface IParsedIndexDefinition {
 
 export class IndexOperations {
   private client: Client;
-  private options: SyncOptions;
+  private options: ILegacySyncOptions;
 
-  constructor(client: Client, options: SyncOptions) {
+  constructor(client: Client, options: ILegacySyncOptions) {
     this.client = client;
     this.options = options;
   }

@@ -6,7 +6,6 @@
 import { execSync } from 'child_process';
 import { mkdirSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
-import { FileSyncOrchestrator } from './fileSyncOrchestrator';
 
 interface RepoSyncOptions {
   sourceRepo: string;
@@ -72,21 +71,12 @@ export class RepoIntegration {
         throw new Error('Schema files not found in one or both repositories');
       }
 
-      // Execute file-based sync
-      const fileSyncOptions = {
-        sourceDir: sourceSchemaDir,
-        targetDir: targetSchemaDir,
-        output: this.options.output ?? 'alter.sql',
-        dryRun: this.options.dryRun ?? false,
-      };
-
-      const orchestrator = new FileSyncOrchestrator(fileSyncOptions);
-      const result = await orchestrator.execute();
-
-      // Clean up temporary directory
+      // Clean up temporary directory before throwing error
       rmSync(tempDir, { recursive: true });
 
-      return result;
+      throw new Error(
+        'Repository-based file sync has been removed. Please use database sync instead.'
+      );
     } catch (error) {
       console.error('Repository sync execution failed:', error);
       throw error;

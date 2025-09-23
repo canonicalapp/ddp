@@ -171,7 +171,6 @@ ddp/
 │   │   └── triggersGenerator.ts # Triggers generator
 │   ├── sync/                     # Schema synchronization modules
 │   │   ├── orchestrator.ts      # Main sync orchestrator
-│   │   ├── fileSyncOrchestrator.ts # File sync orchestrator
 │   │   ├── repoIntegration.ts   # Repository integration
 │   │   └── operations/          # Individual operation modules
 │   │       ├── columns.ts       # Column operations
@@ -216,7 +215,6 @@ ddp/
 │   │   │   └── triggersGenerator.test.ts
 │   │   ├── sync/                # Sync functionality tests
 │   │   │   ├── orchestrator.test.ts
-│   │   │   ├── fileSyncOrchestrator.test.ts
 │   │   │   ├── operations/      # Individual operation tests
 │   │   │   │   ├── columns.test.ts
 │   │   │   │   ├── constraints.test.ts

@@ -41,7 +41,7 @@ program
 program
   .command('sync')
   .description(
-    'Compare databases or schema files and generate alter.sql to sync target with source'
+    'Compare databases and generate alter.sql to sync target with source'
   )
   .option('--env <path>', 'Path to .env file (default: auto-discover)')
   // Database sync options
@@ -57,15 +57,7 @@ program
   .option('--target-username <user>', 'Target database username')
   .option('--target-password <pass>', 'Target database password')
   .option('--target-schema <name>', 'Target schema name')
-  // File-based sync options
-  .option(
-    '--source-dir <path>',
-    'Source directory containing schema files (schema.sql, procs.sql, triggers.sql)'
-  )
-  .option(
-    '--target-dir <path>',
-    'Target directory containing schema files (schema.sql, procs.sql, triggers.sql)'
-  )
+  // Repository sync options
   .option(
     '--source-repo <url>',
     'Source repository URL for GitHub Actions integration'

@@ -48,7 +48,6 @@ The DDP (Declarative Database Provisioning) application has a comprehensive test
 #### Sync Operations
 
 - `sync/orchestrator.test.ts` - Main sync orchestrator testing
-- `sync/fileSyncOrchestrator.test.ts` - File sync orchestrator testing
 - `sync/operations/columns.test.ts` - Column operations testing
 - `sync/operations/constraints.test.ts` - Constraint operations testing
 - `sync/operations/functions.test.ts` - Function operations testing

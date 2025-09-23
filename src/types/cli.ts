@@ -38,9 +38,7 @@ export interface ISyncCommandOptions {
   targetUsername?: string;
   targetPassword?: string;
   targetSchema?: string;
-  // File-based sync options
-  sourceDir?: string;
-  targetDir?: string;
+  // Repository sync options
   sourceRepo?: string;
   targetRepo?: string;
   sourceBranch?: string;
