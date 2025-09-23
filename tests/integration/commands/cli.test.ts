@@ -49,7 +49,7 @@ describe('CLI Interface', () => {
       const result = await runCLI(['sync', '--help']);
 
       expect(result.stdout).toContain(
-        'Compare databases or schema files and generate alter.sql to sync target with'
+        'Compare databases and generate alter.sql to sync target with source'
       );
       expect(result.stdout).toContain('source');
       expect(result.stdout).toContain('--source-host');

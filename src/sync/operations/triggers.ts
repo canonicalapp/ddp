@@ -4,17 +4,7 @@
  */
 
 import type { Client } from 'pg';
-
-interface SyncOptions {
-  conn: string;
-  dev: string;
-  prod: string;
-  targetConn: string;
-  output?: string;
-  dryRun?: boolean;
-  save?: boolean;
-  [key: string]: unknown;
-}
+import type { ILegacySyncOptions } from '@/types';
 
 interface ITriggerRow {
   trigger_name: string;
@@ -36,9 +26,9 @@ interface ITriggerDefinition {
 
 export class TriggerOperations {
   private client: Client;
-  private options: SyncOptions;
+  private options: ILegacySyncOptions;
 
-  constructor(client: Client, options: SyncOptions) {
+  constructor(client: Client, options: ILegacySyncOptions) {
     this.client = client;
     this.options = options;
   }

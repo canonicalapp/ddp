@@ -2,7 +2,6 @@ import { readFileSync } from 'fs';
 import { findUp } from 'find-up';
 import { Client } from 'pg';
 import { SchemaSyncOrchestrator } from '@/sync/orchestrator';
-import { FileSyncOrchestrator } from '@/sync/fileSyncOrchestrator';
 import { RepoIntegration } from '@/sync/repoIntegration';
 import type {
   ISyncCommandOptions,
@@ -89,9 +88,6 @@ export const syncCommand = async (
     if (options.sourceRepo && options.targetRepo) {
       // Repository sync mode
       await executeRepoSync(options);
-    } else if (options.sourceDir && options.targetDir) {
-      // File-based sync mode
-      await executeFileSync(options);
     } else {
       // Database sync mode (existing functionality)
       await executeDatabaseSync(options);
@@ -125,28 +121,6 @@ async function executeRepoSync(options: ISyncCommandOptions): Promise<void> {
   };
 
   const orchestrator = new RepoIntegration(repoSyncOptions);
-  await orchestrator.execute();
-}
-
-/**
- * Execute file-based sync
- */
-async function executeFileSync(options: ISyncCommandOptions): Promise<void> {
-  if (!options.sourceDir || !options.targetDir) {
-    console.error(
-      'Error: Both --source-dir and --target-dir are required for file-based sync'
-    );
-    process.exit(1);
-  }
-
-  const fileSyncOptions = {
-    sourceDir: options.sourceDir,
-    targetDir: options.targetDir,
-    output: options.output ?? 'alter.sql',
-    dryRun: options.dryRun ?? false,
-  };
-
-  const orchestrator = new FileSyncOrchestrator(fileSyncOptions);
   await orchestrator.execute();
 }
 
