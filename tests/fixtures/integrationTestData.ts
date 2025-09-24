@@ -87,7 +87,7 @@ export const basicTriggers = [
 ];
 
 // Complex trigger data for testing differences
-export const devTriggersWithDifferences = [
+export const sourceTriggersWithDifferences = [
   {
     trigger_name: 'update_user_timestamp',
     event_manipulation: 'UPDATE',
@@ -108,7 +108,7 @@ export const devTriggersWithDifferences = [
   },
 ];
 
-export const prodTriggersWithDifferences = [
+export const targetTriggersWithDifferences = [
   {
     trigger_name: 'update_user_timestamp',
     event_manipulation: 'UPDATE',
@@ -118,7 +118,7 @@ export const prodTriggersWithDifferences = [
     action_orientation: 'ROW',
     action_condition: null,
   },
-  // audit_user_changes missing in prod
+  // audit_user_changes missing in target
 ];
 
 // Large dataset for performance testing
@@ -137,48 +137,48 @@ export const largeColumnList = Array.from({ length: 500 }, (_, i) => ({
 }));
 
 // Mock responses for different test scenarios
-export const createMockResponses = (devData, prodData) => {
+export const createMockResponses = (sourceData, targetData) => {
   const {
-    tables: devTables = [],
-    columns: devColumns = [],
-    functions: devFunctions = [],
-    constraints: devConstraints = [],
-    triggers: devTriggers = [],
-  } = devData;
+    tables: sourceTables = [],
+    columns: sourceColumns = [],
+    functions: sourceFunctions = [],
+    constraints: sourceConstraints = [],
+    triggers: sourceTriggers = [],
+  } = sourceData;
   const {
-    tables: prodTables = [],
-    columns: prodColumns = [],
-    functions: prodFunctions = [],
-    constraints: prodConstraints = [],
-    triggers: prodTriggers = [],
-  } = prodData;
+    tables: targetTables = [],
+    columns: targetColumns = [],
+    functions: targetFunctions = [],
+    constraints: targetConstraints = [],
+    triggers: targetTriggers = [],
+  } = targetData;
 
   return [
-    { rows: devTables }, // dev tables
-    { rows: prodTables }, // prod tables
-    { rows: devColumns }, // dev columns
-    { rows: prodColumns }, // prod columns
-    { rows: devFunctions }, // dev functions
-    { rows: prodFunctions }, // prod functions
-    { rows: devConstraints }, // dev constraints
-    { rows: prodConstraints }, // prod constraints
-    { rows: devTriggers }, // dev triggers
-    { rows: prodTriggers }, // prod triggers
-    { rows: [] }, // dev indexes
-    { rows: [] }, // prod indexes
+    { rows: sourceTables }, // source tables
+    { rows: targetTables }, // target tables
+    { rows: sourceColumns }, // source columns
+    { rows: targetColumns }, // target columns
+    { rows: sourceFunctions }, // source functions
+    { rows: targetFunctions }, // target functions
+    { rows: sourceConstraints }, // source constraints
+    { rows: targetConstraints }, // target constraints
+    { rows: sourceTriggers }, // source triggers
+    { rows: targetTriggers }, // target triggers
+    { rows: [] }, // source indexes
+    { rows: [] }, // target indexes
   ];
 };
 
 // Test scenarios
 export const identicalSchemasScenario = {
-  dev: {
+  source: {
     tables: basicTables,
     columns: basicColumns,
     functions: basicFunctions,
     constraints: basicConstraints,
     triggers: basicTriggers,
   },
-  prod: {
+  target: {
     tables: basicTables,
     columns: basicColumns,
     functions: basicFunctions,
@@ -188,14 +188,14 @@ export const identicalSchemasScenario = {
 };
 
 export const missingTableScenario = {
-  dev: {
+  source: {
     tables: basicTables,
     columns: basicColumns,
     functions: [],
     constraints: [],
     triggers: [],
   },
-  prod: {
+  target: {
     tables: singleTable,
     columns: simpleColumns,
     functions: [],
@@ -205,7 +205,7 @@ export const missingTableScenario = {
 };
 
 export const functionDifferencesScenario = {
-  dev: {
+  source: {
     tables: [],
     columns: [],
     functions: [
@@ -220,7 +220,7 @@ export const functionDifferencesScenario = {
     constraints: [],
     triggers: [],
   },
-  prod: {
+  target: {
     tables: [],
     columns: [],
     functions: [
@@ -238,31 +238,31 @@ export const functionDifferencesScenario = {
 };
 
 export const triggerDifferencesScenario = {
-  dev: {
+  source: {
     tables: [],
     columns: [],
     functions: [],
     constraints: [],
-    triggers: devTriggersWithDifferences,
+    triggers: sourceTriggersWithDifferences,
   },
-  prod: {
+  target: {
     tables: [],
     columns: [],
     functions: [],
     constraints: [],
-    triggers: prodTriggersWithDifferences,
+    triggers: targetTriggersWithDifferences,
   },
 };
 
 export const performanceTestScenario = {
-  dev: {
+  source: {
     tables: largeTableList,
     columns: largeColumnList,
     functions: [],
     constraints: [],
     triggers: [],
   },
-  prod: {
+  target: {
     tables: largeTableList,
     columns: largeColumnList,
     functions: [],

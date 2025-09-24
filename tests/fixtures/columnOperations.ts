@@ -63,7 +63,7 @@ export const statusColumn = createColumn({
 });
 
 // Test scenarios for column operations
-export const devColumnsForAddTest = [
+export const sourceColumnsForAddTest = [
   createColumn(),
   createColumn({
     column_name: 'email',
@@ -73,11 +73,11 @@ export const devColumnsForAddTest = [
   }),
 ];
 
-export const prodColumnsForAddTest = [createColumn()];
+export const targetColumnsForAddTest = [createColumn()];
 
-export const devColumnsForDropTest = [createColumn()];
+export const sourceColumnsForDropTest = [createColumn()];
 
-export const prodColumnsForDropTest = [
+export const targetColumnsForDropTest = [
   createColumn(),
   createColumn({
     column_name: 'old_column',
@@ -87,7 +87,7 @@ export const prodColumnsForDropTest = [
   }),
 ];
 
-export const devColumnsForModifyTest = [
+export const sourceColumnsForModifyTest = [
   createColumn({
     column_name: 'name',
     data_type: 'character varying',
@@ -95,7 +95,7 @@ export const devColumnsForModifyTest = [
   }),
 ];
 
-export const prodColumnsForModifyTest = [
+export const targetColumnsForModifyTest = [
   createColumn({
     column_name: 'name',
     data_type: 'text',
@@ -103,23 +103,23 @@ export const prodColumnsForModifyTest = [
   }),
 ];
 
-export const devColumnsForIdenticalTest = [createColumn()];
+export const sourceColumnsForIdenticalTest = [createColumn()];
 
-export const prodColumnsForIdenticalTest = [createColumn()];
+export const targetColumnsForIdenticalTest = [createColumn()];
 
 // Edge case data
-export const devColumnsForNewTableTest = [
+export const sourceColumnsForNewTableTest = [
   createColumn(),
   createColumn({
     table_name: 'new_table',
   }),
 ];
 
-export const prodColumnsForNewTableTest = [createColumn()];
+export const targetColumnsForNewTableTest = [createColumn()];
 
-export const devColumnsForOldTableTest = [createColumn()];
+export const sourceColumnsForOldTableTest = [createColumn()];
 
-export const prodColumnsForOldTableTest = [
+export const targetColumnsForOldTableTest = [
   createColumn(),
   createColumn({
     table_name: 'old_table',
@@ -127,13 +127,13 @@ export const prodColumnsForOldTableTest = [
 ];
 
 // Edge case scenarios
-export const devColumnsWithNullName = [
+export const sourceColumnsWithNullName = [
   createColumn({
     column_name: null,
   }),
 ];
 
-export const devColumnsWithSpecialChars = [
+export const sourceColumnsWithSpecialChars = [
   createColumn({
     column_name: 'user-id_with.special@chars',
     data_type: 'text',
@@ -141,9 +141,9 @@ export const devColumnsWithSpecialChars = [
   }),
 ];
 
-export const prodColumnsForSpecialChars = [createColumn()];
+export const targetColumnsForSpecialChars = [createColumn()];
 
-export const devColumnsWithLongName = longColumnName => [
+export const sourceColumnsWithLongName = longColumnName => [
   createColumn({
     column_name: longColumnName,
     data_type: 'text',
@@ -151,9 +151,9 @@ export const devColumnsWithLongName = longColumnName => [
   }),
 ];
 
-export const prodColumnsForLongName = [createColumn()];
+export const targetColumnsForLongName = [createColumn()];
 
-export const devColumnsWithMalformedData = [
+export const sourceColumnsWithMalformedData = [
   createColumn({
     // missing other properties - only has table_name and column_name
     data_type: undefined,
@@ -166,12 +166,12 @@ export const devColumnsWithMalformedData = [
 
 // Column comparison data for different scenarios
 export const dataTypeChangeColumns = {
-  dev: createColumn({
+  source: createColumn({
     column_name: 'name',
     data_type: 'character varying',
     character_maximum_length: 255,
   }),
-  prod: createColumn({
+  target: createColumn({
     column_name: 'name',
     data_type: 'text',
     character_maximum_length: null,
@@ -179,12 +179,12 @@ export const dataTypeChangeColumns = {
 };
 
 export const nullabilityChangeColumns = {
-  dev: createColumn({
+  source: createColumn({
     column_name: 'email',
     data_type: 'text',
     character_maximum_length: null,
   }),
-  prod: createColumn({
+  target: createColumn({
     column_name: 'email',
     data_type: 'text',
     character_maximum_length: null,
@@ -193,25 +193,25 @@ export const nullabilityChangeColumns = {
 };
 
 export const defaultValueChangeColumns = {
-  dev: createColumn({
+  source: createColumn({
     column_name: 'created_at',
     data_type: 'timestamp',
     column_default: 'CURRENT_TIMESTAMP',
   }),
-  prod: createColumn({
+  target: createColumn({
     column_name: 'created_at',
     data_type: 'timestamp',
   }),
 };
 
 export const multipleChangesColumns = {
-  dev: createColumn({
+  source: createColumn({
     column_name: 'status',
     data_type: 'character varying',
     character_maximum_length: 20,
     column_default: "'active'",
   }),
-  prod: createColumn({
+  target: createColumn({
     column_name: 'status',
     data_type: 'text',
     character_maximum_length: null,
@@ -220,12 +220,12 @@ export const multipleChangesColumns = {
 };
 
 export const dropDefaultColumns = {
-  dev: createColumn({
+  source: createColumn({
     column_name: 'updated_at',
     data_type: 'timestamp',
     is_nullable: 'YES',
   }),
-  prod: createColumn({
+  target: createColumn({
     column_name: 'updated_at',
     data_type: 'timestamp',
     is_nullable: 'YES',
@@ -234,12 +234,12 @@ export const dropDefaultColumns = {
 };
 
 export const dropNotNullColumns = {
-  dev: createColumn({
+  source: createColumn({
     column_name: 'description',
     data_type: 'text',
     is_nullable: 'YES',
   }),
-  prod: createColumn({
+  target: createColumn({
     column_name: 'description',
     data_type: 'text',
   }),

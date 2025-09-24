@@ -30,7 +30,7 @@ export const deleteTrigger = createTrigger({
 });
 
 // Test scenarios for trigger operations
-export const devTriggersForAddTest = [
+export const sourceTriggersForAddTest = [
   createTrigger(),
   createTrigger({
     trigger_name: 'new_trigger',
@@ -41,11 +41,11 @@ export const devTriggersForAddTest = [
   }),
 ];
 
-export const prodTriggersForAddTest = [createTrigger()];
+export const targetTriggersForAddTest = [createTrigger()];
 
-export const devTriggersForDropTest = [createTrigger()];
+export const sourceTriggersForDropTest = [createTrigger()];
 
-export const prodTriggersForDropTest = [
+export const targetTriggersForDropTest = [
   createTrigger(),
   createTrigger({
     trigger_name: 'old_trigger',
@@ -55,7 +55,7 @@ export const prodTriggersForDropTest = [
   }),
 ];
 
-export const devTriggersForModifyTest = [
+export const sourceTriggersForModifyTest = [
   createTrigger(),
   createTrigger({
     trigger_name: 'audit_user_changes',
@@ -65,7 +65,7 @@ export const devTriggersForModifyTest = [
   }),
 ];
 
-export const prodTriggersForModifyTest = [
+export const targetTriggersForModifyTest = [
   createTrigger(),
   createTrigger({
     trigger_name: 'audit_user_changes',
@@ -75,23 +75,23 @@ export const prodTriggersForModifyTest = [
   }),
 ];
 
-export const devTriggersForIdenticalTest = [createTrigger()];
+export const sourceTriggersForIdenticalTest = [createTrigger()];
 
-export const prodTriggersForIdenticalTest = [createTrigger()];
+export const targetTriggersForIdenticalTest = [createTrigger()];
 
 // Edge case data
-export const devTriggersForNewTableTest = [
+export const sourceTriggersForNewTableTest = [
   createTrigger(),
   createTrigger({
     event_object_table: 'new_table',
   }),
 ];
 
-export const prodTriggersForNewTableTest = [createTrigger()];
+export const targetTriggersForNewTableTest = [createTrigger()];
 
-export const devTriggersForOldTableTest = [createTrigger()];
+export const sourceTriggersForOldTableTest = [createTrigger()];
 
-export const prodTriggersForOldTableTest = [
+export const targetTriggersForOldTableTest = [
   createTrigger(),
   createTrigger({
     event_object_table: 'old_table',
@@ -99,16 +99,16 @@ export const prodTriggersForOldTableTest = [
 ];
 
 // Edge case scenarios
-export const devTriggersWithSpecialChars = [
+export const sourceTriggersWithSpecialChars = [
   createTrigger({
     trigger_name: 'update_user-table_with.special@chars',
     event_object_table: 'user-table_with.special@chars',
   }),
 ];
 
-export const prodTriggersForSpecialChars = [createTrigger()];
+export const targetTriggersForSpecialChars = [createTrigger()];
 
-export const devTriggersWithMalformedData = [
+export const sourceTriggersWithMalformedData = [
   createTrigger({
     // missing other properties
     event_manipulation: undefined,
@@ -119,7 +119,7 @@ export const devTriggersWithMalformedData = [
 ];
 
 // Complex test scenarios
-export const devTriggersComplexTest = [
+export const sourceTriggersComplexTest = [
   createTrigger(),
   createTrigger({
     trigger_name: 'audit_user_changes',
@@ -135,11 +135,11 @@ export const devTriggersComplexTest = [
   }),
 ];
 
-export const prodTriggersComplexTest = [createTrigger()];
+export const targetTriggersComplexTest = [createTrigger()];
 
-export const devTriggersWithOldTriggers = [createTrigger()];
+export const sourceTriggersWithOldTriggers = [createTrigger()];
 
-export const prodTriggersWithOldTriggers = [
+export const targetTriggersWithOldTriggers = [
   createTrigger(),
   createTrigger({
     trigger_name: 'old_trigger1',

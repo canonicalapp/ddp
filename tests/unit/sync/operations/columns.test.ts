@@ -11,28 +11,28 @@ import {
   createColumn,
   dataTypeChangeColumns,
   defaultValueChangeColumns,
-  devColumnsForAddTest,
-  devColumnsForDropTest,
-  devColumnsForIdenticalTest,
-  devColumnsForModifyTest,
-  devColumnsForNewTableTest,
-  devColumnsForOldTableTest,
-  devColumnsWithLongName,
-  devColumnsWithMalformedData,
-  devColumnsWithNullName,
-  devColumnsWithSpecialChars,
+  sourceColumnsForAddTest,
+  sourceColumnsForDropTest,
+  sourceColumnsForIdenticalTest,
+  sourceColumnsForModifyTest,
+  sourceColumnsForNewTableTest,
+  sourceColumnsForOldTableTest,
+  sourceColumnsWithLongName,
+  sourceColumnsWithMalformedData,
+  sourceColumnsWithNullName,
+  sourceColumnsWithSpecialChars,
   dropDefaultColumns,
   dropNotNullColumns,
   multipleChangesColumns,
   nullabilityChangeColumns,
-  prodColumnsForAddTest,
-  prodColumnsForDropTest,
-  prodColumnsForIdenticalTest,
-  prodColumnsForLongName,
-  prodColumnsForModifyTest,
-  prodColumnsForNewTableTest,
-  prodColumnsForOldTableTest,
-  prodColumnsForSpecialChars,
+  targetColumnsForAddTest,
+  targetColumnsForDropTest,
+  targetColumnsForIdenticalTest,
+  targetColumnsForLongName,
+  targetColumnsForModifyTest,
+  targetColumnsForNewTableTest,
+  targetColumnsForOldTableTest,
+  targetColumnsForSpecialChars,
   singleTableColumns,
 } from '../../../fixtures/columnOperations.ts';
 import {
@@ -211,8 +211,8 @@ describe('ColumnOperations', () => {
     it('should generate ALTER COLUMN for data type change', () => {
       const result = columnOps.generateAlterColumnStatement(
         'users',
-        dataTypeChangeColumns.dev,
-        dataTypeChangeColumns.prod
+        dataTypeChangeColumns.source,
+        dataTypeChangeColumns.target
       );
 
       expect(result).toBe(
@@ -223,8 +223,8 @@ describe('ColumnOperations', () => {
     it('should generate ALTER COLUMN for nullability change', () => {
       const result = columnOps.generateAlterColumnStatement(
         'users',
-        nullabilityChangeColumns.dev,
-        nullabilityChangeColumns.prod
+        nullabilityChangeColumns.source,
+        nullabilityChangeColumns.target
       );
 
       expect(result).toBe(
@@ -235,8 +235,8 @@ describe('ColumnOperations', () => {
     it('should generate ALTER COLUMN for default value change', () => {
       const result = columnOps.generateAlterColumnStatement(
         'users',
-        defaultValueChangeColumns.dev,
-        defaultValueChangeColumns.prod
+        defaultValueChangeColumns.source,
+        defaultValueChangeColumns.target
       );
 
       expect(result).toBe(
@@ -247,8 +247,8 @@ describe('ColumnOperations', () => {
     it('should generate ALTER COLUMN for multiple changes', () => {
       const result = columnOps.generateAlterColumnStatement(
         'users',
-        multipleChangesColumns.dev,
-        multipleChangesColumns.prod
+        multipleChangesColumns.source,
+        multipleChangesColumns.target
       );
 
       expect(result).toBe(
@@ -259,8 +259,8 @@ describe('ColumnOperations', () => {
     it('should handle dropping default value', () => {
       const result = columnOps.generateAlterColumnStatement(
         'users',
-        dropDefaultColumns.dev,
-        dropDefaultColumns.prod
+        dropDefaultColumns.source,
+        dropDefaultColumns.target
       );
 
       expect(result).toBe(
@@ -271,8 +271,8 @@ describe('ColumnOperations', () => {
     it('should handle dropping NOT NULL constraint', () => {
       const result = columnOps.generateAlterColumnStatement(
         'products',
-        dropNotNullColumns.dev,
-        dropNotNullColumns.prod
+        dropNotNullColumns.source,
+        dropNotNullColumns.target
       );
 
       expect(result).toBe(
@@ -284,8 +284,8 @@ describe('ColumnOperations', () => {
   describe('generateColumnOperations', () => {
     it('should add missing columns to production', async () => {
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumnsForAddTest })
-        .mockResolvedValueOnce({ rows: prodColumnsForAddTest });
+        .mockResolvedValueOnce({ rows: sourceColumnsForAddTest })
+        .mockResolvedValueOnce({ rows: targetColumnsForAddTest });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -294,15 +294,15 @@ describe('ColumnOperations', () => {
       );
     });
 
-    it('should handle columns to drop in production', async () => {
+    it('should handle columns to drop in target', async () => {
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumnsForDropTest })
-        .mockResolvedValueOnce({ rows: prodColumnsForDropTest });
+        .mockResolvedValueOnce({ rows: sourceColumnsForDropTest })
+        .mockResolvedValueOnce({ rows: targetColumnsForDropTest });
 
       const result = await columnOps.generateColumnOperations();
 
       expect(result).toContain(
-        '-- Column old_column exists in prod but not in dev'
+        '-- Column old_column exists in prod_schema but not in dev_schema'
       );
       expect(result).toContain(
         '-- Renaming column to preserve data before manual drop'
@@ -317,18 +317,22 @@ describe('ColumnOperations', () => {
 
     it('should handle column modifications', async () => {
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumnsForModifyTest })
-        .mockResolvedValueOnce({ rows: prodColumnsForModifyTest });
+        .mockResolvedValueOnce({ rows: sourceColumnsForModifyTest })
+        .mockResolvedValueOnce({ rows: targetColumnsForModifyTest });
 
       const result = await columnOps.generateColumnOperations();
 
       expect(result).toContain('-- Modifying column users.name');
       expect(
         result.some(line =>
-          line.includes('--   Dev: character varying(255) NOT NULL')
+          line.includes(
+            `--   ${mockOptions.source}: character varying(255) NOT NULL`
+          )
         )
       ).toBe(true);
-      expect(result.some(line => line.includes('--   Prod: text'))).toBe(true);
+      expect(
+        result.some(line => line.includes(`--   ${mockOptions.target}: text`))
+      ).toBe(true);
       expect(result).toContain(
         'ALTER TABLE prod_schema.users ALTER COLUMN name TYPE character varying(255) SET NOT NULL;'
       );
@@ -336,8 +340,8 @@ describe('ColumnOperations', () => {
 
     it('should handle identical columns', async () => {
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumnsForIdenticalTest })
-        .mockResolvedValueOnce({ rows: prodColumnsForIdenticalTest });
+        .mockResolvedValueOnce({ rows: sourceColumnsForIdenticalTest })
+        .mockResolvedValueOnce({ rows: targetColumnsForIdenticalTest });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -347,8 +351,8 @@ describe('ColumnOperations', () => {
 
     it('should handle tables that exist only in development', async () => {
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumnsForNewTableTest })
-        .mockResolvedValueOnce({ rows: prodColumnsForNewTableTest });
+        .mockResolvedValueOnce({ rows: sourceColumnsForNewTableTest })
+        .mockResolvedValueOnce({ rows: targetColumnsForNewTableTest });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -356,10 +360,10 @@ describe('ColumnOperations', () => {
       expect(result).not.toContain('new_table');
     });
 
-    it('should handle tables that exist only in production', async () => {
+    it('should handle tables that exist only in target', async () => {
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumnsForOldTableTest })
-        .mockResolvedValueOnce({ rows: prodColumnsForOldTableTest });
+        .mockResolvedValueOnce({ rows: sourceColumnsForOldTableTest })
+        .mockResolvedValueOnce({ rows: targetColumnsForOldTableTest });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -390,7 +394,7 @@ describe('ColumnOperations', () => {
   describe('Edge cases and error handling', () => {
     it('should handle null column names', async () => {
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumnsWithNullName })
+        .mockResolvedValueOnce({ rows: sourceColumnsWithNullName })
         .mockResolvedValueOnce({ rows: [] });
 
       const result = await columnOps.generateColumnOperations();
@@ -399,8 +403,8 @@ describe('ColumnOperations', () => {
 
     it('should handle special characters in column names', async () => {
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumnsWithSpecialChars }) // getColumns for dev
-        .mockResolvedValueOnce({ rows: prodColumnsForSpecialChars }); // getColumns for prod
+        .mockResolvedValueOnce({ rows: sourceColumnsWithSpecialChars }) // getColumns for source
+        .mockResolvedValueOnce({ rows: targetColumnsForSpecialChars }); // getColumns for target
 
       const result = await columnOps.generateColumnOperations();
 
@@ -416,8 +420,10 @@ describe('ColumnOperations', () => {
     it('should handle very long column names', async () => {
       const longColumnName = 'a'.repeat(100);
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumnsWithLongName(longColumnName) }) // getColumns for dev
-        .mockResolvedValueOnce({ rows: prodColumnsForLongName }); // getColumns for prod
+        .mockResolvedValueOnce({
+          rows: sourceColumnsWithLongName(longColumnName),
+        }) // getColumns for source
+        .mockResolvedValueOnce({ rows: targetColumnsForLongName }); // getColumns for target
 
       const result = await columnOps.generateColumnOperations();
 
@@ -432,7 +438,7 @@ describe('ColumnOperations', () => {
 
     it('should handle malformed column data', async () => {
       mockClient.query
-        .mockResolvedValueOnce({ rows: devColumnsWithMalformedData })
+        .mockResolvedValueOnce({ rows: sourceColumnsWithMalformedData })
         .mockResolvedValueOnce({ rows: [] });
 
       // Should not throw, but may produce unexpected results

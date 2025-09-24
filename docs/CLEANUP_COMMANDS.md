@@ -117,7 +117,7 @@ npm run clean:quick
 
 ```bash
 # Generate files
-npm run dev gen -- --schema dev --output ./test-output/dev
+npm run dev gen -- --schema source --output ./test-output/source
 
 # Clean up generated files
 npm run clean:quick
@@ -127,7 +127,7 @@ npm run clean:quick
 
 ```bash
 # Run sync command
-npm run dev sync -- --source-schema dev --target-schema prod
+npm run dev sync -- --source-schema source --target-schema target
 
 # Clean up sync output
 npm run clean:quick

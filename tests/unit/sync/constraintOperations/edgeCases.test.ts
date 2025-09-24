@@ -21,7 +21,7 @@ describe('ConstraintOperations - Edge Cases and Error Handling', () => {
 
   describe('Edge cases and error handling', () => {
     it('should handle null constraint names', async () => {
-      const devConstraints = [
+      const sourceConstraints = [
         {
           table_name: 'users',
           constraint_name: null,
@@ -31,11 +31,11 @@ describe('ConstraintOperations - Edge Cases and Error Handling', () => {
           foreign_column_name: null,
         },
       ];
-      const prodConstraints = [];
+      const targetConstraints = [];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devConstraints })
-        .mockResolvedValueOnce({ rows: prodConstraints });
+        .mockResolvedValueOnce({ rows: sourceConstraints })
+        .mockResolvedValueOnce({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
       expect(result).toBeDefined();
@@ -43,7 +43,7 @@ describe('ConstraintOperations - Edge Cases and Error Handling', () => {
 
     it('should handle constraints with very long names', async () => {
       const longConstraintName = 'a'.repeat(100);
-      const devConstraints = [
+      const sourceConstraints = [
         {
           table_name: 'users',
           constraint_name: longConstraintName,
@@ -53,32 +53,32 @@ describe('ConstraintOperations - Edge Cases and Error Handling', () => {
           foreign_column_name: null,
         },
       ];
-      const prodConstraints = [];
+      const targetConstraints = [];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devConstraints })
-        .mockResolvedValueOnce({ rows: prodConstraints });
+        .mockResolvedValueOnce({ rows: sourceConstraints })
+        .mockResolvedValueOnce({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
       expect(result).toContain(
-        `-- Creating constraint ${longConstraintName} in prod`
+        `-- Creating constraint ${longConstraintName} in prod_schema`
       );
     });
 
     it('should handle malformed constraint data', async () => {
-      const devConstraints = [
+      const sourceConstraints = [
         {
           table_name: 'users',
           constraint_name: 'test_constraint',
           // missing other properties
         },
       ];
-      const prodConstraints = [];
+      const targetConstraints = [];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devConstraints })
-        .mockResolvedValueOnce({ rows: prodConstraints });
+        .mockResolvedValueOnce({ rows: sourceConstraints })
+        .mockResolvedValueOnce({ rows: targetConstraints });
 
       // Should not throw, but may produce unexpected results
       const result = await constraintOps.generateConstraintOperations();
@@ -86,7 +86,7 @@ describe('ConstraintOperations - Edge Cases and Error Handling', () => {
     });
 
     it('should handle constraints with special characters in names', async () => {
-      const devConstraints = [
+      const sourceConstraints = [
         {
           table_name: 'user-table_with.special@chars',
           constraint_name: 'user-table_with.special@chars_pkey',
@@ -96,21 +96,21 @@ describe('ConstraintOperations - Edge Cases and Error Handling', () => {
           foreign_column_name: null,
         },
       ];
-      const prodConstraints = [];
+      const targetConstraints = [];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devConstraints })
-        .mockResolvedValueOnce({ rows: prodConstraints });
+        .mockResolvedValueOnce({ rows: sourceConstraints })
+        .mockResolvedValueOnce({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
       expect(result).toContain(
-        '-- Creating constraint user-table_with.special@chars_pkey in prod'
+        '-- Creating constraint user-table_with.special@chars_pkey in prod_schema'
       );
     });
 
     it('should handle foreign key constraints with null foreign table info', async () => {
-      const devConstraints = [
+      const sourceConstraints = [
         {
           table_name: 'orders',
           constraint_name: 'orders_user_id_fkey',
@@ -120,21 +120,21 @@ describe('ConstraintOperations - Edge Cases and Error Handling', () => {
           foreign_column_name: null,
         },
       ];
-      const prodConstraints = [];
+      const targetConstraints = [];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devConstraints })
-        .mockResolvedValueOnce({ rows: prodConstraints });
+        .mockResolvedValueOnce({ rows: sourceConstraints })
+        .mockResolvedValueOnce({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
       expect(result).toContain(
-        '-- Creating constraint orders_user_id_fkey in prod'
+        '-- Creating constraint orders_user_id_fkey in prod_schema'
       );
     });
 
     it('should handle constraints with null column names', async () => {
-      const devConstraints = [
+      const sourceConstraints = [
         {
           table_name: 'users',
           constraint_name: 'users_pkey',
@@ -144,15 +144,17 @@ describe('ConstraintOperations - Edge Cases and Error Handling', () => {
           foreign_column_name: null,
         },
       ];
-      const prodConstraints = [];
+      const targetConstraints = [];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devConstraints })
-        .mockResolvedValueOnce({ rows: prodConstraints });
+        .mockResolvedValueOnce({ rows: sourceConstraints })
+        .mockResolvedValueOnce({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
-      expect(result).toContain('-- Creating constraint users_pkey in prod');
+      expect(result).toContain(
+        '-- Creating constraint users_pkey in prod_schema'
+      );
     });
   });
 });

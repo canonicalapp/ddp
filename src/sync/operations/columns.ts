@@ -74,26 +74,26 @@ export class ColumnOperations {
    */
   generateAlterColumnStatement(
     tableName: string,
-    devCol: ColumnInfo,
-    prodCol: ColumnInfo
+    sourceCol: ColumnInfo,
+    targetCol: ColumnInfo
   ): string {
-    const devType = devCol.character_maximum_length
-      ? `${devCol.data_type}(${devCol.character_maximum_length})`
-      : devCol.data_type;
-    const prodType = prodCol.character_maximum_length
-      ? `${prodCol.data_type}(${prodCol.character_maximum_length})`
-      : prodCol.data_type;
+    const sourceType = sourceCol.character_maximum_length
+      ? `${sourceCol.data_type}(${sourceCol.character_maximum_length})`
+      : sourceCol.data_type;
+    const targetType = targetCol.character_maximum_length
+      ? `${targetCol.data_type}(${targetCol.character_maximum_length})`
+      : targetCol.data_type;
 
-    let alterColumn = `ALTER TABLE ${this.options.prod}.${tableName} ALTER COLUMN ${devCol.column_name}`;
+    let alterColumn = `ALTER TABLE ${this.options.target}.${tableName} ALTER COLUMN ${sourceCol.column_name}`;
 
     // Handle data type change
-    if (devType !== prodType) {
-      alterColumn += ` TYPE ${devType}`;
+    if (sourceType !== targetType) {
+      alterColumn += ` TYPE ${sourceType}`;
     }
 
     // Handle nullability change
-    if (devCol.is_nullable !== prodCol.is_nullable) {
-      if (devCol.is_nullable === 'NO') {
+    if (sourceCol.is_nullable !== targetCol.is_nullable) {
+      if (sourceCol.is_nullable === 'NO') {
         alterColumn += ' SET NOT NULL';
       } else {
         alterColumn += ' DROP NOT NULL';
@@ -101,9 +101,9 @@ export class ColumnOperations {
     }
 
     // Handle default value change
-    if (devCol.column_default !== prodCol.column_default) {
-      if (devCol.column_default) {
-        alterColumn += ` SET DEFAULT ${devCol.column_default}`;
+    if (sourceCol.column_default !== targetCol.column_default) {
+      if (sourceCol.column_default) {
+        alterColumn += ` SET DEFAULT ${sourceCol.column_default}`;
       } else {
         alterColumn += ' DROP DEFAULT';
       }
@@ -124,16 +124,16 @@ export class ColumnOperations {
       const backupName = Utils.generateBackupName(colToDrop.column_name);
 
       alterStatements.push(
-        `-- Column ${colToDrop.column_name} exists in prod but not in dev`
+        `-- Column ${colToDrop.column_name} exists in ${this.options.target} but not in ${this.options.source}`
       );
       alterStatements.push(
         '-- Renaming column to preserve data before manual drop'
       );
       alterStatements.push(
-        `ALTER TABLE ${this.options.prod}.${tableName} RENAME COLUMN ${colToDrop.column_name} TO ${backupName};`
+        `ALTER TABLE ${this.options.target}.${tableName} RENAME COLUMN ${colToDrop.column_name} TO ${backupName};`
       );
       alterStatements.push(
-        `-- TODO: Manually drop column ${this.options.prod}.${tableName}.${backupName} after confirming data is no longer needed`
+        `-- TODO: Manually drop column ${this.options.target}.${tableName}.${backupName} after confirming data is no longer needed`
       );
     }
   }
@@ -143,31 +143,31 @@ export class ColumnOperations {
    */
   handleColumnModification(
     tableName: string,
-    devCol: ColumnInfo,
-    prodCol: ColumnInfo,
+    sourceCol: ColumnInfo,
+    targetCol: ColumnInfo,
     alterStatements: string[]
   ): void {
-    const devType = Utils.formatDataType(devCol);
-    const prodType = Utils.formatDataType(prodCol);
+    const sourceType = Utils.formatDataType(sourceCol);
+    const targetType = Utils.formatDataType(targetCol);
 
     alterStatements.push(
-      `-- Modifying column ${tableName}.${devCol.column_name}`
+      `-- Modifying column ${tableName}.${sourceCol.column_name}`
     );
     alterStatements.push(
-      `--   Dev: ${devType} ${
-        devCol.is_nullable === 'NO' ? 'NOT NULL' : ''
-      } ${devCol.column_default ? `DEFAULT ${devCol.column_default}` : ''}`
+      `--   ${this.options.source}: ${sourceType} ${
+        sourceCol.is_nullable === 'NO' ? 'NOT NULL' : ''
+      } ${sourceCol.column_default ? `DEFAULT ${sourceCol.column_default}` : ''}`
     );
     alterStatements.push(
-      `--   Prod: ${prodType} ${
-        prodCol.is_nullable === 'NO' ? 'NOT NULL' : ''
-      } ${prodCol.column_default ? `DEFAULT ${prodCol.column_default}` : ''}`
+      `--   ${this.options.target}: ${targetType} ${
+        targetCol.is_nullable === 'NO' ? 'NOT NULL' : ''
+      } ${targetCol.column_default ? `DEFAULT ${targetCol.column_default}` : ''}`
     );
 
     const alterStatement = this.generateAlterColumnStatement(
       tableName,
-      devCol,
-      prodCol
+      sourceCol,
+      targetCol
     );
     alterStatements.push(alterStatement);
   }
@@ -177,35 +177,35 @@ export class ColumnOperations {
    */
   handleColumnsToAddOrModify(
     tableName: string,
-    devTableCols: ColumnInfo[],
-    prodTableCols: ColumnInfo[],
+    sourceTableCols: ColumnInfo[],
+    targetTableCols: ColumnInfo[],
     alterStatements: string[]
   ): void {
-    for (const devCol of devTableCols) {
-      const prodCol = prodTableCols.find(
-        p => p.column_name === devCol.column_name
+    for (const sourceCol of sourceTableCols) {
+      const targetCol = targetTableCols.find(
+        t => t.column_name === sourceCol.column_name
       );
 
-      if (!prodCol) {
-        // Column exists in dev but not in prod - add it
-        const columnDef = this.generateColumnDefinition(devCol);
+      if (!targetCol) {
+        // Column exists in source but not in target - add it
+        const columnDef = this.generateColumnDefinition(sourceCol);
         alterStatements.push(
-          `ALTER TABLE ${this.options.prod}.${tableName} ADD COLUMN ${columnDef};`
+          `ALTER TABLE ${this.options.target}.${tableName} ADD COLUMN ${columnDef};`
         );
       } else {
         // Column exists in both, check for differences
-        const devType = Utils.formatDataType(devCol);
-        const prodType = Utils.formatDataType(prodCol);
+        const sourceType = Utils.formatDataType(sourceCol);
+        const targetType = Utils.formatDataType(targetCol);
 
         if (
-          devType !== prodType ||
-          devCol.is_nullable !== prodCol.is_nullable ||
-          devCol.column_default !== prodCol.column_default
+          sourceType !== targetType ||
+          sourceCol.is_nullable !== targetCol.is_nullable ||
+          sourceCol.column_default !== targetCol.column_default
         ) {
           this.handleColumnModification(
             tableName,
-            devCol,
-            prodCol,
+            sourceCol,
+            targetCol,
             alterStatements
           );
         }
@@ -219,32 +219,32 @@ export class ColumnOperations {
   async generateColumnOperations(): Promise<string[]> {
     const alterStatements: string[] = [];
 
-    const devColumns = await this.getColumns(this.options.dev);
-    const prodColumns = await this.getColumns(this.options.prod);
+    const sourceColumns = await this.getColumns(this.options.source);
+    const targetColumns = await this.getColumns(this.options.target);
 
-    const devColumnsByTable = this.groupColumnsByTable(devColumns);
-    const prodColumnsByTable = this.groupColumnsByTable(prodColumns);
+    const sourceColumnsByTable = this.groupColumnsByTable(sourceColumns);
+    const targetColumnsByTable = this.groupColumnsByTable(targetColumns);
 
     // Find column differences for existing tables
-    for (const tableName of Object.keys(devColumnsByTable)) {
+    for (const tableName of Object.keys(sourceColumnsByTable)) {
       // Only process tables that exist in both schemas
-      if (prodColumnsByTable[tableName]) {
-        const devTableCols = devColumnsByTable[tableName] ?? [];
-        const prodTableCols = prodColumnsByTable[tableName] ?? [];
+      if (targetColumnsByTable[tableName]) {
+        const sourceTableCols = sourceColumnsByTable[tableName] ?? [];
+        const targetTableCols = targetColumnsByTable[tableName] ?? [];
 
-        // Find columns that exist in prod but not in dev (need to be dropped)
-        const columnsToDrop = prodTableCols.filter(
-          prodCol =>
-            !devTableCols.some(
-              devCol => devCol.column_name === prodCol.column_name
+        // Find columns that exist in target but not in source (need to be dropped)
+        const columnsToDrop = targetTableCols.filter(
+          targetCol =>
+            !sourceTableCols.some(
+              sourceCol => sourceCol.column_name === targetCol.column_name
             )
         );
 
         this.handleColumnsToDrop(tableName, columnsToDrop, alterStatements);
         this.handleColumnsToAddOrModify(
           tableName,
-          devTableCols,
-          prodTableCols,
+          sourceTableCols,
+          targetTableCols,
           alterStatements
         );
       }

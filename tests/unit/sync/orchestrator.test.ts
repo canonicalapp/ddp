@@ -85,8 +85,8 @@ describe('SchemaSyncOrchestrator', () => {
       '-- END OF SCHEMA SYNC SCRIPT',
       '-- ===========================================',
     ];
-    Utils.generateOutputFilename = (dev, prod) =>
-      `schema-sync_${dev}-to-${prod}_2024-01-01T00-00-00.sql`;
+    Utils.generateOutputFilename = (source, target) =>
+      `schema-sync_${source}-to-${target}_2024-01-01T00-00-00.sql`;
 
     // Mock fs and path
     global.writeFileSync = () => {};
@@ -138,8 +138,8 @@ describe('SchemaSyncOrchestrator', () => {
         '-- ==========================================='
       );
       expect(result).toContain('-- Schema Sync Script');
-      expect(result).toContain(`-- Dev Schema: ${mockOptions.dev}`);
-      expect(result).toContain(`-- Prod Schema: ${mockOptions.prod}`);
+      expect(result).toContain(`-- Source Schema: ${mockOptions.source}`);
+      expect(result).toContain(`-- Target Schema: ${mockOptions.target}`);
       expect(result.some(line => line.includes('-- Generated:'))).toBe(true);
       expect(result).toContain('-- TABLE OPERATIONS');
       expect(result).toContain('-- COLUMN OPERATIONS');
@@ -468,14 +468,16 @@ describe('SchemaSyncOrchestrator', () => {
     });
 
     it('should handle special characters in schema names', async () => {
-      mockOptions.dev = 'dev-schema_with.special@chars';
-      mockOptions.prod = 'prod-schema_with.special@chars';
+      mockOptions.source = 'source-schema_with.special@chars';
+      mockOptions.target = 'target-schema_with.special@chars';
 
       const result = await orchestrator.generateSyncScript();
 
-      expect(result).toContain('-- Dev Schema: dev-schema_with.special@chars');
       expect(result).toContain(
-        '-- Prod Schema: prod-schema_with.special@chars'
+        '-- Source Schema: source-schema_with.special@chars'
+      );
+      expect(result).toContain(
+        '-- Target Schema: target-schema_with.special@chars'
       );
     });
 

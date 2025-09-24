@@ -215,8 +215,8 @@ CREATE TRIGGER update_users_updated_at
 ```sql
 -- ===========================================
 -- Schema Sync Script
--- Dev Schema: dev
--- Prod Schema: prod
+-- Source Schema: source
+-- Target Schema: target
 -- Generated: 2024-01-15T10:30:45.123Z
 -- ===========================================
 
@@ -224,8 +224,8 @@ CREATE TRIGGER update_users_updated_at
 -- TABLE OPERATIONS
 -- ===========================================
 -- Create missing table orders
-CREATE TABLE prod.orders (
-  "id" integer NOT NULL DEFAULT nextval('dev.orders_id_seq'::regclass),
+CREATE TABLE target.orders (
+  "id" integer NOT NULL DEFAULT nextval('source.orders_id_seq'::regclass),
   "user_id" integer,
   "product_id" integer,
   "quantity" integer DEFAULT 1,
@@ -235,15 +235,15 @@ CREATE TABLE prod.orders (
 -- ===========================================
 -- COLUMN OPERATIONS
 -- ===========================================
-ALTER TABLE prod.products ADD COLUMN "description" text;
-ALTER TABLE prod.users ADD COLUMN "status" character varying(20) DEFAULT 'active'::character varying;
+ALTER TABLE target.products ADD COLUMN "description" text;
+ALTER TABLE target.users ADD COLUMN "status" character varying(20) DEFAULT 'active'::character varying;
 
 -- ===========================================
 -- CONSTRAINT OPERATIONS
 -- ===========================================
--- TODO: Create constraint orders_pkey in prod
+-- TODO: Create constraint orders_pkey in target
 -- Constraint type: PRIMARY KEY
--- TODO: Create constraint orders_product_id_fkey in prod
+-- TODO: Create constraint orders_product_id_fkey in target
 -- Constraint type: FOREIGN KEY
 -- Foreign key: product_id -> products.id
 

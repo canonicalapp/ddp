@@ -39,7 +39,7 @@ export class ConstraintDefinitions {
   }
 
   /**
-   * Get detailed constraint definition from dev schema
+   * Get detailed constraint definition from source schema
    */
   async getConstraintDefinition(
     schemaName: string,
@@ -143,37 +143,37 @@ export class ConstraintDefinitions {
    * Compare two constraint definitions to detect changes
    */
   compareConstraintDefinitions(
-    devConstraint: IConstraintRow,
-    prodConstraint: IConstraintRow
+    sourceConstraint: IConstraintRow,
+    targetConstraint: IConstraintRow
   ): boolean {
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (!devConstraint || !prodConstraint) {
+    if (!sourceConstraint || !targetConstraint) {
       return false;
     }
 
     // Compare key properties that define constraint behavior
-    const devProps = {
-      constraint_type: devConstraint.constraint_type,
-      column_name: devConstraint.column_name,
-      foreign_table_name: devConstraint.foreign_table_name,
-      foreign_column_name: devConstraint.foreign_column_name,
-      update_rule: devConstraint.update_rule,
-      delete_rule: devConstraint.delete_rule,
+    const sourceProps = {
+      constraint_type: sourceConstraint.constraint_type,
+      column_name: sourceConstraint.column_name,
+      foreign_table_name: sourceConstraint.foreign_table_name,
+      foreign_column_name: sourceConstraint.foreign_column_name,
+      update_rule: sourceConstraint.update_rule,
+      delete_rule: sourceConstraint.delete_rule,
     };
 
-    const prodProps = {
-      constraint_type: prodConstraint.constraint_type,
-      column_name: prodConstraint.column_name,
-      foreign_table_name: prodConstraint.foreign_table_name,
-      foreign_column_name: prodConstraint.foreign_column_name,
-      update_rule: prodConstraint.update_rule,
-      delete_rule: prodConstraint.delete_rule,
+    const targetProps = {
+      constraint_type: targetConstraint.constraint_type,
+      column_name: targetConstraint.column_name,
+      foreign_table_name: targetConstraint.foreign_table_name,
+      foreign_column_name: targetConstraint.foreign_column_name,
+      update_rule: targetConstraint.update_rule,
+      delete_rule: targetConstraint.delete_rule,
     };
 
     // Compare each property
-    for (const [key, devValue] of Object.entries(devProps)) {
-      const prodValue = prodProps[key as keyof typeof prodProps];
-      if (devValue !== prodValue) {
+    for (const [key, sourceValue] of Object.entries(sourceProps)) {
+      const targetValue = targetProps[key as keyof typeof targetProps];
+      if (sourceValue !== targetValue) {
         return true; // Found a difference
       }
     }

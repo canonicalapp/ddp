@@ -136,35 +136,37 @@ export class IndexOperations {
   async generateIndexOperations(): Promise<string[]> {
     const alterStatements: string[] = [];
 
-    const devIndexes = await this.getIndexes(this.options.dev);
-    const prodIndexes = await this.getIndexes(this.options.prod);
+    const sourceIndexes = await this.getIndexes(this.options.source);
+    const targetIndexes = await this.getIndexes(this.options.target);
 
-    // Find indexes to drop in prod (exist in prod but not in dev)
-    const indexesToDrop = prodIndexes.filter(
-      p => !devIndexes.some(d => d.indexname === p.indexname)
+    // Find indexes to drop in target (exist in target but not in source)
+    const indexesToDrop = targetIndexes.filter(
+      t => !sourceIndexes.some(s => s.indexname === t.indexname)
     );
 
     for (const index of indexesToDrop) {
       alterStatements.push(
-        `-- Index ${index.indexname} exists in prod but not in dev`
+        `-- Index ${index.indexname} exists in ${this.options.target} but not in ${this.options.source}`
       );
       alterStatements.push(
-        `DROP INDEX ${this.options.prod}.${index.indexname};`
+        `DROP INDEX ${this.options.target}.${index.indexname};`
       );
     }
 
-    // Find indexes to create in prod (exist in dev but not in prod)
-    const indexesToCreate = devIndexes.filter(
-      d => !prodIndexes.some(p => p.indexname === d.indexname)
+    // Find indexes to create in target (exist in source but not in target)
+    const indexesToCreate = sourceIndexes.filter(
+      s => !targetIndexes.some(t => t.indexname === s.indexname)
     );
 
     for (const index of indexesToCreate) {
-      alterStatements.push(`-- Creating index ${index.indexname} in prod`);
+      alterStatements.push(
+        `-- Creating index ${index.indexname} in ${this.options.target}`
+      );
 
       // Generate CREATE statement
       const createStatement = this.generateCreateIndexStatement(
         index.indexdef,
-        this.options.prod
+        this.options.target
       );
 
       alterStatements.push(createStatement);

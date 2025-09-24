@@ -154,8 +154,8 @@ async function executeDatabaseSync(
 
   const syncOptions = {
     conn: sourceConnectionString,
-    dev: sourceDetails.schema ?? 'public',
-    prod: targetDetails.schema ?? 'public',
+    source: sourceDetails.schema ?? 'public',
+    target: targetDetails.schema ?? 'public',
     targetConn: targetConnectionString,
     output: options.output ?? 'alter.sql',
     dryRun: options.dryRun ?? false,

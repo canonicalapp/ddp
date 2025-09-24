@@ -145,11 +145,11 @@ Sync databases on different servers:
 
 ```bash
 ddp sync \
-  --source-host dev-server.company.com \
+  --source-host source-server.company.com \
   --source-database dev_db \
   --source-username dev_user \
   --source-password dev_pass \
-  --target-host prod-server.company.com \
+  --target-host target-server.company.com \
   --target-database prod_db \
   --target-username prod_user \
   --target-password prod_pass \
@@ -203,8 +203,8 @@ Output: alter.sql
 -- TABLE OPERATIONS
 -- ===========================================
 -- Create missing table orders
-CREATE TABLE prod.orders (
-  "id" integer NOT NULL DEFAULT nextval('dev.orders_id_seq'::regclass),
+CREATE TABLE target.orders (
+  "id" integer NOT NULL DEFAULT nextval('source.orders_id_seq'::regclass),
   "user_id" integer,
   "product_id" integer,
   "quantity" integer DEFAULT 1,
@@ -214,7 +214,7 @@ CREATE TABLE prod.orders (
 -- ===========================================
 -- COLUMN OPERATIONS
 -- ===========================================
-ALTER TABLE prod.products ADD COLUMN "description" text;
+ALTER TABLE target.products ADD COLUMN "description" text;
 ```
 
 ## Environment Configuration Examples
@@ -267,28 +267,28 @@ Use different configuration files for different environments:
 
 ```bash
 # Development environment
-ddp gen --env .env.dev
+ddp gen --env .env.source
 
 # Staging environment
 ddp gen --env .env.staging
 
 # Production environment
-ddp gen --env .env.prod
+ddp gen --env .env.target
 ```
 
-**Example .env.dev:**
+**Example .env.source:**
 
 ```env
-DB_HOST=dev-db.company.com
+DB_HOST=source-db.company.com
 DB_NAME=dev_database
 DB_USER=dev_user
 DB_PASSWORD=dev_password
 ```
 
-**Example .env.prod:**
+**Example .env.target:**
 
 ```env
-DB_HOST=prod-db.company.com
+DB_HOST=target-db.company.com
 DB_NAME=prod_database
 DB_USER=prod_user
 DB_PASSWORD=prod_password
@@ -435,12 +435,12 @@ Organize generated files by environment and date:
 
 ```bash
 # Create organized directory structure
-mkdir -p ./schema/$(date +%Y-%m-%d)/{dev,staging,prod}
+mkdir -p ./schema/$(date +%Y-%m-%d)/{source,staging,target}
 
 # Generate schemas for different environments
-ddp gen --env .env.dev --output ./schema/$(date +%Y-%m-%d)/dev
+ddp gen --env .env.source --output ./schema/$(date +%Y-%m-%d)/source
 ddp gen --env .env.staging --output ./schema/$(date +%Y-%m-%d)/staging
-ddp gen --env .env.prod --output ./schema/$(date +%Y-%m-%d)/prod
+ddp gen --env .env.target --output ./schema/$(date +%Y-%m-%d)/target
 ```
 
 ### Automated Schema Comparison
@@ -454,15 +454,15 @@ Create a script to compare schemas across environments:
 echo "Generating schemas for all environments..."
 
 # Generate schemas
-ddp gen --env .env.dev --output ./schemas/dev
+ddp gen --env .env.source --output ./schemas/source
 ddp gen --env .env.staging --output ./schemas/staging
-ddp gen --env .env.prod --output ./schemas/prod
+ddp gen --env .env.target --output ./schemas/target
 
 # Compare schemas
-echo "Comparing dev vs staging..."
-ddp sync --env .env.dev --target-database staging_db --output dev_to_staging.sql
+echo "Comparing source vs staging..."
+ddp sync --env .env.source --target-database staging_db --output dev_to_staging.sql
 
-echo "Comparing staging vs prod..."
+echo "Comparing staging vs target..."
 ddp sync --env .env.staging --target-database prod_db --output staging_to_prod.sql
 
 echo "Schema comparison complete!"
@@ -482,11 +482,11 @@ echo "Starting database migration workflow..."
 
 # 1. Generate current schema
 echo "Step 1: Generating current schema..."
-ddp gen --env .env.prod --output ./backup/schema_before_$(date +%Y%m%d_%H%M%S)
+ddp gen --env .env.target --output ./backup/schema_before_$(date +%Y%m%d_%H%M%S)
 
 # 2. Generate migration script
 echo "Step 2: Generating migration script..."
-ddp sync --env .env.dev --target-database prod_db --output migration_$(date +%Y%m%d_%H%M%S).sql
+ddp sync --env .env.source --target-database prod_db --output migration_$(date +%Y%m%d_%H%M%S).sql
 
 # 3. Review migration script
 echo "Step 3: Please review the migration script before proceeding..."
@@ -498,7 +498,7 @@ psql -h $PROD_DB_HOST -U $PROD_DB_USER -d $PROD_DB_NAME -f migration_$(date +%Y%
 
 # 5. Verify migration
 echo "Step 5: Verifying migration..."
-ddp gen --env .env.prod --output ./backup/schema_after_$(date +%Y%m%d_%H%M%S)
+ddp gen --env .env.target --output ./backup/schema_after_$(date +%Y%m%d_%H%M%S)
 
 echo "Migration workflow complete!"
 ```
