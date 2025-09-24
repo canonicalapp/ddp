@@ -4,7 +4,7 @@
 
 import { ConstraintOperations } from '../../../../src/sync/operations/constraints.ts';
 import {
-  devConstraintsWithSpecialChars,
+  sourceConstraintsWithSpecialChars,
   foreignKeyConstraint,
   primaryKeyConstraint,
 } from '../../../fixtures/constraintOperations/basicConstraints.ts';
@@ -85,7 +85,7 @@ describe('ConstraintOperations - Basic Operations', () => {
     });
 
     it('should handle constraints with special characters in names', async () => {
-      const mockConstraints = devConstraintsWithSpecialChars;
+      const mockConstraints = sourceConstraintsWithSpecialChars;
 
       mockClient.query.mockResolvedValue({ rows: mockConstraints });
 

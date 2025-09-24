@@ -54,7 +54,7 @@ export class TriggerOperations {
   }
 
   /**
-   * Get detailed trigger definition from dev schema
+   * Get detailed trigger definition from source schema
    */
   async getTriggerDefinition(
     schemaName: string,
@@ -102,34 +102,34 @@ export class TriggerOperations {
    * Compare two trigger definitions to detect changes
    */
   compareTriggerDefinitions(
-    devTrigger: ITriggerDefinition,
-    prodTrigger: ITriggerDefinition
+    sourceTrigger: ITriggerDefinition,
+    targetTrigger: ITriggerDefinition
   ): boolean {
-    if (!devTrigger || !prodTrigger) {
+    if (!sourceTrigger || !targetTrigger) {
       return false;
     }
 
     // Compare key properties that define trigger behavior
-    const devProps = {
-      event_manipulation: devTrigger.event_manipulation,
-      action_timing: devTrigger.action_timing,
-      action_statement: devTrigger.action_statement,
-      action_orientation: devTrigger.action_orientation,
-      action_condition: devTrigger.action_condition,
+    const sourceProps = {
+      event_manipulation: sourceTrigger.event_manipulation,
+      action_timing: sourceTrigger.action_timing,
+      action_statement: sourceTrigger.action_statement,
+      action_orientation: sourceTrigger.action_orientation,
+      action_condition: sourceTrigger.action_condition,
     };
 
-    const prodProps = {
-      event_manipulation: prodTrigger.event_manipulation,
-      action_timing: prodTrigger.action_timing,
-      action_statement: prodTrigger.action_statement,
-      action_orientation: prodTrigger.action_orientation,
-      action_condition: prodTrigger.action_condition,
+    const targetProps = {
+      event_manipulation: targetTrigger.event_manipulation,
+      action_timing: targetTrigger.action_timing,
+      action_statement: targetTrigger.action_statement,
+      action_orientation: targetTrigger.action_orientation,
+      action_condition: targetTrigger.action_condition,
     };
 
     // Compare each property
-    for (const [key, devValue] of Object.entries(devProps)) {
-      const prodValue = prodProps[key as keyof typeof prodProps];
-      if (devValue !== prodValue) {
+    for (const [key, sourceValue] of Object.entries(sourceProps)) {
+      const targetValue = targetProps[key as keyof typeof targetProps];
+      if (sourceValue !== targetValue) {
         return true; // Found a difference
       }
     }
@@ -180,53 +180,53 @@ export class TriggerOperations {
   }
 
   /**
-   * Handle triggers to drop in production
+   * Handle triggers to drop in target
    */
   async handleTriggersToDrop(
-    devTriggers: ITriggerRow[],
-    prodTriggers: ITriggerRow[],
+    sourceTriggers: ITriggerRow[],
+    targetTriggers: ITriggerRow[],
     alterStatements: string[]
   ): Promise<void> {
-    const triggersToDrop = prodTriggers.filter(
-      p => !devTriggers.some(d => d.trigger_name === p.trigger_name)
+    const triggersToDrop = targetTriggers.filter(
+      p => !sourceTriggers.some(d => d.trigger_name === p.trigger_name)
     );
 
     for (const trigger of triggersToDrop) {
       alterStatements.push(
-        `-- Trigger ${trigger.trigger_name} exists in prod but not in dev`
+        `-- Trigger ${trigger.trigger_name} exists in ${this.options.target} but not in ${this.options.source}`
       );
       alterStatements.push(
-        `DROP TRIGGER IF EXISTS ${trigger.trigger_name} ON ${this.options.prod}.${trigger.event_object_table};`
+        `DROP TRIGGER IF EXISTS ${trigger.trigger_name} ON ${this.options.target}.${trigger.event_object_table};`
       );
     }
   }
 
   /**
-   * Handle triggers to create in production
+   * Handle triggers to create in target
    */
   async handleTriggersToCreate(
-    devTriggers: ITriggerRow[],
-    prodTriggers: ITriggerRow[],
+    sourceTriggers: ITriggerRow[],
+    targetTriggers: ITriggerRow[],
     alterStatements: string[]
   ): Promise<void> {
-    const triggersToCreate = devTriggers.filter(
-      d => !prodTriggers.some(p => p.trigger_name === d.trigger_name)
+    const triggersToCreate = sourceTriggers.filter(
+      d => !targetTriggers.some(p => p.trigger_name === d.trigger_name)
     );
 
     for (const trigger of triggersToCreate) {
       alterStatements.push(
-        `-- Creating trigger ${trigger.trigger_name} in prod`
+        `-- Creating trigger ${trigger.trigger_name} in ${this.options.target}`
       );
 
       const triggerDefinition = await this.getTriggerDefinition(
-        this.options.dev,
+        this.options.source,
         trigger.trigger_name,
         trigger.event_object_table
       );
 
       const createStatement = this.generateCreateTriggerStatement(
         triggerDefinition,
-        this.options.prod
+        this.options.target
       );
 
       alterStatements.push(createStatement);
@@ -238,62 +238,62 @@ export class TriggerOperations {
    * Handle triggers that have changed
    */
   async handleTriggersToUpdate(
-    devTriggers: ITriggerRow[],
-    prodTriggers: ITriggerRow[],
+    sourceTriggers: ITriggerRow[],
+    targetTriggers: ITriggerRow[],
     alterStatements: string[]
   ): Promise<void> {
     const triggersToUpdate: ITriggerRow[] = [];
 
-    for (const devTrigger of devTriggers) {
-      const prodTrigger = prodTriggers.find(
-        p => p.trigger_name === devTrigger.trigger_name
+    for (const sourceTrigger of sourceTriggers) {
+      const targetTrigger = targetTriggers.find(
+        t => t.trigger_name === sourceTrigger.trigger_name
       );
 
-      if (!prodTrigger) continue;
+      if (!targetTrigger) continue;
 
       // Get detailed definitions for comparison
-      const devDefinition = await this.getTriggerDefinition(
-        this.options.dev,
-        devTrigger.trigger_name,
-        devTrigger.event_object_table
+      const sourceDefinition = await this.getTriggerDefinition(
+        this.options.source,
+        sourceTrigger.trigger_name,
+        sourceTrigger.event_object_table
       );
-      const prodDefinition = await this.getTriggerDefinition(
-        this.options.prod,
-        prodTrigger.trigger_name,
-        prodTrigger.event_object_table
+      const targetDefinition = await this.getTriggerDefinition(
+        this.options.target,
+        targetTrigger.trigger_name,
+        targetTrigger.event_object_table
       );
 
       if (
-        devDefinition &&
-        prodDefinition &&
-        this.compareTriggerDefinitions(devDefinition, prodDefinition)
+        sourceDefinition &&
+        targetDefinition &&
+        this.compareTriggerDefinitions(sourceDefinition, targetDefinition)
       ) {
-        triggersToUpdate.push(devTrigger);
+        triggersToUpdate.push(sourceTrigger);
       }
     }
 
-    for (const devTrigger of triggersToUpdate) {
+    for (const sourceTrigger of triggersToUpdate) {
       alterStatements.push(
-        `-- Trigger ${devTrigger.trigger_name} has changed, updating in prod`
+        `-- Trigger ${sourceTrigger.trigger_name} has changed, updating in ${this.options.target}`
       );
 
-      const oldTriggerName = `${devTrigger.trigger_name}_old_${Date.now()}`;
+      const oldTriggerName = `${sourceTrigger.trigger_name}_old_${Date.now()}`;
       alterStatements.push(
         `-- Renaming old trigger to ${oldTriggerName} for manual review`
       );
       alterStatements.push(
-        `ALTER TRIGGER ${devTrigger.trigger_name} ON ${this.options.prod}.${devTrigger.event_object_table} RENAME TO ${oldTriggerName};`
+        `ALTER TRIGGER ${sourceTrigger.trigger_name} ON ${this.options.target}.${sourceTrigger.event_object_table} RENAME TO ${oldTriggerName};`
       );
 
       const triggerDefinition = await this.getTriggerDefinition(
-        this.options.dev,
-        devTrigger.trigger_name,
-        devTrigger.event_object_table
+        this.options.source,
+        sourceTrigger.trigger_name,
+        sourceTrigger.event_object_table
       );
 
       const createStatement = this.generateCreateTriggerStatement(
         triggerDefinition,
-        this.options.prod
+        this.options.target
       );
 
       alterStatements.push(createStatement);
@@ -307,18 +307,22 @@ export class TriggerOperations {
   async generateTriggerOperations(): Promise<string[]> {
     const alterStatements: string[] = [];
 
-    const devTriggers = await this.getTriggers(this.options.dev);
-    const prodTriggers = await this.getTriggers(this.options.prod);
+    const sourceTriggers = await this.getTriggers(this.options.source);
+    const targetTriggers = await this.getTriggers(this.options.target);
 
-    await this.handleTriggersToDrop(devTriggers, prodTriggers, alterStatements);
+    await this.handleTriggersToDrop(
+      sourceTriggers,
+      targetTriggers,
+      alterStatements
+    );
     await this.handleTriggersToCreate(
-      devTriggers,
-      prodTriggers,
+      sourceTriggers,
+      targetTriggers,
       alterStatements
     );
     await this.handleTriggersToUpdate(
-      devTriggers,
-      prodTriggers,
+      sourceTriggers,
+      targetTriggers,
       alterStatements
     );
 

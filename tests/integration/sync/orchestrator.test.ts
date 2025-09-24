@@ -96,8 +96,8 @@ describe('Main Application Integration', () => {
     it('should perform complete schema comparison workflow', async () => {
       // Use fixture data for identical schemas
       const responses = createMockResponses(
-        identicalSchemasScenario.dev,
-        identicalSchemasScenario.prod
+        identicalSchemasScenario.source,
+        identicalSchemasScenario.target
       );
 
       mockClient.query = createQueryMock(responses);
@@ -112,8 +112,8 @@ describe('Main Application Integration', () => {
     it('should handle schema differences correctly', async () => {
       // Use fixture data for missing table scenario
       const responses = createMockResponses(
-        missingTableScenario.dev,
-        missingTableScenario.prod
+        missingTableScenario.source,
+        missingTableScenario.target
       );
 
       mockClient.query = createQueryMock(responses);
@@ -273,8 +273,8 @@ describe('Main Application Integration', () => {
     it('should handle large schema with many objects', async () => {
       // Use fixture data for performance testing
       const responses = createMockResponses(
-        performanceTestScenario.dev,
-        performanceTestScenario.prod
+        performanceTestScenario.source,
+        performanceTestScenario.target
       );
 
       mockClient.query = createQueryMock(responses);
@@ -297,17 +297,19 @@ describe('Main Application Integration', () => {
     });
 
     it('should handle schemas with special characters', async () => {
-      mockOptions.dev = 'dev-schema_with.special@chars';
-      mockOptions.prod = 'prod-schema_with.special@chars';
+      mockOptions.source = 'source-schema_with.special@chars';
+      mockOptions.target = 'target-schema_with.special@chars';
 
       mockClient.query = () => Promise.resolve({ rows: [] });
 
       const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
       const result = await orchestrator.execute();
 
-      expect(result).toContain('-- Dev Schema: dev-schema_with.special@chars');
       expect(result).toContain(
-        '-- Prod Schema: prod-schema_with.special@chars'
+        '-- Source Schema: source-schema_with.special@chars'
+      );
+      expect(result).toContain(
+        '-- Target Schema: target-schema_with.special@chars'
       );
     });
 
@@ -315,19 +317,19 @@ describe('Main Application Integration', () => {
       const orchestrator1 = new SchemaSyncOrchestrator(mockClient, mockOptions);
       const orchestrator2 = new SchemaSyncOrchestrator(mockClient, mockOptions);
 
-      // Setup for orchestrator1: table1 in dev, nothing in prod
+      // Setup for orchestrator1: table1 in source, nothing in target
       let callCount1 = 0;
       const responses1 = [
-        { rows: [{ table_name: 'table1' }] }, // dev tables
-        { rows: [] }, // prod tables
-        { rows: [] }, // dev columns
-        { rows: [] }, // prod columns
-        { rows: [] }, // dev functions
-        { rows: [] }, // prod functions
-        { rows: [] }, // dev constraints
-        { rows: [] }, // prod constraints
-        { rows: [] }, // dev triggers
-        { rows: [] }, // prod triggers
+        { rows: [{ table_name: 'table1' }] }, // source tables
+        { rows: [] }, // target tables
+        { rows: [] }, // source columns
+        { rows: [] }, // target columns
+        { rows: [] }, // source functions
+        { rows: [] }, // target functions
+        { rows: [] }, // source constraints
+        { rows: [] }, // target constraints
+        { rows: [] }, // source triggers
+        { rows: [] }, // target triggers
       ];
 
       mockClient.query = () => {
@@ -338,19 +340,19 @@ describe('Main Application Integration', () => {
       // Execute each orchestrator with its own mock setup
       const result1 = await orchestrator1.execute();
 
-      // Setup for orchestrator2: nothing in dev, table2 in prod
+      // Setup for orchestrator2: nothing in source, table2 in target
       let callCount2 = 0;
       const responses2 = [
-        { rows: [] }, // dev tables
-        { rows: [{ table_name: 'table2' }] }, // prod tables
-        { rows: [] }, // dev columns
-        { rows: [] }, // prod columns
-        { rows: [] }, // dev functions
-        { rows: [] }, // prod functions
-        { rows: [] }, // dev constraints
-        { rows: [] }, // prod constraints
-        { rows: [] }, // dev triggers
-        { rows: [] }, // prod triggers
+        { rows: [] }, // source tables
+        { rows: [{ table_name: 'table2' }] }, // target tables
+        { rows: [] }, // source columns
+        { rows: [] }, // target columns
+        { rows: [] }, // source functions
+        { rows: [] }, // target functions
+        { rows: [] }, // source constraints
+        { rows: [] }, // target constraints
+        { rows: [] }, // source triggers
+        { rows: [] }, // target triggers
       ];
 
       mockClient.query = () => {
@@ -363,7 +365,7 @@ describe('Main Application Integration', () => {
 
       expect(result1).toContain('-- Create missing table table1');
       expect(result2).toContain(
-        '-- Table table2 exists in prod but not in dev'
+        `-- Table table2 exists in ${mockOptions.target} but not in ${mockOptions.source}`
       );
     });
   });
@@ -379,18 +381,18 @@ describe('Main Application Integration', () => {
 
   //     let callCount = 0;
   //     const responses = [
-  //       { rows: [] }, // dev tables
-  //       { rows: [] }, // prod tables
-  //       { rows: [] }, // dev columns
-  //       { rows: [] }, // prod columns
-  //       { rows: devFunctions }, // dev functions
-  //       { rows: prodFunctions }, // prod functions
-  //       { rows: [] }, // dev constraints
-  //       { rows: [] }, // prod constraints
-  //       { rows: [] }, // dev triggers
-  //       { rows: [] }, // prod triggers
-  //       { rows: [] }, // dev indexes
-  //       { rows: [] }, // prod indexes
+  //       { rows: [] }, // source tables
+  //       { rows: [] }, // target tables
+  //       { rows: [] }, // source columns
+  //       { rows: [] }, // target columns
+  //       { rows: sourceFunctions }, // source functions
+  //       { rows: targetFunctions }, // target functions
+  //       { rows: [] }, // source constraints
+  //       { rows: [] }, // target constraints
+  //       { rows: [] }, // source triggers
+  //       { rows: [] }, // target triggers
+  //       { rows: [] }, // source indexes
+  //       { rows: [] }, // target indexes
   //       {
   //         rows: [
   //           {
@@ -443,7 +445,7 @@ describe('Main Application Integration', () => {
 
   //     // Should handle function diff (rename old, create new)
   //     expect(result).toContain(
-  //       '-- function get_user_by_id has changed, updating in prod'
+  //       '-- function get_user_by_id has changed, updating in target'
   //     );
   //     expect(result).toContain(
   //       'ALTER FUNCTION prod_schema.get_user_by_id RENAME TO get_user_by_id_old_'
@@ -451,12 +453,12 @@ describe('Main Application Integration', () => {
   //     expect(result).toContain('CREATE FUNCTION prod_schema.get_user_by_id');
 
   //     // Should handle function creation
-  //     expect(result).toContain('-- Creating procedure update_user in prod');
+  //     expect(result).toContain('-- Creating procedure update_user in target');
   //     expect(result).toContain('CREATE PROCEDURE prod_schema.update_user');
   //   });
 
   //   it('should handle trigger creation and diff scenarios', async () => {
-  //     const devTriggers = [
+  //     const sourceTriggers = [
   //       {
   //         trigger_name: 'update_user_timestamp',
   //         event_manipulation: 'UPDATE',
@@ -477,7 +479,7 @@ describe('Main Application Integration', () => {
   //       },
   //     ];
 
-  //     const prodTriggers = [
+  //     const targetTriggers = [
   //       {
   //         trigger_name: 'update_user_timestamp',
   //         event_manipulation: 'UPDATE',
@@ -487,7 +489,7 @@ describe('Main Application Integration', () => {
   //         action_orientation: 'ROW',
   //         action_condition: null,
   //       },
-  //       // audit_user_changes missing in prod
+  //       // audit_user_changes missing in target
   //     ];
 
   //     // const mockTriggerDefinitions = [
@@ -497,20 +499,20 @@ describe('Main Application Integration', () => {
 
   //     let callCount = 0;
   //     const responses = [
-  //       { rows: [] }, // dev tables
-  //       { rows: [] }, // prod tables
-  //       { rows: [] }, // dev columns
-  //       { rows: [] }, // prod columns
-  //       { rows: [] }, // dev functions
-  //       { rows: [] }, // prod functions
-  //       { rows: [] }, // dev constraints
-  //       { rows: [] }, // prod constraints
-  //       { rows: devTriggers }, // dev triggers
-  //       { rows: prodTriggers }, // prod triggers
-  //       { rows: [] }, // dev indexes
-  //       { rows: [] }, // prod indexes
-  //       { rows: [devTriggers[0]] }, // update_user_timestamp definition (for update)
-  //       { rows: [devTriggers[1]] }, // audit_user_changes definition (for create)
+  //       { rows: [] }, // source tables
+  //       { rows: [] }, // target tables
+  //       { rows: [] }, // source columns
+  //       { rows: [] }, // target columns
+  //       { rows: [] }, // source functions
+  //       { rows: [] }, // target functions
+  //       { rows: [] }, // source constraints
+  //       { rows: [] }, // target constraints
+  //       { rows: sourceTriggers }, // source triggers
+  //       { rows: targetTriggers }, // target triggers
+  //       { rows: [] }, // source indexes
+  //       { rows: [] }, // target indexes
+  //       { rows: [sourceTriggers[0]] }, // update_user_timestamp definition (for update)
+  //       { rows: [sourceTriggers[1]] }, // audit_user_changes definition (for create)
   //     ];
 
   //     mockClient.query = () => {
@@ -524,7 +526,7 @@ describe('Main Application Integration', () => {
 
   //     // Should handle trigger diff (rename old, create new)
   //     expect(result).toContain(
-  //       '-- trigger update_user_timestamp has changed, updating in prod'
+  //       '-- trigger update_user_timestamp has changed, updating in target'
   //     );
   //     expect(result).toContain(
   //       'ALTER TRIGGER update_user_timestamp ON prod_schema.users RENAME TO update_user_timestamp_old_'
@@ -533,13 +535,13 @@ describe('Main Application Integration', () => {
 
   //     // Should handle trigger creation
   //     expect(result).toContain(
-  //       '-- Creating trigger audit_user_changes in prod'
+  //       '-- Creating trigger audit_user_changes in target'
   //     );
   //     expect(result).toContain('CREATE TRIGGER audit_user_changes');
   //   });
 
   //   it('should handle constraint creation and diff scenarios', async () => {
-  //     const devConstraints = [
+  //     const sourceConstraints = [
   //       {
   //         table_name: 'users',
   //         constraint_name: 'users_email_unique',
@@ -562,7 +564,7 @@ describe('Main Application Integration', () => {
   //       },
   //     ];
 
-  //     const prodConstraints = [
+  //     const targetConstraints = [
   //       {
   //         table_name: 'users',
   //         constraint_name: 'users_email_unique',
@@ -573,7 +575,7 @@ describe('Main Application Integration', () => {
   //         update_rule: null,
   //         delete_rule: null,
   //       },
-  //       // orders_user_id_fkey missing in prod
+  //       // orders_user_id_fkey missing in target
   //     ];
 
   //     // const mockConstraintDefinitions = [
@@ -589,19 +591,19 @@ describe('Main Application Integration', () => {
 
   //     let callCount = 0;
   //     const responses = [
-  //       { rows: [] }, // dev tables
-  //       { rows: [] }, // prod tables
-  //       { rows: [] }, // dev columns
-  //       { rows: [] }, // prod columns
-  //       { rows: [] }, // dev functions
-  //       { rows: [] }, // prod functions
-  //       { rows: devConstraints }, // dev constraints
-  //       { rows: prodConstraints }, // prod constraints
-  //       { rows: [] }, // dev triggers
-  //       { rows: [] }, // prod triggers
-  //       { rows: [] }, // dev indexes
-  //       { rows: [] }, // prod indexes
-  //       { rows: [devConstraints[1]] }, // orders_user_id_fkey definition (for create)
+  //       { rows: [] }, // source tables
+  //       { rows: [] }, // target tables
+  //       { rows: [] }, // source columns
+  //       { rows: [] }, // target columns
+  //       { rows: [] }, // source functions
+  //       { rows: [] }, // target functions
+  //       { rows: sourceConstraints }, // source constraints
+  //       { rows: targetConstraints }, // target constraints
+  //       { rows: [] }, // source triggers
+  //       { rows: [] }, // target triggers
+  //       { rows: [] }, // source indexes
+  //       { rows: [] }, // target indexes
+  //       { rows: [sourceConstraints[1]] }, // orders_user_id_fkey definition (for create)
   //     ];
 
   //     mockClient.query = () => {
@@ -615,7 +617,7 @@ describe('Main Application Integration', () => {
 
   //     // Should handle constraint creation
   //     expect(result).toContain(
-  //       '-- Creating constraint orders_user_id_fkey in prod'
+  //       '-- Creating constraint orders_user_id_fkey in target'
   //     );
   //     expect(result).toContain(
   //       'ALTER TABLE prod_schema.orders ADD CONSTRAINT orders_user_id_fkey'
@@ -623,7 +625,7 @@ describe('Main Application Integration', () => {
   //   });
 
   //   it('should handle index synchronization scenarios', async () => {
-  //     const devIndexes = [
+  //     const sourceIndexes = [
   //       {
   //         schemaname: 'dev_schema',
   //         tablename: 'users',
@@ -640,7 +642,7 @@ describe('Main Application Integration', () => {
   //       },
   //     ];
 
-  //     const prodIndexes = [
+  //     const targetIndexes = [
   //       {
   //         schemaname: 'prod_schema',
   //         tablename: 'users',
@@ -648,23 +650,23 @@ describe('Main Application Integration', () => {
   //         indexdef:
   //           'CREATE UNIQUE INDEX idx_users_email ON prod_schema.users USING btree (email)',
   //       },
-  //       // idx_orders_created_at missing in prod
+  //       // idx_orders_created_at missing in target
   //     ];
 
   //     let callCount = 0;
   //     const responses = [
-  //       { rows: [] }, // dev tables
-  //       { rows: [] }, // prod tables
-  //       { rows: [] }, // dev columns
-  //       { rows: [] }, // prod columns
-  //       { rows: [] }, // dev functions
-  //       { rows: [] }, // prod functions
-  //       { rows: [] }, // dev constraints
-  //       { rows: [] }, // prod constraints
-  //       { rows: [] }, // dev triggers
-  //       { rows: [] }, // prod triggers
-  //       { rows: devIndexes }, // dev indexes
-  //       { rows: prodIndexes }, // prod indexes
+  //       { rows: [] }, // source tables
+  //       { rows: [] }, // target tables
+  //       { rows: [] }, // source columns
+  //       { rows: [] }, // target columns
+  //       { rows: [] }, // source functions
+  //       { rows: [] }, // target functions
+  //       { rows: [] }, // source constraints
+  //       { rows: [] }, // target constraints
+  //       { rows: [] }, // source triggers
+  //       { rows: [] }, // target triggers
+  //       { rows: sourceIndexes }, // source indexes
+  //       { rows: targetIndexes }, // target indexes
   //     ];
 
   //     mockClient.query = () => {
@@ -678,7 +680,7 @@ describe('Main Application Integration', () => {
 
   //     // Should handle index creation
   //     expect(result).toContain(
-  //       '-- Creating index idx_orders_created_at in prod'
+  //       '-- Creating index idx_orders_created_at in target'
   //     );
   //     expect(result).toContain(
   //       'CREATE INDEX idx_orders_created_at ON prod_schema.orders'
@@ -687,7 +689,7 @@ describe('Main Application Integration', () => {
 
   //   it('should handle complex mixed scenarios with all new generation paths', async () => {
   //     // Mock complex scenario with functions, triggers, constraints, and indexes
-  //     const devFunctions = [
+  //     const sourceFunctions = [
   //       {
   //         routine_name: 'calculate_total',
   //         routine_type: 'FUNCTION',
@@ -696,7 +698,7 @@ describe('Main Application Integration', () => {
   //       },
   //     ];
 
-  //     const prodFunctions = [
+  //     const targetFunctions = [
   //       {
   //         routine_name: 'calculate_total',
   //         routine_type: 'FUNCTION',
@@ -705,7 +707,7 @@ describe('Main Application Integration', () => {
   //       },
   //     ];
 
-  //     const devTriggers = [
+  //     const sourceTriggers = [
   //       {
   //         trigger_name: 'log_calculations',
   //         event_manipulation: 'INSERT',
@@ -717,9 +719,9 @@ describe('Main Application Integration', () => {
   //       },
   //     ];
 
-  //     const prodTriggers = []; // Missing in prod
+  //     const targetTriggers = []; // Missing in target
 
-  //     const devConstraints = [
+  //     const sourceConstraints = [
   //       {
   //         table_name: 'calculations',
   //         constraint_name: 'calculations_pkey',
@@ -732,9 +734,9 @@ describe('Main Application Integration', () => {
   //       },
   //     ];
 
-  //     const prodConstraints = []; // Missing in prod
+  //     const targetConstraints = []; // Missing in target
 
-  //     const devIndexes = [
+  //     const sourceIndexes = [
   //       {
   //         schemaname: 'dev_schema',
   //         tablename: 'calculations',
@@ -744,7 +746,7 @@ describe('Main Application Integration', () => {
   //       },
   //     ];
 
-  //     const prodIndexes = []; // Missing in prod
+  //     const targetIndexes = []; // Missing in target
 
   //     const mockDefinitions = [
   //       'CREATE FUNCTION dev_schema.calculate_total(numeric, numeric) RETURNS numeric AS $$ BEGIN RETURN $1 * $2; END; $$ LANGUAGE plpgsql;',
@@ -757,21 +759,21 @@ describe('Main Application Integration', () => {
 
   //     let callCount = 0;
   //     const responses = [
-  //       { rows: [] }, // dev tables
-  //       { rows: [] }, // prod tables
-  //       { rows: [] }, // dev columns
-  //       { rows: [] }, // prod columns
-  //       { rows: devFunctions }, // dev functions
-  //       { rows: prodFunctions }, // prod functions
-  //       { rows: devConstraints }, // dev constraints
-  //       { rows: prodConstraints }, // prod constraints
-  //       { rows: devTriggers }, // dev triggers
-  //       { rows: prodTriggers }, // prod triggers
-  //       { rows: devIndexes }, // dev indexes
-  //       { rows: prodIndexes }, // prod indexes
+  //       { rows: [] }, // source tables
+  //       { rows: [] }, // target tables
+  //       { rows: [] }, // source columns
+  //       { rows: [] }, // target columns
+  //       { rows: sourceFunctions }, // source functions
+  //       { rows: targetFunctions }, // target functions
+  //       { rows: sourceConstraints }, // source constraints
+  //       { rows: targetConstraints }, // target constraints
+  //       { rows: sourceTriggers }, // source triggers
+  //       { rows: targetTriggers }, // target triggers
+  //       { rows: sourceIndexes }, // source indexes
+  //       { rows: targetIndexes }, // target indexes
   //       { rows: [{ definition: mockDefinitions[0] }] }, // calculate_total definition (for update)
-  //       { rows: [devTriggers[0]] }, // log_calculations definition (for create)
-  //       { rows: [devConstraints[0]] }, // calculations_pkey definition (for create)
+  //       { rows: [sourceTriggers[0]] }, // log_calculations definition (for create)
+  //       { rows: [sourceConstraints[0]] }, // calculations_pkey definition (for create)
   //     ];
 
   //     mockClient.query = () => {
@@ -785,7 +787,7 @@ describe('Main Application Integration', () => {
 
   //     // Should handle function diff
   //     expect(result).toContain(
-  //       '-- function calculate_total has changed, updating in prod'
+  //       '-- function calculate_total has changed, updating in target'
   //     );
   //     expect(result).toContain(
   //       'ALTER FUNCTION prod_schema.calculate_total RENAME TO calculate_total_old_'
@@ -793,12 +795,12 @@ describe('Main Application Integration', () => {
   //     expect(result).toContain('CREATE FUNCTION prod_schema.calculate_total');
 
   //     // Should handle trigger creation
-  //     expect(result).toContain('-- Creating trigger log_calculations in prod');
+  //     expect(result).toContain('-- Creating trigger log_calculations in target');
   //     expect(result).toContain('CREATE TRIGGER log_calculations');
 
   //     // Should handle constraint creation
   //     expect(result).toContain(
-  //       '-- Creating constraint calculations_pkey in prod'
+  //       '-- Creating constraint calculations_pkey in target'
   //     );
   //     expect(result).toContain(
   //       'ALTER TABLE prod_schema.calculations ADD CONSTRAINT calculations_pkey'
@@ -806,7 +808,7 @@ describe('Main Application Integration', () => {
 
   //     // Should handle index creation
   //     expect(result).toContain(
-  //       '-- Creating index idx_calculations_timestamp in prod'
+  //       '-- Creating index idx_calculations_timestamp in target'
   //     );
   //     expect(result).toContain(
   //       'CREATE INDEX idx_calculations_timestamp ON prod_schema.calculations'
@@ -815,7 +817,7 @@ describe('Main Application Integration', () => {
 
   //   it('should handle non-destructive operations correctly', async () => {
   //     // Test that all operations are non-destructive (rename instead of drop)
-  //     const devFunctions = [
+  //     const sourceFunctions = [
   //       {
   //         routine_name: 'old_function',
   //         routine_type: 'FUNCTION',
@@ -824,7 +826,7 @@ describe('Main Application Integration', () => {
   //       },
   //     ];
 
-  //     const prodFunctions = [
+  //     const targetFunctions = [
   //       {
   //         routine_name: 'old_function',
   //         routine_type: 'FUNCTION',
@@ -833,7 +835,7 @@ describe('Main Application Integration', () => {
   //       },
   //     ];
 
-  //     const devTriggers = [
+  //     const sourceTriggers = [
   //       {
   //         trigger_name: 'old_trigger',
   //         event_manipulation: 'UPDATE',
@@ -845,7 +847,7 @@ describe('Main Application Integration', () => {
   //       },
   //     ];
 
-  //     const prodTriggers = [
+  //     const targetTriggers = [
   //       {
   //         trigger_name: 'old_trigger',
   //         event_manipulation: 'UPDATE',
@@ -864,20 +866,20 @@ describe('Main Application Integration', () => {
 
   //     let callCount = 0;
   //     const responses = [
-  //       { rows: [] }, // dev tables
-  //       { rows: [] }, // prod tables
-  //       { rows: [] }, // dev columns
-  //       { rows: [] }, // prod columns
-  //       { rows: devFunctions }, // dev functions
-  //       { rows: prodFunctions }, // prod functions
-  //       { rows: [] }, // dev constraints
-  //       { rows: [] }, // prod constraints
-  //       { rows: devTriggers }, // dev triggers
-  //       { rows: prodTriggers }, // prod triggers
-  //       { rows: [] }, // dev indexes
-  //       { rows: [] }, // prod indexes
+  //       { rows: [] }, // source tables
+  //       { rows: [] }, // target tables
+  //       { rows: [] }, // source columns
+  //       { rows: [] }, // target columns
+  //       { rows: sourceFunctions }, // source functions
+  //       { rows: targetFunctions }, // target functions
+  //       { rows: [] }, // source constraints
+  //       { rows: [] }, // target constraints
+  //       { rows: sourceTriggers }, // source triggers
+  //       { rows: targetTriggers }, // target triggers
+  //       { rows: [] }, // source indexes
+  //       { rows: [] }, // target indexes
   //       { rows: [{ definition: mockDefinitions[0] }] }, // old_function definition (for update)
-  //       { rows: [devTriggers[0]] }, // old_trigger definition (for update)
+  //       { rows: [sourceTriggers[0]] }, // old_trigger definition (for update)
   //     ];
 
   //     mockClient.query = () => {

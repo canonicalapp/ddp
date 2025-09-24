@@ -26,16 +26,16 @@ export const testFunction = createFunction({
 });
 
 // Test scenarios for function operations
-export const devFunctionsForAddTest = [
+export const sourceFunctionsForAddTest = [
   getUserByIdFunction,
   updateUserStatusProcedure,
 ];
 
-export const prodFunctionsForAddTest = [getUserByIdFunction];
+export const targetFunctionsForAddTest = [getUserByIdFunction];
 
-export const devFunctionsForDropTest = [getUserByIdFunction];
+export const sourceFunctionsForDropTest = [getUserByIdFunction];
 
-export const prodFunctionsForDropTest = [
+export const targetFunctionsForDropTest = [
   getUserByIdFunction,
   createFunction({
     routine_name: 'old_function',
@@ -44,12 +44,12 @@ export const prodFunctionsForDropTest = [
   }),
 ];
 
-export const devFunctionsForModifyTest = [
+export const sourceFunctionsForModifyTest = [
   getUserByIdFunction,
   updateUserStatusProcedure,
 ];
 
-export const prodFunctionsForModifyTest = [
+export const targetFunctionsForModifyTest = [
   getUserByIdFunction,
   createFunction({
     routine_name: 'update_user_status',
@@ -58,12 +58,12 @@ export const prodFunctionsForModifyTest = [
   }),
 ];
 
-export const devFunctionsForIdenticalTest = [getUserByIdFunction];
+export const sourceFunctionsForIdenticalTest = [getUserByIdFunction];
 
-export const prodFunctionsForIdenticalTest = [getUserByIdFunction];
+export const targetFunctionsForIdenticalTest = [getUserByIdFunction];
 
 // Edge case data
-export const devFunctionsForNewFunctionTest = [
+export const sourceFunctionsForNewFunctionTest = [
   getUserByIdFunction,
   createFunction({
     routine_name: 'new_function',
@@ -72,11 +72,11 @@ export const devFunctionsForNewFunctionTest = [
   }),
 ];
 
-export const prodFunctionsForNewFunctionTest = [getUserByIdFunction];
+export const targetFunctionsForNewFunctionTest = [getUserByIdFunction];
 
-export const devFunctionsForOldFunctionTest = [getUserByIdFunction];
+export const sourceFunctionsForOldFunctionTest = [getUserByIdFunction];
 
-export const prodFunctionsForOldFunctionTest = [
+export const targetFunctionsForOldFunctionTest = [
   getUserByIdFunction,
   createFunction({
     routine_name: 'old_function',
@@ -86,7 +86,7 @@ export const prodFunctionsForOldFunctionTest = [
 ];
 
 // Edge case scenarios
-export const devFunctionsWithSpecialChars = [
+export const sourceFunctionsWithSpecialChars = [
   createFunction({
     routine_name: 'get_user-by_id_with.special@chars',
     routine_type: 'FUNCTION',
@@ -94,9 +94,9 @@ export const devFunctionsWithSpecialChars = [
   }),
 ];
 
-export const prodFunctionsForSpecialChars = [getUserByIdFunction];
+export const targetFunctionsForSpecialChars = [getUserByIdFunction];
 
-export const devFunctionsWithMalformedData = [
+export const sourceFunctionsWithMalformedData = [
   createFunction({
     // missing other properties
     routine_name: undefined,
@@ -106,7 +106,7 @@ export const devFunctionsWithMalformedData = [
 ];
 
 // Complex test scenarios
-export const devFunctionsComplexTest = [
+export const sourceFunctionsComplexTest = [
   getUserByIdFunction,
   updateUserStatusProcedure,
   createFunction({
@@ -116,11 +116,11 @@ export const devFunctionsComplexTest = [
   }),
 ];
 
-export const prodFunctionsComplexTest = [getUserByIdFunction];
+export const targetFunctionsComplexTest = [getUserByIdFunction];
 
-export const devFunctionsWithOldFunctions = [getUserByIdFunction];
+export const sourceFunctionsWithOldFunctions = [getUserByIdFunction];
 
-export const prodFunctionsWithOldFunctions = [
+export const targetFunctionsWithOldFunctions = [
   getUserByIdFunction,
   createFunction({
     routine_name: 'old_function1',

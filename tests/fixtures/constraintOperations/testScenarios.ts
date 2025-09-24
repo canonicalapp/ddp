@@ -5,7 +5,7 @@
 import { createConstraint } from './basicConstraints.ts';
 
 // Test scenarios for constraint operations
-export const devConstraintsForAddTest = [
+export const sourceConstraintsForAddTest = [
   createConstraint(),
   createConstraint({
     table_name: 'orders',
@@ -17,11 +17,11 @@ export const devConstraintsForAddTest = [
   }),
 ];
 
-export const prodConstraintsForAddTest = [createConstraint()];
+export const targetConstraintsForAddTest = [createConstraint()];
 
-export const devConstraintsForDropTest = [createConstraint()];
+export const sourceConstraintsForDropTest = [createConstraint()];
 
-export const prodConstraintsForDropTest = [
+export const targetConstraintsForDropTest = [
   createConstraint(),
   createConstraint({
     constraint_name: 'old_constraint',
@@ -30,7 +30,7 @@ export const prodConstraintsForDropTest = [
   }),
 ];
 
-export const devConstraintsForModifyTest = [
+export const sourceConstraintsForModifyTest = [
   createConstraint(),
   createConstraint({
     constraint_name: 'users_email_unique',
@@ -39,7 +39,7 @@ export const devConstraintsForModifyTest = [
   }),
 ];
 
-export const prodConstraintsForModifyTest = [
+export const targetConstraintsForModifyTest = [
   createConstraint(),
   createConstraint({
     constraint_name: 'users_email_unique',
@@ -49,23 +49,23 @@ export const prodConstraintsForModifyTest = [
   }),
 ];
 
-export const devConstraintsForIdenticalTest = [createConstraint()];
+export const sourceConstraintsForIdenticalTest = [createConstraint()];
 
-export const prodConstraintsForIdenticalTest = [createConstraint()];
+export const targetConstraintsForIdenticalTest = [createConstraint()];
 
 // Edge case data
-export const devConstraintsForNewTableTest = [
+export const sourceConstraintsForNewTableTest = [
   createConstraint(),
   createConstraint({
     table_name: 'new_table',
   }),
 ];
 
-export const prodConstraintsForNewTableTest = [createConstraint()];
+export const targetConstraintsForNewTableTest = [createConstraint()];
 
-export const devConstraintsForOldTableTest = [createConstraint()];
+export const sourceConstraintsForOldTableTest = [createConstraint()];
 
-export const prodConstraintsForOldTableTest = [
+export const targetConstraintsForOldTableTest = [
   createConstraint(),
   createConstraint({
     table_name: 'old_table',
@@ -92,9 +92,9 @@ export const devConstraintsComplexTest = [
 
 export const prodConstraintsComplexTest = [createConstraint()];
 
-export const devConstraintsWithOldConstraints = [createConstraint()];
+export const sourceConstraintsWithOldConstraints = [createConstraint()];
 
-export const prodConstraintsWithOldConstraints = [
+export const targetConstraintsWithOldConstraints = [
   createConstraint(),
   createConstraint({
     constraint_name: 'old_constraint1',

@@ -5,12 +5,12 @@
 import { Utils } from '@/utils/formatting.ts';
 import { TableOperations } from '@/sync/operations/tables.ts';
 import {
-  devTablesForAddTest,
-  devTablesForDropTest,
+  sourceTablesForAddTest,
+  sourceTablesForDropTest,
   mockColumns,
   ordersTable,
-  prodTablesForAddTest,
-  prodTablesForDropTest,
+  targetTablesForAddTest,
+  targetTablesForDropTest,
   usersTable,
 } from '../../../fixtures/tableOperations.ts';
 import {
@@ -222,13 +222,13 @@ describe('TableOperations', () => {
   });
 
   describe('generateTableOperations', () => {
-    it('should create missing tables in production', async () => {
-      const devTables = devTablesForAddTest;
-      const prodTables = prodTablesForAddTest;
+    it('should create missing tables in target', async () => {
+      const sourceTables = sourceTablesForAddTest;
+      const targetTables = targetTablesForAddTest;
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devTables }) // getTables for dev
-        .mockResolvedValueOnce({ rows: prodTables }) // getTables for prod
+        .mockResolvedValueOnce({ rows: sourceTables }) // getTables for source
+        .mockResolvedValueOnce({ rows: targetTables }) // getTables for target
         .mockResolvedValueOnce({ rows: mockColumns }); // getTableDefinition for orders
 
       const result = await tableOps.generateTableOperations();
@@ -239,18 +239,18 @@ describe('TableOperations', () => {
       ).toBe(true);
     });
 
-    it('should handle tables to drop in production', async () => {
-      const devTables = devTablesForDropTest;
-      const prodTables = prodTablesForDropTest;
+    it('should handle tables to drop in target', async () => {
+      const sourceTables = sourceTablesForDropTest;
+      const targetTables = targetTablesForDropTest;
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devTables })
-        .mockResolvedValueOnce({ rows: prodTables });
+        .mockResolvedValueOnce({ rows: sourceTables })
+        .mockResolvedValueOnce({ rows: targetTables });
 
       const result = await tableOps.generateTableOperations();
 
       expect(result).toContain(
-        '-- Table old_table exists in prod but not in dev'
+        '-- Table old_table exists in prod_schema but not in dev_schema'
       );
       expect(result).toContain(
         '-- Renaming table to preserve data before manual drop'
@@ -264,12 +264,12 @@ describe('TableOperations', () => {
     });
 
     it('should handle identical schemas', async () => {
-      const devTables = [{ table_name: 'users' }];
-      const prodTables = [{ table_name: 'users' }];
+      const sourceTables = [{ table_name: 'users' }];
+      const targetTables = [{ table_name: 'users' }];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devTables })
-        .mockResolvedValueOnce({ rows: prodTables });
+        .mockResolvedValueOnce({ rows: sourceTables })
+        .mockResolvedValueOnce({ rows: targetTables });
 
       const result = await tableOps.generateTableOperations();
 
@@ -280,8 +280,8 @@ describe('TableOperations', () => {
 
     it('should handle empty schemas', async () => {
       mockClient.query
-        .mockResolvedValueOnce({ rows: [] }) // dev tables
-        .mockResolvedValueOnce({ rows: [] }); // prod tables
+        .mockResolvedValueOnce({ rows: [] }) // source tables
+        .mockResolvedValueOnce({ rows: [] }); // target tables
 
       const result = await tableOps.generateTableOperations();
 
@@ -289,12 +289,12 @@ describe('TableOperations', () => {
     });
 
     it('should handle multiple missing tables', async () => {
-      const devTables = [
+      const sourceTables = [
         { table_name: 'users' },
         { table_name: 'orders' },
         { table_name: 'products' },
       ];
-      const prodTables = [{ table_name: 'users' }];
+      const targetTables = [{ table_name: 'users' }];
       const mockColumns = [
         {
           column_name: 'id',
@@ -307,8 +307,8 @@ describe('TableOperations', () => {
       ];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devTables })
-        .mockResolvedValueOnce({ rows: prodTables })
+        .mockResolvedValueOnce({ rows: sourceTables })
+        .mockResolvedValueOnce({ rows: targetTables })
         .mockResolvedValueOnce({ rows: mockColumns }) // orders
         .mockResolvedValueOnce({ rows: mockColumns }); // products
 
@@ -322,16 +322,16 @@ describe('TableOperations', () => {
     });
 
     it('should handle multiple tables to drop', async () => {
-      const devTables = [{ table_name: 'users' }];
-      const prodTables = [
+      const sourceTables = [{ table_name: 'users' }];
+      const targetTables = [
         { table_name: 'users' },
         { table_name: 'old_table1' },
         { table_name: 'old_table2' },
       ];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devTables })
-        .mockResolvedValueOnce({ rows: prodTables });
+        .mockResolvedValueOnce({ rows: sourceTables })
+        .mockResolvedValueOnce({ rows: targetTables });
 
       const result = await tableOps.generateTableOperations();
 
@@ -339,7 +339,9 @@ describe('TableOperations', () => {
         result.filter(
           line =>
             line.includes('-- Table') &&
-            line.includes('exists in prod but not in dev')
+            line.includes(
+              `exists in ${mockOptions.target} but not in ${mockOptions.source}`
+            )
         ).length
       ).toBe(2);
       expect(result.filter(line => line.includes('RENAME TO')).length).toBe(2);
@@ -355,13 +357,13 @@ describe('TableOperations', () => {
     });
 
     it('should handle errors during table definition retrieval', async () => {
-      const devTables = [{ table_name: 'users' }];
-      const prodTables = [];
+      const sourceTables = [{ table_name: 'users' }];
+      const targetTables = [];
       const error = new Error('Table not found');
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devTables })
-        .mockResolvedValueOnce({ rows: prodTables })
+        .mockResolvedValueOnce({ rows: sourceTables })
+        .mockResolvedValueOnce({ rows: targetTables })
         .mockRejectedValueOnce(error);
 
       await expect(tableOps.generateTableOperations()).rejects.toThrow(
@@ -372,12 +374,12 @@ describe('TableOperations', () => {
 
   describe('Edge cases and error handling', () => {
     it('should handle null table names', async () => {
-      const devTables = [{ table_name: null }];
-      const prodTables = [];
+      const sourceTables = [{ table_name: null }];
+      const targetTables = [];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devTables })
-        .mockResolvedValueOnce({ rows: prodTables });
+        .mockResolvedValueOnce({ rows: sourceTables })
+        .mockResolvedValueOnce({ rows: targetTables });
 
       // Should not throw, but may produce unexpected results
       const result = await tableOps.generateTableOperations();
@@ -385,8 +387,8 @@ describe('TableOperations', () => {
     });
 
     it('should handle special characters in table names', async () => {
-      const devTables = [{ table_name: 'user-table_with.special@chars' }];
-      const prodTables = [];
+      const sourceTables = [{ table_name: 'user-table_with.special@chars' }];
+      const targetTables = [];
       const mockColumns = [
         {
           column_name: 'id',
@@ -399,8 +401,8 @@ describe('TableOperations', () => {
       ];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devTables })
-        .mockResolvedValueOnce({ rows: prodTables })
+        .mockResolvedValueOnce({ rows: sourceTables })
+        .mockResolvedValueOnce({ rows: targetTables })
         .mockResolvedValueOnce({ rows: mockColumns });
 
       const result = await tableOps.generateTableOperations();
@@ -419,8 +421,8 @@ describe('TableOperations', () => {
 
     it('should handle very long table names', async () => {
       const longTableName = 'a'.repeat(100);
-      const devTables = [{ table_name: longTableName }];
-      const prodTables = [];
+      const sourceTables = [{ table_name: longTableName }];
+      const targetTables = [];
       const mockColumns = [
         {
           column_name: 'id',
@@ -433,8 +435,8 @@ describe('TableOperations', () => {
       ];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devTables })
-        .mockResolvedValueOnce({ rows: prodTables })
+        .mockResolvedValueOnce({ rows: sourceTables })
+        .mockResolvedValueOnce({ rows: targetTables })
         .mockResolvedValueOnce({ rows: mockColumns });
 
       const result = await tableOps.generateTableOperations();

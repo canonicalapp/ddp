@@ -15,8 +15,8 @@ export interface ISyncOptions {
 // Legacy Sync Options (for backward compatibility with existing operations)
 export interface ILegacySyncOptions {
   conn: string;
-  dev: string;
-  prod: string;
+  source: string;
+  target: string;
   targetConn: string;
   output?: string;
   dryRun?: boolean;

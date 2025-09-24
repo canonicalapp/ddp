@@ -67,11 +67,11 @@ Sync databases on different hosts:
 
 ```bash
 ddp sync \
-  --source-host dev-server.com \
+  --source-host source-server.com \
   --source-database dev_db \
   --source-username dev_user \
   --source-password dev_pass \
-  --target-host prod-server.com \
+  --target-host target-server.com \
   --target-database prod_db \
   --target-username prod_user \
   --target-password prod_pass
@@ -124,8 +124,8 @@ The sync command generates a comprehensive ALTER script with the following struc
 ```sql
 -- ===========================================
 -- Schema Sync Script
--- Dev Schema: dev
--- Prod Schema: prod
+-- Dev Schema: source
+-- Prod Schema: target
 -- Generated: 2024-01-15T10:30:45.123Z
 -- ===========================================
 ```
@@ -137,8 +137,8 @@ The sync command generates a comprehensive ALTER script with the following struc
 -- TABLE OPERATIONS
 -- ===========================================
 -- Create missing table orders
-CREATE TABLE prod.orders (
-  "id" integer NOT NULL DEFAULT nextval('dev.orders_id_seq'::regclass),
+CREATE TABLE target.orders (
+  "id" integer NOT NULL DEFAULT nextval('source.orders_id_seq'::regclass),
   "user_id" integer,
   "product_id" integer,
   "quantity" integer DEFAULT 1,
@@ -146,8 +146,8 @@ CREATE TABLE prod.orders (
 );
 
 -- Rename extra table before drop (data preservation)
-ALTER TABLE prod.old_table RENAME TO old_table_dropped_2024-01-15T10-30-45-123Z;
-DROP TABLE IF EXISTS prod.old_table_dropped_2024-01-15T10-30-45-123Z;
+ALTER TABLE target.old_table RENAME TO old_table_dropped_2024-01-15T10-30-45-123Z;
+DROP TABLE IF EXISTS target.old_table_dropped_2024-01-15T10-30-45-123Z;
 ```
 
 ### Column Operations
@@ -157,16 +157,16 @@ DROP TABLE IF EXISTS prod.old_table_dropped_2024-01-15T10-30-45-123Z;
 -- COLUMN OPERATIONS
 -- ===========================================
 -- Add missing columns
-ALTER TABLE prod.products ADD COLUMN "description" text;
-ALTER TABLE prod.users ADD COLUMN "status" character varying(20) DEFAULT 'active'::character varying;
+ALTER TABLE target.products ADD COLUMN "description" text;
+ALTER TABLE target.users ADD COLUMN "status" character varying(20) DEFAULT 'active'::character varying;
 
 -- Modify existing columns
-ALTER TABLE prod.products ALTER COLUMN "price" TYPE numeric(10,2);
-ALTER TABLE prod.users ALTER COLUMN "email" SET NOT NULL;
+ALTER TABLE target.products ALTER COLUMN "price" TYPE numeric(10,2);
+ALTER TABLE target.users ALTER COLUMN "email" SET NOT NULL;
 
 -- Rename extra columns before drop (data preservation)
-ALTER TABLE prod.products RENAME COLUMN "old_column" TO "old_column_dropped_2024-01-15T10-30-45-123Z";
-ALTER TABLE prod.products DROP COLUMN IF EXISTS "old_column_dropped_2024-01-15T10-30-45-123Z";
+ALTER TABLE target.products RENAME COLUMN "old_column" TO "old_column_dropped_2024-01-15T10-30-45-123Z";
+ALTER TABLE target.products DROP COLUMN IF EXISTS "old_column_dropped_2024-01-15T10-30-45-123Z";
 ```
 
 ### Function Operations
@@ -176,7 +176,7 @@ ALTER TABLE prod.products DROP COLUMN IF EXISTS "old_column_dropped_2024-01-15T1
 -- FUNCTION/PROCEDURE OPERATIONS
 -- ===========================================
 -- Create missing function
-CREATE OR REPLACE FUNCTION prod.get_user_by_email(email_param VARCHAR(100))
+CREATE OR REPLACE FUNCTION target.get_user_by_email(email_param VARCHAR(100))
 RETURNS TABLE(id INTEGER, username VARCHAR(50), email VARCHAR(100))
 LANGUAGE plpgsql
 AS $$
@@ -189,8 +189,8 @@ END;
 $$;
 
 -- Rename old function before drop (data preservation)
-ALTER FUNCTION prod.old_function(VARCHAR) RENAME TO old_function_dropped_2024-01-15T10-30-45-123Z;
-DROP FUNCTION IF EXISTS prod.old_function_dropped_2024-01-15T10-30-45-123Z;
+ALTER FUNCTION target.old_function(VARCHAR) RENAME TO old_function_dropped_2024-01-15T10-30-45-123Z;
+DROP FUNCTION IF EXISTS target.old_function_dropped_2024-01-15T10-30-45-123Z;
 ```
 
 ### Constraint Operations
@@ -200,12 +200,12 @@ DROP FUNCTION IF EXISTS prod.old_function_dropped_2024-01-15T10-30-45-123Z;
 -- CONSTRAINT OPERATIONS
 -- ===========================================
 -- Add missing constraints
-ALTER TABLE prod.orders ADD CONSTRAINT orders_pkey PRIMARY KEY (id);
-ALTER TABLE prod.orders ADD CONSTRAINT orders_user_id_fkey
-  FOREIGN KEY (user_id) REFERENCES prod.users(id);
+ALTER TABLE target.orders ADD CONSTRAINT orders_pkey PRIMARY KEY (id);
+ALTER TABLE target.orders ADD CONSTRAINT orders_user_id_fkey
+  FOREIGN KEY (user_id) REFERENCES target.users(id);
 
 -- Drop extra constraints
-ALTER TABLE prod.products DROP CONSTRAINT IF EXISTS old_constraint;
+ALTER TABLE target.products DROP CONSTRAINT IF EXISTS old_constraint;
 ```
 
 ### Index Operations
@@ -215,11 +215,11 @@ ALTER TABLE prod.products DROP CONSTRAINT IF EXISTS old_constraint;
 -- INDEX OPERATIONS
 -- ===========================================
 -- Create missing indexes
-CREATE INDEX idx_orders_user_id ON prod.orders(user_id);
-CREATE INDEX idx_orders_order_date ON prod.orders(order_date);
+CREATE INDEX idx_orders_user_id ON target.orders(user_id);
+CREATE INDEX idx_orders_order_date ON target.orders(order_date);
 
 -- Drop extra indexes
-DROP INDEX IF EXISTS prod.idx_old_index;
+DROP INDEX IF EXISTS target.idx_old_index;
 ```
 
 ### Trigger Operations
@@ -230,12 +230,12 @@ DROP INDEX IF EXISTS prod.idx_old_index;
 -- ===========================================
 -- Create missing trigger
 CREATE TRIGGER update_orders_updated_at
-  BEFORE UPDATE ON prod.orders
+  BEFORE UPDATE ON target.orders
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
 -- Drop extra trigger
-DROP TRIGGER IF EXISTS old_trigger ON prod.orders;
+DROP TRIGGER IF EXISTS old_trigger ON target.orders;
 ```
 
 ### Script Footer
@@ -418,7 +418,7 @@ For production deployments:
 3. **Execute in production:**
 
    ```bash
-   psql -h prod-server -U prod_user -d prod_db -f migration.sql
+   psql -h target-server -U prod_user -d prod_db -f migration.sql
    ```
 
 4. **Clean up renamed objects:**
