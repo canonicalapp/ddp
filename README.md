@@ -39,10 +39,10 @@ DDP (Declarative Database Provisioning) is a Node.js CLI tool designed to help d
 
 ```bash
 # Install globally
-npm install -g @canonicalapp/ddp
+npm install -g @advcomm/ddp
 
 # Or install locally in your project
-npm install @canonicalapp/ddp
+npm install @advcomm/ddp
 ```
 
 ## Quick Start
