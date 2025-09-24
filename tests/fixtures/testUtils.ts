@@ -99,8 +99,8 @@ export const createMockClient = () => {
 export const createMockOptions = (overrides = {}) => {
   return {
     conn: 'postgresql://user:pass@localhost:5432/testdb',
-    dev: 'dev_schema',
-    prod: 'prod_schema',
+    source: 'dev_schema',
+    target: 'prod_schema',
     withComments: false,
     save: false,
     output: null,

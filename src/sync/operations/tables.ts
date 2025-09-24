@@ -126,7 +126,7 @@ export class TableOperations {
       .map(col => Utils.formatColumnDefinition(this.convertToColumnInfo(col)))
       .join(',\n  ');
 
-    return `CREATE TABLE ${this.options.prod}.${tableName} (\n  ${columnDefs}\n);`;
+    return `CREATE TABLE ${this.options.target}.${tableName} (\n  ${columnDefs}\n);`;
   }
 
   /**
@@ -140,7 +140,7 @@ export class TableOperations {
       alterStatements.push(`-- Create missing table ${table.table_name}`);
 
       const columns = await this.getTableDefinition(
-        this.options.dev,
+        this.options.source,
         table.table_name
       );
 
@@ -166,7 +166,7 @@ export class TableOperations {
       const backupName = Utils.generateBackupName(table.table_name);
 
       alterStatements.push(
-        `-- Table ${table.table_name} exists in prod but not in dev`
+        `-- Table ${table.table_name} exists in ${this.options.target} but not in ${this.options.source}`
       );
 
       alterStatements.push(
@@ -174,11 +174,11 @@ export class TableOperations {
       );
 
       alterStatements.push(
-        `ALTER TABLE ${this.options.prod}.${table.table_name} RENAME TO ${backupName};`
+        `ALTER TABLE ${this.options.target}.${table.table_name} RENAME TO ${backupName};`
       );
 
       alterStatements.push(
-        `-- TODO: Manually drop table ${this.options.prod}.${backupName} after confirming data is no longer needed`
+        `-- TODO: Manually drop table ${this.options.target}.${backupName} after confirming data is no longer needed`
       );
     }
   }
@@ -189,17 +189,17 @@ export class TableOperations {
   async generateTableOperations(): Promise<string[]> {
     const alterStatements: string[] = [];
 
-    const devTables = await this.getTables(this.options.dev);
-    const prodTables = await this.getTables(this.options.prod);
+    const sourceTables = await this.getTables(this.options.source);
+    const targetTables = await this.getTables(this.options.target);
 
-    // Find missing tables in prod (tables in dev but not in prod)
-    const missingTables = devTables.filter(
-      d => !prodTables.some(p => p.table_name === d.table_name)
+    // Find missing tables in target (tables in source but not in target)
+    const missingTables = sourceTables.filter(
+      d => !targetTables.some(p => p.table_name === d.table_name)
     );
 
-    // Find tables to drop in prod (tables in prod but not in dev)
-    const tablesToDrop = prodTables.filter(
-      p => !devTables.some(d => d.table_name === p.table_name)
+    // Find tables to drop in target (tables in target but not in source)
+    const tablesToDrop = targetTables.filter(
+      p => !sourceTables.some(d => d.table_name === p.table_name)
     );
 
     await this.handleMissingTables(missingTables, alterStatements);

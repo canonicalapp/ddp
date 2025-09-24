@@ -52,7 +52,7 @@ export class FunctionOperations {
   }
 
   /**
-   * Get function/procedure definition from dev schema
+   * Get function/procedure definition from source schema
    */
   async getFunctionDefinition(
     schemaName: string,
@@ -109,30 +109,30 @@ export class FunctionOperations {
    * Compare two function definitions to detect changes
    */
   compareFunctionDefinitions(
-    devFunction: IFunctionDefinition,
-    prodFunction: IFunctionDefinition
+    sourceFunction: IFunctionDefinition,
+    targetFunction: IFunctionDefinition
   ): boolean {
-    if (!devFunction || !prodFunction) {
+    if (!sourceFunction || !targetFunction) {
       return false;
     }
 
     // Compare key properties that define function behavior
-    const devProps = {
-      routine_type: devFunction.routine_type,
-      data_type: devFunction.data_type,
-      routine_definition: devFunction.routine_definition,
+    const sourceProps = {
+      routine_type: sourceFunction.routine_type,
+      data_type: sourceFunction.data_type,
+      routine_definition: sourceFunction.routine_definition,
     };
 
-    const prodProps = {
-      routine_type: prodFunction.routine_type,
-      data_type: prodFunction.data_type,
-      routine_definition: prodFunction.routine_definition,
+    const targetProps = {
+      routine_type: targetFunction.routine_type,
+      data_type: targetFunction.data_type,
+      routine_definition: targetFunction.routine_definition,
     };
 
     // Compare each property
-    for (const [key, devValue] of Object.entries(devProps)) {
-      const prodValue = prodProps[key as keyof typeof prodProps];
-      if (devValue !== prodValue) {
+    for (const [key, sourceValue] of Object.entries(sourceProps)) {
+      const targetValue = targetProps[key as keyof typeof targetProps];
+      if (sourceValue !== targetValue) {
         return true; // Found a difference
       }
     }
@@ -158,7 +158,7 @@ export class FunctionOperations {
 
     // Replace the original schema with target schema
     createStatement = createStatement.replace(
-      new RegExp(`\\b${this.options.dev}\\b`, 'g'),
+      new RegExp(`\\b${this.options.source}\\b`, 'g'),
       targetSchema
     );
 
@@ -174,48 +174,48 @@ export class FunctionOperations {
    * Handle functions that have changed
    */
   async handleFunctionsToUpdate(
-    devFunctions: IFunctionRow[],
-    prodFunctions: IFunctionRow[],
+    sourceFunctions: IFunctionRow[],
+    targetFunctions: IFunctionRow[],
     alterStatements: string[]
   ): Promise<void> {
-    const functionsToUpdate = devFunctions.filter(devFunction => {
-      const prodFunction = prodFunctions.find(
+    const functionsToUpdate = sourceFunctions.filter(sourceFunction => {
+      const targetFunction = targetFunctions.find(
         p =>
-          p.routine_name === devFunction.routine_name &&
-          p.routine_type === devFunction.routine_type
+          p.routine_name === sourceFunction.routine_name &&
+          p.routine_type === sourceFunction.routine_type
       );
       return (
-        prodFunction &&
-        this.compareFunctionDefinitions(devFunction, prodFunction)
+        targetFunction &&
+        this.compareFunctionDefinitions(sourceFunction, targetFunction)
       );
     });
 
-    for (const devFunction of functionsToUpdate) {
+    for (const sourceFunction of functionsToUpdate) {
       alterStatements.push(
-        `-- ${devFunction.routine_type.toLowerCase()} ${
-          devFunction.routine_name
-        } has changed, updating in prod`
+        `-- ${sourceFunction.routine_type.toLowerCase()} ${
+          sourceFunction.routine_name
+        } has changed, updating in ${this.options.target}`
       );
 
-      const oldFunctionName = `${devFunction.routine_name}_old_${Date.now()}`;
+      const oldFunctionName = `${sourceFunction.routine_name}_old_${Date.now()}`;
       alterStatements.push(
-        `-- Renaming old ${devFunction.routine_type.toLowerCase()} to ${oldFunctionName} for manual review`
+        `-- Renaming old ${sourceFunction.routine_type.toLowerCase()} to ${oldFunctionName} for manual review`
       );
       alterStatements.push(
-        `ALTER ${devFunction.routine_type} ${this.options.prod}.${devFunction.routine_name} RENAME TO ${oldFunctionName};`
+        `ALTER ${sourceFunction.routine_type} ${this.options.target}.${sourceFunction.routine_name} RENAME TO ${oldFunctionName};`
       );
 
       const definition = await this.getFunctionDefinition(
-        this.options.dev,
-        devFunction.routine_name,
-        devFunction.routine_type
+        this.options.source,
+        sourceFunction.routine_name,
+        sourceFunction.routine_type
       );
 
       const createStatement = this.generateCreateStatement(
         definition,
-        devFunction.routine_name,
-        devFunction.routine_type,
-        this.options.prod
+        sourceFunction.routine_name,
+        sourceFunction.routine_type,
+        this.options.target
       );
 
       alterStatements.push(createStatement);
@@ -229,18 +229,22 @@ export class FunctionOperations {
   async generateFunctionOperations(): Promise<string[]> {
     const alterStatements: string[] = [];
 
-    const devFunctions = await this.getFunctions(this.options.dev);
-    const prodFunctions = await this.getFunctions(this.options.prod);
+    const sourceFunctions = await this.getFunctions(this.options.source);
+    const targetFunctions = await this.getFunctions(this.options.target);
 
-    this.handleFunctionsToDrop(alterStatements, devFunctions, prodFunctions);
+    this.handleFunctionsToDrop(
+      alterStatements,
+      sourceFunctions,
+      targetFunctions
+    );
     await this.handleFunctionsToCreate(
       alterStatements,
-      devFunctions,
-      prodFunctions
+      sourceFunctions,
+      targetFunctions
     );
     await this.handleFunctionsToUpdate(
-      devFunctions,
-      prodFunctions,
+      sourceFunctions,
+      targetFunctions,
       alterStatements
     );
 
@@ -248,16 +252,16 @@ export class FunctionOperations {
   }
 
   /**
-   * Handle functions that need to be dropped in prod
+   * Handle functions that need to be dropped in target
    */
   handleFunctionsToDrop(
     alterStatements: string[],
-    devFunctions: IFunctionRow[],
-    prodFunctions: IFunctionRow[]
+    sourceFunctions: IFunctionRow[],
+    targetFunctions: IFunctionRow[]
   ): void {
-    const functionsToDrop = prodFunctions.filter(
+    const functionsToDrop = targetFunctions.filter(
       p =>
-        !devFunctions.some(
+        !sourceFunctions.some(
           d =>
             d.routine_name === p.routine_name &&
             d.routine_type === p.routine_type
@@ -268,33 +272,33 @@ export class FunctionOperations {
       const backupName = Utils.generateBackupName(func.routine_name);
 
       alterStatements.push(
-        `-- ${func.routine_type} ${func.routine_name} exists in prod but not in dev`
+        `-- ${func.routine_type} ${func.routine_name} exists in ${this.options.target} but not in ${this.options.source}`
       );
       alterStatements.push(
         `-- Renaming ${func.routine_type.toLowerCase()} to preserve before manual drop`
       );
       alterStatements.push(
-        `ALTER ${func.routine_type} ${this.options.prod}.${func.routine_name} RENAME TO ${backupName};`
+        `ALTER ${func.routine_type} ${this.options.target}.${func.routine_name} RENAME TO ${backupName};`
       );
       alterStatements.push(
         `-- TODO: Manually drop ${func.routine_type.toLowerCase()} ${
-          this.options.prod
+          this.options.target
         }.${backupName} after confirming it's no longer needed`
       );
     }
   }
 
   /**
-   * Handle functions that need to be created in prod
+   * Handle functions that need to be created in target
    */
   async handleFunctionsToCreate(
     alterStatements: string[],
-    devFunctions: IFunctionRow[],
-    prodFunctions: IFunctionRow[]
+    sourceFunctions: IFunctionRow[],
+    targetFunctions: IFunctionRow[]
   ): Promise<void> {
-    const functionsToCreate = devFunctions.filter(
+    const functionsToCreate = sourceFunctions.filter(
       d =>
-        !prodFunctions.some(
+        !targetFunctions.some(
           p =>
             p.routine_name === d.routine_name &&
             p.routine_type === d.routine_type
@@ -305,12 +309,12 @@ export class FunctionOperations {
       alterStatements.push(
         `-- Creating ${func.routine_type?.toLowerCase() ?? 'function'} ${
           func.routine_name
-        } in prod`
+        } in ${this.options.target}`
       );
 
-      // Get the definition from dev schema
+      // Get the definition from source schema
       const definition = await this.getFunctionDefinition(
-        this.options.dev,
+        this.options.source,
         func.routine_name,
         func.routine_type
       );
@@ -320,7 +324,7 @@ export class FunctionOperations {
         definition,
         func.routine_name,
         func.routine_type,
-        this.options.prod
+        this.options.target
       );
 
       alterStatements.push(createStatement);

@@ -41,16 +41,16 @@ export const checkConstraint = createConstraint({
 });
 
 // Edge case data
-export const devConstraintsWithSpecialChars = [
+export const sourceConstraintsWithSpecialChars = [
   createConstraint({
     table_name: 'user-table_with.special@chars',
     constraint_name: 'user-table_with.special@chars_pkey',
   }),
 ];
 
-export const prodConstraintsForSpecialChars = [createConstraint()];
+export const targetConstraintsForSpecialChars = [createConstraint()];
 
-export const devConstraintsWithMalformedData = [
+export const sourceConstraintsWithMalformedData = [
   createConstraint({
     // missing other properties
     constraint_type: undefined,

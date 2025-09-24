@@ -16,8 +16,8 @@ import { TriggerOperations } from '@/sync/operations/triggers';
 
 interface SyncOptions {
   conn: string;
-  dev: string;
-  prod: string;
+  source: string;
+  target: string;
   targetConn: string;
   output?: string;
   dryRun?: boolean;
@@ -103,8 +103,8 @@ export class SchemaSyncOrchestrator {
     // Add header
     alterStatements.push('-- ===========================================');
     alterStatements.push('-- Schema Sync Script');
-    alterStatements.push(`-- Dev Schema: ${this.options.dev}`);
-    alterStatements.push(`-- Prod Schema: ${this.options.prod}`);
+    alterStatements.push(`-- Source Schema: ${this.options.source}`);
+    alterStatements.push(`-- Target Schema: ${this.options.target}`);
     alterStatements.push(`-- Generated: ${new Date().toISOString()}`);
     alterStatements.push('-- ===========================================');
     alterStatements.push('');
@@ -126,7 +126,10 @@ export class SchemaSyncOrchestrator {
    * Generate output filename with timestamp
    */
   generateOutputFilename(): string {
-    return Utils.generateOutputFilename(this.options.dev, this.options.prod);
+    return Utils.generateOutputFilename(
+      this.options.source,
+      this.options.target
+    );
   }
 
   /**

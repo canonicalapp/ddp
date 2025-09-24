@@ -30,12 +30,12 @@ This directory contains comprehensive testing tools for the DDP (Declarative Dat
 
 ## Files Overview
 
-| File                      | Purpose                                                               |
-| ------------------------- | --------------------------------------------------------------------- |
-| `test-database-setup.sql` | Creates comprehensive test schemas (dev and prod) with realistic data |
-| `test-runner.sh`          | Automated script to run setup, tests, and cleanup                     |
-| `TESTING_GUIDE.md`        | Detailed manual testing instructions                                  |
-| `README_TESTING.md`       | This file - quick reference                                           |
+| File                      | Purpose                                                                    |
+| ------------------------- | -------------------------------------------------------------------------- |
+| `test-database-setup.sql` | Creates comprehensive test schemas (source and target) with realistic data |
+| `test-runner.sh`          | Automated script to run setup, tests, and cleanup                          |
+| `TESTING_GUIDE.md`        | Detailed manual testing instructions                                       |
+| `README_TESTING.md`       | This file - quick reference                                                |
 
 ## Test Suite Overview
 
@@ -59,7 +59,7 @@ This directory contains comprehensive testing tools for the DDP (Declarative Dat
 ### Prod Schema (Target - Incomplete)
 
 - **4 tables**: users, categories, products, orders (missing columns and tables)
-- **1 function**: get_user_count (different from dev)
+- **1 function**: get_user_count (different from source)
 - **0 triggers**: No triggers
 - **3 indexes**: Basic indexing only
 - **Different data**: 2 users, 2 categories, 2 products, 2 orders
@@ -77,7 +77,7 @@ This directory contains comprehensive testing tools for the DDP (Declarative Dat
 
 ### SYNC Command Tests
 
-- ✅ Schema comparison between dev and prod
+- ✅ Schema comparison between source and target
 - ✅ Alter script generation
 - ✅ Dry run mode
 - ✅ Detection of missing tables, columns, functions, triggers
@@ -88,13 +88,13 @@ This directory contains comprehensive testing tools for the DDP (Declarative Dat
 After running the tests, you should see:
 
 1. **Generated Files** in `test-output/`:
-   - `dev/schema.sql` - Complete schema DDL
-   - `dev/procs.sql` - Functions and procedures
-   - `dev/triggers.sql` - Trigger definitions
-   - `prod/schema.sql` - Incomplete schema DDL
-   - `prod/procs.sql` - Basic functions
-   - `prod/triggers.sql` - Empty (no triggers)
-   - `alter.sql` - Sync script to make prod match dev
+   - `source/schema.sql` - Complete schema DDL
+   - `source/procs.sql` - Functions and procedures
+   - `source/triggers.sql` - Trigger definitions
+   - `target/schema.sql` - Incomplete schema DDL
+   - `target/procs.sql` - Basic functions
+   - `target/triggers.sql` - Empty (no triggers)
+   - `alter.sql` - Sync script to make target match source
 
 2. **File Sizes**:
    - Dev files should be larger (more complete)

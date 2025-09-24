@@ -35,18 +35,18 @@ export class Utils {
 
   /**
    * Generate output filename with timestamp
-   * @param {string} devSchema - Development schema name
-   * @param {string} prodSchema - Production schema name
+   * @param {string} sourceSchema - Source schema name
+   * @param {string} targetSchema - Target schema name
    * @param {string} prefix - Optional prefix (default: 'schema-sync')
    * @returns {string} Generated filename
    */
   static generateOutputFilename(
-    devSchema: string,
-    prodSchema: string,
+    sourceSchema: string,
+    targetSchema: string,
     prefix: string = 'schema-sync'
   ): string {
     const timestamp = this.generateTimestamp().slice(0, 19);
-    return `${prefix}_${devSchema}-to-${prodSchema}_${timestamp}.sql`;
+    return `${prefix}_${sourceSchema}-to-${targetSchema}_${timestamp}.sql`;
   }
 
   /**

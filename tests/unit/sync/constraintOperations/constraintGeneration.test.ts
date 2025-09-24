@@ -11,15 +11,15 @@ import {
 import { constraintDefinitions } from '../../../fixtures/constraintOperations/constraintDefinitions.ts';
 import {
   devConstraintsComplexTest,
-  devConstraintsForAddTest,
-  devConstraintsForDropTest,
-  devConstraintsForIdenticalTest,
-  devConstraintsWithOldConstraints,
+  sourceConstraintsForAddTest,
+  sourceConstraintsForDropTest,
+  sourceConstraintsForIdenticalTest,
+  sourceConstraintsWithOldConstraints,
   prodConstraintsComplexTest,
-  prodConstraintsForAddTest,
-  prodConstraintsForDropTest,
-  prodConstraintsForIdenticalTest,
-  prodConstraintsWithOldConstraints,
+  targetConstraintsForAddTest,
+  targetConstraintsForDropTest,
+  targetConstraintsForIdenticalTest,
+  targetConstraintsWithOldConstraints,
 } from '../../../fixtures/constraintOperations/testScenarios.ts';
 import {
   createMockClient,
@@ -38,35 +38,35 @@ describe('ConstraintOperations - Constraint Generation', () => {
   });
 
   describe('generateConstraintOperations', () => {
-    it('should handle constraints to drop in production', async () => {
+    it('should handle constraints to drop in target', async () => {
       mockClient.query
-        .mockResolvedValueOnce({ rows: devConstraintsForDropTest })
-        .mockResolvedValueOnce({ rows: prodConstraintsForDropTest });
+        .mockResolvedValueOnce({ rows: sourceConstraintsForDropTest })
+        .mockResolvedValueOnce({ rows: targetConstraintsForDropTest });
 
       const result = await constraintOps.generateConstraintOperations();
 
       expect(result).toContain(
-        '-- Constraint old_constraint exists in prod but not in dev'
+        '-- Constraint old_constraint exists in prod_schema but not in dev_schema'
       );
       expect(result).toContain(
         'ALTER TABLE prod_schema.users DROP CONSTRAINT old_constraint;'
       );
     });
 
-    it('should handle constraints to create in production', async () => {
-      const devConstraints = devConstraintsForAddTest;
-      const prodConstraints = prodConstraintsForAddTest;
+    it('should handle constraints to create in target', async () => {
+      const sourceConstraints = sourceConstraintsForAddTest;
+      const targetConstraints = targetConstraintsForAddTest;
 
       const mockConstraintDefinition = [constraintDefinitions.foreignKey];
 
-      // Mock the query to return different results for dev and prod calls
+      // Mock the query to return different results for source and target calls
       let callCount = 0;
       mockClient.query = () => {
         callCount++;
         if (callCount === 1) {
-          return Promise.resolve({ rows: devConstraints });
+          return Promise.resolve({ rows: sourceConstraints });
         } else if (callCount === 2) {
-          return Promise.resolve({ rows: prodConstraints });
+          return Promise.resolve({ rows: targetConstraints });
         } else {
           // This is the call to get constraint definition
           return Promise.resolve({ rows: mockConstraintDefinition });
@@ -76,7 +76,7 @@ describe('ConstraintOperations - Constraint Generation', () => {
       const result = await constraintOps.generateConstraintOperations();
 
       expect(result).toContain(
-        '-- Creating constraint orders_user_id_fkey in prod'
+        '-- Creating constraint orders_user_id_fkey in prod_schema'
       );
       expect(
         result.some(line =>
@@ -101,19 +101,19 @@ describe('ConstraintOperations - Constraint Generation', () => {
     });
 
     it('should handle PRIMARY KEY constraints to create', async () => {
-      const devConstraints = [primaryKeyConstraint];
-      const prodConstraints = [];
+      const sourceConstraints = [primaryKeyConstraint];
+      const targetConstraints = [];
 
       const mockConstraintDefinition = [constraintDefinitions.primaryKey];
 
-      // Mock the query to return different results for dev and prod calls
+      // Mock the query to return different results for source and target calls
       let callCount = 0;
       mockClient.query = () => {
         callCount++;
         if (callCount === 1) {
-          return Promise.resolve({ rows: devConstraints });
+          return Promise.resolve({ rows: sourceConstraints });
         } else if (callCount === 2) {
-          return Promise.resolve({ rows: prodConstraints });
+          return Promise.resolve({ rows: targetConstraints });
         } else {
           // This is the call to get constraint definition
           return Promise.resolve({ rows: mockConstraintDefinition });
@@ -122,7 +122,9 @@ describe('ConstraintOperations - Constraint Generation', () => {
 
       const result = await constraintOps.generateConstraintOperations();
 
-      expect(result).toContain('-- Creating constraint users_pkey in prod');
+      expect(result).toContain(
+        '-- Creating constraint users_pkey in prod_schema'
+      );
       expect(
         result.some(line =>
           line.includes(
@@ -133,19 +135,19 @@ describe('ConstraintOperations - Constraint Generation', () => {
     });
 
     it('should handle UNIQUE constraints to create', async () => {
-      const devConstraints = [uniqueConstraint];
-      const prodConstraints = [];
+      const sourceConstraints = [uniqueConstraint];
+      const targetConstraints = [];
 
       const mockConstraintDefinition = [constraintDefinitions.unique];
 
-      // Mock the query to return different results for dev and prod calls
+      // Mock the query to return different results for source and target calls
       let callCount = 0;
       mockClient.query = () => {
         callCount++;
         if (callCount === 1) {
-          return Promise.resolve({ rows: devConstraints });
+          return Promise.resolve({ rows: sourceConstraints });
         } else if (callCount === 2) {
-          return Promise.resolve({ rows: prodConstraints });
+          return Promise.resolve({ rows: targetConstraints });
         } else {
           // This is the call to get constraint definition
           return Promise.resolve({ rows: mockConstraintDefinition });
@@ -155,7 +157,7 @@ describe('ConstraintOperations - Constraint Generation', () => {
       const result = await constraintOps.generateConstraintOperations();
 
       expect(result).toContain(
-        '-- Creating constraint users_email_unique in prod'
+        '-- Creating constraint users_email_unique in prod_schema'
       );
       expect(
         result.some(line =>
@@ -167,19 +169,19 @@ describe('ConstraintOperations - Constraint Generation', () => {
     });
 
     it('should handle CHECK constraints to create', async () => {
-      const devConstraints = [checkConstraint];
-      const prodConstraints = [];
+      const sourceConstraints = [checkConstraint];
+      const targetConstraints = [];
 
       const mockConstraintDefinition = [constraintDefinitions.check];
 
-      // Mock the query to return different results for dev and prod calls
+      // Mock the query to return different results for source and target calls
       let callCount = 0;
       mockClient.query = () => {
         callCount++;
         if (callCount === 1) {
-          return Promise.resolve({ rows: devConstraints });
+          return Promise.resolve({ rows: sourceConstraints });
         } else if (callCount === 2) {
-          return Promise.resolve({ rows: prodConstraints });
+          return Promise.resolve({ rows: targetConstraints });
         } else {
           // This is the call to get constraint definition
           return Promise.resolve({ rows: mockConstraintDefinition });
@@ -189,7 +191,7 @@ describe('ConstraintOperations - Constraint Generation', () => {
       const result = await constraintOps.generateConstraintOperations();
 
       expect(result).toContain(
-        '-- Creating constraint users_age_check in prod'
+        '-- Creating constraint users_age_check in prod_schema'
       );
       expect(
         result.some(line =>
@@ -201,12 +203,12 @@ describe('ConstraintOperations - Constraint Generation', () => {
     });
 
     it('should handle identical constraint schemas', async () => {
-      const devConstraints = devConstraintsForIdenticalTest;
-      const prodConstraints = prodConstraintsForIdenticalTest;
+      const sourceConstraints = sourceConstraintsForIdenticalTest;
+      const targetConstraints = targetConstraintsForIdenticalTest;
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devConstraints })
-        .mockResolvedValueOnce({ rows: prodConstraints });
+        .mockResolvedValueOnce({ rows: sourceConstraints })
+        .mockResolvedValueOnce({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
@@ -225,12 +227,12 @@ describe('ConstraintOperations - Constraint Generation', () => {
     });
 
     it('should handle multiple constraints to drop', async () => {
-      const devConstraints = devConstraintsWithOldConstraints;
-      const prodConstraints = prodConstraintsWithOldConstraints;
+      const sourceConstraints = sourceConstraintsWithOldConstraints;
+      const targetConstraints = targetConstraintsWithOldConstraints;
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devConstraints })
-        .mockResolvedValueOnce({ rows: prodConstraints });
+        .mockResolvedValueOnce({ rows: sourceConstraints })
+        .mockResolvedValueOnce({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
@@ -238,7 +240,9 @@ describe('ConstraintOperations - Constraint Generation', () => {
         result.filter(
           line =>
             line.includes('-- Constraint') &&
-            line.includes('exists in prod but not in dev')
+            line.includes(
+              `exists in ${mockOptions.target} but not in ${mockOptions.source}`
+            )
         ).length
       ).toBe(2);
       expect(
@@ -250,12 +254,12 @@ describe('ConstraintOperations - Constraint Generation', () => {
     });
 
     it('should handle multiple constraints to create', async () => {
-      const devConstraints = devConstraintsComplexTest;
-      const prodConstraints = prodConstraintsComplexTest;
+      const sourceConstraints = devConstraintsComplexTest;
+      const targetConstraints = prodConstraintsComplexTest;
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devConstraints })
-        .mockResolvedValueOnce({ rows: prodConstraints });
+        .mockResolvedValueOnce({ rows: sourceConstraints })
+        .mockResolvedValueOnce({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
@@ -265,21 +269,21 @@ describe('ConstraintOperations - Constraint Generation', () => {
     });
 
     it('should handle mixed constraint operations', async () => {
-      const devConstraints = devConstraintsComplexTest;
-      const prodConstraints = prodConstraintsWithOldConstraints;
+      const sourceConstraints = devConstraintsComplexTest;
+      const targetConstraints = targetConstraintsWithOldConstraints;
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devConstraints })
-        .mockResolvedValueOnce({ rows: prodConstraints });
+        .mockResolvedValueOnce({ rows: sourceConstraints })
+        .mockResolvedValueOnce({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
       // Should handle both constraint to drop and constraint to create
       expect(result).toContain(
-        '-- Constraint old_constraint1 exists in prod but not in dev'
+        '-- Constraint old_constraint1 exists in prod_schema but not in dev_schema'
       );
       expect(result).toContain(
-        '-- Creating constraint orders_user_id_fkey in prod'
+        '-- Creating constraint orders_user_id_fkey in prod_schema'
       );
     });
 
@@ -295,7 +299,7 @@ describe('ConstraintOperations - Constraint Generation', () => {
 
   describe('handleConstraintsToUpdate', () => {
     it('should handle constraints that have changed', async () => {
-      const devConstraints = [
+      const sourceConstraints = [
         {
           constraint_name: 'test_constraint',
           table_name: 'test_table',
@@ -308,7 +312,7 @@ describe('ConstraintOperations - Constraint Generation', () => {
         },
       ];
 
-      const prodConstraints = [
+      const targetConstraints = [
         {
           constraint_name: 'test_constraint',
           table_name: 'test_table',
@@ -339,13 +343,13 @@ describe('ConstraintOperations - Constraint Generation', () => {
 
       const alterStatements = [];
       await constraintOps.handleConstraintsToUpdate(
-        devConstraints,
-        prodConstraints,
+        sourceConstraints,
+        targetConstraints,
         alterStatements
       );
 
       expect(alterStatements).toContain(
-        '-- Constraint test_constraint has changed, updating in prod'
+        '-- Constraint test_constraint has changed, updating in prod_schema'
       );
       expect(
         alterStatements.some(line =>
@@ -369,7 +373,7 @@ describe('ConstraintOperations - Constraint Generation', () => {
     });
 
     it('should not handle constraints that are identical', async () => {
-      const devConstraints = [
+      const sourceConstraints = [
         {
           constraint_name: 'test_constraint',
           constraint_type: 'FOREIGN KEY',
@@ -381,7 +385,7 @@ describe('ConstraintOperations - Constraint Generation', () => {
         },
       ];
 
-      const prodConstraints = [
+      const targetConstraints = [
         {
           constraint_name: 'test_constraint',
           constraint_type: 'FOREIGN KEY',
@@ -395,8 +399,8 @@ describe('ConstraintOperations - Constraint Generation', () => {
 
       const alterStatements = [];
       await constraintOps.handleConstraintsToUpdate(
-        devConstraints,
-        prodConstraints,
+        sourceConstraints,
+        targetConstraints,
         alterStatements
       );
 
@@ -404,7 +408,7 @@ describe('ConstraintOperations - Constraint Generation', () => {
     });
 
     it('should handle multiple changed constraints', async () => {
-      const devConstraints = [
+      const sourceConstraints = [
         {
           constraint_name: 'constraint1',
           table_name: 'table1',
@@ -427,7 +431,7 @@ describe('ConstraintOperations - Constraint Generation', () => {
         },
       ];
 
-      const prodConstraints = [
+      const targetConstraints = [
         {
           constraint_name: 'constraint1',
           table_name: 'table1',
@@ -483,8 +487,8 @@ describe('ConstraintOperations - Constraint Generation', () => {
 
       const alterStatements = [];
       await constraintOps.handleConstraintsToUpdate(
-        devConstraints,
-        prodConstraints,
+        sourceConstraints,
+        targetConstraints,
         alterStatements
       );
 

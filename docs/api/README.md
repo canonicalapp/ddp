@@ -184,8 +184,8 @@ Main coordinator for schema synchronization operations.
 **Options:**
 
 - `conn` (string) - Source database connection string
-- `dev` (string) - Development schema name
-- `prod` (string) - Production schema name
+- `source` (string) - Development schema name
+- `target` (string) - Production schema name
 - `targetConn` (string) - Target database connection string
 - `output` (string) - Output file path
 - `dryRun` (boolean) - Dry run mode
@@ -502,8 +502,8 @@ const GeneratorOptions = {
 // Sync options
 const SyncOptions = {
   conn: string,
-  dev: string,
-  prod: string,
+  source: string,
+  target: string,
   targetConn: string,
   output: string,
   dryRun: boolean,
@@ -574,8 +574,8 @@ const client = new Client({
 
 const orchestrator = new SchemaSyncOrchestrator(client, {
   conn: 'postgresql://user:pass@localhost:5432/database',
-  dev: 'dev_schema',
-  prod: 'prod_schema',
+  source: 'dev_schema',
+  target: 'prod_schema',
   output: 'sync.sql',
 });
 

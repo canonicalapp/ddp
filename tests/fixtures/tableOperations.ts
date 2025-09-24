@@ -20,36 +20,36 @@ export const productsTable = createTable({
 });
 
 // Test scenarios for table operations
-export const devTablesForAddTest = [usersTable, ordersTable];
+export const sourceTablesForAddTest = [usersTable, ordersTable];
 
-export const prodTablesForAddTest = [usersTable];
+export const targetTablesForAddTest = [usersTable];
 
-export const devTablesForDropTest = [usersTable];
+export const sourceTablesForDropTest = [usersTable];
 
-export const prodTablesForDropTest = [
+export const targetTablesForDropTest = [
   usersTable,
   createTable({
     table_name: 'old_table',
   }),
 ];
 
-export const devTablesForIdenticalTest = [usersTable];
+export const sourceTablesForIdenticalTest = [usersTable];
 
-export const prodTablesForIdenticalTest = [usersTable];
+export const targetTablesForIdenticalTest = [usersTable];
 
 // Edge case data
-export const devTablesForNewTableTest = [
+export const sourceTablesForNewTableTest = [
   usersTable,
   createTable({
     table_name: 'new_table',
   }),
 ];
 
-export const prodTablesForNewTableTest = [usersTable];
+export const targetTablesForNewTableTest = [usersTable];
 
-export const devTablesForOldTableTest = [usersTable];
+export const sourceTablesForOldTableTest = [usersTable];
 
-export const prodTablesForOldTableTest = [
+export const targetTablesForOldTableTest = [
   usersTable,
   createTable({
     table_name: 'old_table',
@@ -57,15 +57,15 @@ export const prodTablesForOldTableTest = [
 ];
 
 // Edge case scenarios
-export const devTablesWithSpecialChars = [
+export const sourceTablesWithSpecialChars = [
   createTable({
     table_name: 'user-table_with.special@chars',
   }),
 ];
 
-export const prodTablesForSpecialChars = [usersTable];
+export const targetTablesForSpecialChars = [usersTable];
 
-export const devTablesWithMalformedData = [
+export const sourceTablesWithMalformedData = [
   createTable({
     // missing other properties
     table_name: undefined,
@@ -77,9 +77,9 @@ export const devTablesComplexTest = [usersTable, ordersTable, productsTable];
 
 export const prodTablesComplexTest = [usersTable];
 
-export const devTablesWithOldTables = [usersTable];
+export const sourceTablesWithOldTables = [usersTable];
 
-export const prodTablesWithOldTables = [
+export const targetTablesWithOldTables = [
   usersTable,
   createTable({
     table_name: 'old_table1',

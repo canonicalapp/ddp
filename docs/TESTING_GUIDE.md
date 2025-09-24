@@ -39,7 +39,7 @@ psql -h localhost -U postgres -d your_database_name -f test-database-setup.sql
 
 This script creates:
 
-- **`dev` schema** - Complete source database with:
+- **`source` schema** - Complete source database with:
   - 5 tables (users, categories, products, orders, order_items, inventory_logs)
   - 3 functions (calculate_order_total, update_product_stock, get_user_orders)
   - 1 procedure (process_order)
@@ -47,9 +47,9 @@ This script creates:
   - Comprehensive indexes and constraints
   - Sample data
 
-- **`prod` schema** - Incomplete target database with:
+- **`target` schema** - Incomplete target database with:
   - 4 tables (users, categories, products, orders) - missing columns and tables
-  - 1 function (get_user_count) - different from dev
+  - 1 function (get_user_count) - different from source
   - Basic indexes only
   - Different sample data
 
@@ -58,8 +58,8 @@ This script creates:
 ### 2.1 Test Schema Generation (Dev)
 
 ```bash
-# Generate schema from dev database
-npm run dev gen -- --host localhost --port 5432 --database your_database_name --username your_username --password your_password --schema dev --output ./test-output/dev
+# Generate schema from source database
+npm run dev gen -- --host localhost --port 5432 --database your_database_name --username your_username --password your_password --schema source_schema_name --output ./test-output/source
 ```
 
 **Expected Output:**
@@ -67,14 +67,14 @@ npm run dev gen -- --host localhost --port 5432 --database your_database_name --
 ```
 DDP GEN - Validating database connection...
 Database: your_database_name
-Schema: dev
+Schema: source
 Host: localhost:5432
 ✅ Database connection validated successfully
 ✅ Read-only access confirmed
-Output: ./test-output/dev
+Output: ./test-output/source
 🔍 Introspecting database schema...
 📊 Database: your_database_name (PostgreSQL 15.0)
-📁 Schema: dev (owner: your_username)
+📁 Schema: source (owner: your_username)
 📋 Discovering tables...
    Found 6 tables
 📋 Discovering table details...
@@ -86,13 +86,13 @@ Output: ./test-output/dev
 ✅ Database introspection completed successfully
 
 🔧 Generating SchemaGenerator...
-📄 Generated: ./test-output/dev/schema.sql
+📄 Generated: ./test-output/source/schema.sql
 ✅ SchemaGenerator generation completed successfully
 🔧 Generating ProcsGenerator...
-📄 Generated: ./test-output/dev/procs.sql
+📄 Generated: ./test-output/source/procs.sql
 ✅ ProcsGenerator generation completed successfully
 🔧 Generating TriggersGenerator...
-📄 Generated: ./test-output/dev/triggers.sql
+📄 Generated: ./test-output/source/triggers.sql
 ✅ TriggersGenerator generation completed successfully
 🎉 All SQL files generated successfully!
 ```
@@ -100,29 +100,29 @@ Output: ./test-output/dev
 ### 2.2 Test Schema Generation (Prod)
 
 ```bash
-# Generate schema from prod database
-npm run dev gen -- --host localhost --port 5432 --database your_database_name --username your_username --password your_password --schema prod --output ./test-output/prod
+# Generate schema from target database
+npm run source gen -- --host localhost --port 5432 --database your_database_name --username your_username --password your_password --schema target_schema_name --output ./test-output/target
 ```
 
 **Expected Output:**
 
-- Similar to dev but with fewer tables, functions, and triggers
+- Similar to source but with fewer tables, functions, and triggers
 - Should show 4 tables, 1 function, 0 triggers
 
 ### 2.3 Test Individual Components
 
 ```bash
 # Test schema only
-npm run dev gen -- --schema-only --host localhost --port 5432 --database your_database_name --username your_username --password your_password --schema dev --output ./test-output/dev-schema-only
+npm run source gen -- --schema-only --host localhost --port 5432 --database your_database_name --username your_username --password your_password --schema source_schema_name --output ./test-output/source-schema-only
 
 # Test procedures only
-npm run dev gen -- --procs-only --host localhost --port 5432 --database your_database_name --username your_username --password your_password --schema dev --output ./test-output/dev-procs-only
+npm run source gen -- --procs-only --host localhost --port 5432 --database your_database_name --username your_username --password your_password --schema source_schema_name --output ./test-output/source-procs-only
 
 # Test triggers only
-npm run dev gen -- --triggers-only --host localhost --port 5432 --database your_database_name --username your_username --password your_password --schema dev --output ./test-output/dev-triggers-only
+npm run source gen -- --triggers-only --host localhost --port 5432 --database your_database_name --username your_username --password your_password --schema source_schema_name --output ./test-output/source-triggers-only
 
 # Test stdout output
-npm run dev gen -- --stdout --host localhost --port 5432 --database your_database_name --username your_username --password your_password --schema dev
+npm run source gen -- --stdout --host localhost --port 5432 --database your_database_name --username your_username --password your_password --schema source_schema_name
 ```
 
 ## Step 3: Test the SYNC Command
@@ -130,10 +130,10 @@ npm run dev gen -- --stdout --host localhost --port 5432 --database your_databas
 ### 3.1 Basic Sync Test
 
 ```bash
-# Sync dev (source) to prod (target)
-npm run dev sync -- \
-  --source-host localhost --source-port 5432 --source-database your_database_name --source-username your_username --source-password your_password --source-schema dev \
-  --target-host localhost --target-port 5432 --target-database your_database_name --target-username your_username --target-password your_password --target-schema prod \
+# Sync source (source) to target (target)
+npm run source sync -- \
+  --source-host localhost --source-port 5432 --source-database your_database_name --source-username your_username --source-password your_password --source-schema source \
+  --target-host localhost --target-port 5432 --target-database your_database_name --target-username your_username --target-password your_password --target-schema target \
   --output ./test-output/alter.sql
 ```
 
@@ -141,14 +141,14 @@ npm run dev sync -- \
 
 ```
 DDP SYNC - Validating database connections...
-Source: localhost:5432/your_database_name.dev
-Target: localhost:5432/your_database_name.prod
+Source: localhost:5432/your_database_name.source
+Target: localhost:5432/your_database_name.target
 ✅ Source database connection validated successfully
 ✅ Target database connection validated successfully
 ✅ Read-only access confirmed for both databases
 🔍 Comparing schemas...
-📊 Source schema: dev (6 tables, 3 functions, 3 triggers)
-📊 Target schema: prod (4 tables, 1 function, 0 triggers)
+📊 Source schema: source (6 tables, 3 functions, 3 triggers)
+📊 Target schema: target (4 tables, 1 function, 0 triggers)
 🔍 Analyzing differences...
 📋 Tables to add: 2 (order_items, inventory_logs)
 📋 Tables to modify: 4 (users, categories, products, orders)
@@ -164,9 +164,9 @@ Target: localhost:5432/your_database_name.prod
 
 ```bash
 # Test dry run (shows what would be changed without executing)
-npm run dev sync -- --dry-run \
-  --source-host localhost --source-port 5432 --source-database your_database_name --source-username your_username --source-password your_password --source-schema dev \
-  --target-host localhost --target-port 5432 --target-database your_database_name --target-username your_username --target-password your_password --target-schema prod
+npm run source sync -- --dry-run \
+  --source-host localhost --source-port 5432 --source-database your_database_name --source-username your_username --source-password your_password --source-schema source_schema_name \
+  --target-host localhost --target-port 5432 --target-database your_database_name --target-username your_username --target-password your_password --target-schema target_schema_name
 ```
 
 ## Step 4: Verify Generated Files
@@ -178,8 +178,8 @@ npm run dev sync -- --dry-run \
 ls -la test-output/
 
 # Check file sizes
-wc -l test-output/dev/*.sql
-wc -l test-output/prod/*.sql
+wc -l test-output/source/*.sql
+wc -l test-output/target/*.sql
 wc -l test-output/alter.sql
 ```
 
@@ -187,16 +187,16 @@ wc -l test-output/alter.sql
 
 ```bash
 # View schema files
-head -50 test-output/dev/schema.sql
-head -50 test-output/prod/schema.sql
+head -50 test-output/source/schema.sql
+head -50 test-output/target/schema.sql
 
 # View procedures
-head -30 test-output/dev/procs.sql
-head -30 test-output/prod/procs.sql
+head -30 test-output/source/procs.sql
+head -30 test-output/target/procs.sql
 
 # View triggers
-head -30 test-output/dev/triggers.sql
-head -30 test-output/prod/triggers.sql
+head -30 test-output/source/triggers.sql
+head -30 test-output/target/triggers.sql
 
 # View sync script
 head -50 test-output/alter.sql
@@ -214,7 +214,7 @@ head -50 test-output/alter.sql
 | **Products table**   | 12 columns  | 5 columns  | Missing: cost, stock_quantity, is_active, weight_kg, dimensions_cm, metadata, updated_at                                              |
 | **Orders table**     | 12 columns  | 5 columns  | Missing: tax_amount, shipping_amount, discount_amount, shipping_address, billing_address, notes, updated_at, shipped_at, delivered_at |
 | **Functions**        | 3 functions | 1 function | Different functions entirely                                                                                                          |
-| **Triggers**         | 3 triggers  | 0 triggers | No triggers in prod                                                                                                                   |
+| **Triggers**         | 3 triggers  | 0 triggers | No triggers in target                                                                                                                 |
 | **Indexes**          | 15 indexes  | 3 indexes  | Comprehensive vs basic                                                                                                                |
 
 ### 5.2 Expected Sync Operations
@@ -245,7 +245,7 @@ The `alter.sql` should contain:
 
 ```bash
 # Test with wrong password
-npm run dev gen -- --host localhost --port 5432 --database your_database_name --username your_username --password wrong_password --schema dev
+npm run dev gen -- --host localhost --port 5432 --database your_database_name --username your_username --password wrong_password --schema source_schema_name
 ```
 
 ### 6.2 Invalid Schema
@@ -268,8 +268,8 @@ npm run dev gen -- --host localhost --port 5432
 
 ```sql
 -- Connect to your database and run:
-DROP SCHEMA IF EXISTS dev CASCADE;
-DROP SCHEMA IF EXISTS prod CASCADE;
+DROP SCHEMA IF EXISTS source CASCADE;
+DROP SCHEMA IF EXISTS target CASCADE;
 ```
 
 ### 7.2 Remove Generated Files

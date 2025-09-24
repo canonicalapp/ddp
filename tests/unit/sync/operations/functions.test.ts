@@ -109,15 +109,15 @@ describe('FunctionOperations', () => {
         `${name}_backup_2024-01-01T00-00-00-000Z`;
     });
 
-    it('should handle functions to drop in production', async () => {
-      const devFunctions = [
+    it('should handle functions to drop in target', async () => {
+      const sourceFunctions = [
         {
           routine_name: 'get_user_by_id',
           routine_type: 'FUNCTION',
           specific_name: 'get_user_by_id_1',
         },
       ];
-      const prodFunctions = [
+      const targetFunctions = [
         {
           routine_name: 'get_user_by_id',
           routine_type: 'FUNCTION',
@@ -130,14 +130,14 @@ describe('FunctionOperations', () => {
         },
       ];
 
-      // Mock the query to return different results for dev and prod calls
+      // Mock the query to return different results for source and target calls
       let callCount = 0;
       mockClient.query = () => {
         callCount++;
         if (callCount === 1) {
-          return Promise.resolve({ rows: devFunctions });
+          return Promise.resolve({ rows: sourceFunctions });
         } else {
-          return Promise.resolve({ rows: prodFunctions });
+          return Promise.resolve({ rows: targetFunctions });
         }
       };
 
@@ -146,7 +146,7 @@ describe('FunctionOperations', () => {
       expect(
         result.some(line =>
           line.includes(
-            '-- FUNCTION old_function exists in prod but not in dev'
+            '-- FUNCTION old_function exists in prod_schema but not in dev_schema'
           )
         )
       ).toBe(true);
@@ -171,15 +171,15 @@ describe('FunctionOperations', () => {
       ).toBe(true);
     });
 
-    it('should handle procedures to drop in production', async () => {
-      const devFunctions = [
+    it('should handle procedures to drop in target', async () => {
+      const sourceFunctions = [
         {
           routine_name: 'update_user',
           routine_type: 'PROCEDURE',
           specific_name: 'update_user_1',
         },
       ];
-      const prodFunctions = [
+      const targetFunctions = [
         {
           routine_name: 'update_user',
           routine_type: 'PROCEDURE',
@@ -192,14 +192,14 @@ describe('FunctionOperations', () => {
         },
       ];
 
-      // Mock the query to return different results for dev and prod calls
+      // Mock the query to return different results for source and target calls
       let callCount = 0;
       mockClient.query = () => {
         callCount++;
         if (callCount === 1) {
-          return Promise.resolve({ rows: devFunctions });
+          return Promise.resolve({ rows: sourceFunctions });
         } else {
-          return Promise.resolve({ rows: prodFunctions });
+          return Promise.resolve({ rows: targetFunctions });
         }
       };
 
@@ -208,7 +208,7 @@ describe('FunctionOperations', () => {
       expect(
         result.some(line =>
           line.includes(
-            '-- PROCEDURE old_procedure exists in prod but not in dev'
+            '-- PROCEDURE old_procedure exists in prod_schema but not in dev_schema'
           )
         )
       ).toBe(true);
@@ -233,8 +233,8 @@ describe('FunctionOperations', () => {
       ).toBe(true);
     });
 
-    it('should handle functions to create in production', async () => {
-      const devFunctions = [
+    it('should handle functions to create in target', async () => {
+      const sourceFunctions = [
         {
           routine_name: 'get_user_by_id',
           routine_type: 'FUNCTION',
@@ -246,7 +246,7 @@ describe('FunctionOperations', () => {
           specific_name: 'new_function_1',
         },
       ];
-      const prodFunctions = [
+      const targetFunctions = [
         {
           routine_name: 'get_user_by_id',
           routine_type: 'FUNCTION',
@@ -257,14 +257,14 @@ describe('FunctionOperations', () => {
       const mockFunctionDefinition =
         'CREATE FUNCTION dev_schema.new_function() RETURNS integer AS $$ BEGIN RETURN 1; END; $$ LANGUAGE plpgsql;';
 
-      // Mock the query to return different results for dev and prod calls
+      // Mock the query to return different results for source and target calls
       let callCount = 0;
       mockClient.query = () => {
         callCount++;
         if (callCount === 1) {
-          return Promise.resolve({ rows: devFunctions });
+          return Promise.resolve({ rows: sourceFunctions });
         } else if (callCount === 2) {
-          return Promise.resolve({ rows: prodFunctions });
+          return Promise.resolve({ rows: targetFunctions });
         } else {
           // This is the call to get function definition
           return Promise.resolve({
@@ -277,7 +277,7 @@ describe('FunctionOperations', () => {
 
       expect(
         result.some(line =>
-          line.includes('-- Creating function new_function in prod')
+          line.includes('-- Creating function new_function in prod_schema')
         )
       ).toBe(true);
       expect(
@@ -287,8 +287,8 @@ describe('FunctionOperations', () => {
       ).toBe(true);
     });
 
-    it('should handle procedures to create in production', async () => {
-      const devFunctions = [
+    it('should handle procedures to create in target', async () => {
+      const sourceFunctions = [
         {
           routine_name: 'update_user',
           routine_type: 'PROCEDURE',
@@ -300,7 +300,7 @@ describe('FunctionOperations', () => {
           specific_name: 'new_procedure_1',
         },
       ];
-      const prodFunctions = [
+      const targetFunctions = [
         {
           routine_name: 'update_user',
           routine_type: 'PROCEDURE',
@@ -311,14 +311,14 @@ describe('FunctionOperations', () => {
       const mockProcedureDefinition =
         'CREATE PROCEDURE dev_schema.new_procedure() AS $$ BEGIN UPDATE users SET updated_at = NOW(); END; $$ LANGUAGE plpgsql;';
 
-      // Mock the query to return different results for dev and prod calls
+      // Mock the query to return different results for source and target calls
       let callCount = 0;
       mockClient.query = () => {
         callCount++;
         if (callCount === 1) {
-          return Promise.resolve({ rows: devFunctions });
+          return Promise.resolve({ rows: sourceFunctions });
         } else if (callCount === 2) {
-          return Promise.resolve({ rows: prodFunctions });
+          return Promise.resolve({ rows: targetFunctions });
         } else {
           // This is the call to get procedure definition
           return Promise.resolve({
@@ -331,7 +331,7 @@ describe('FunctionOperations', () => {
 
       expect(
         result.some(line =>
-          line.includes('-- Creating procedure new_procedure in prod')
+          line.includes('-- Creating procedure new_procedure in prod_schema')
         )
       ).toBe(true);
       expect(
@@ -342,14 +342,14 @@ describe('FunctionOperations', () => {
     });
 
     it('should handle identical function schemas', async () => {
-      const devFunctions = [
+      const sourceFunctions = [
         {
           routine_name: 'get_user_by_id',
           routine_type: 'FUNCTION',
           specific_name: 'get_user_by_id_1',
         },
       ];
-      const prodFunctions = [
+      const targetFunctions = [
         {
           routine_name: 'get_user_by_id',
           routine_type: 'FUNCTION',
@@ -357,14 +357,14 @@ describe('FunctionOperations', () => {
         },
       ];
 
-      // Mock the query to return different results for dev and prod calls
+      // Mock the query to return different results for source and target calls
       let callCount = 0;
       mockClient.query = () => {
         callCount++;
         if (callCount === 1) {
-          return Promise.resolve({ rows: devFunctions });
+          return Promise.resolve({ rows: sourceFunctions });
         } else {
-          return Promise.resolve({ rows: prodFunctions });
+          return Promise.resolve({ rows: targetFunctions });
         }
       };
 
@@ -376,7 +376,7 @@ describe('FunctionOperations', () => {
     });
 
     it('should handle empty schemas', async () => {
-      // Mock the query to return empty results for both dev and prod calls
+      // Mock the query to return empty results for both source and target calls
       mockClient.query = () => {
         return Promise.resolve({ rows: [] });
       };
@@ -387,7 +387,7 @@ describe('FunctionOperations', () => {
     });
 
     it('should handle mixed function and procedure operations', async () => {
-      const devFunctions = [
+      const sourceFunctions = [
         {
           routine_name: 'get_user_by_id',
           routine_type: 'FUNCTION',
@@ -399,7 +399,7 @@ describe('FunctionOperations', () => {
           specific_name: 'new_procedure_1',
         },
       ];
-      const prodFunctions = [
+      const targetFunctions = [
         {
           routine_name: 'get_user_by_id',
           routine_type: 'FUNCTION',
@@ -415,14 +415,14 @@ describe('FunctionOperations', () => {
       const mockProcedureDefinition =
         'CREATE PROCEDURE dev_schema.new_procedure() AS $$ BEGIN UPDATE users SET updated_at = NOW(); END; $$ LANGUAGE plpgsql;';
 
-      // Mock the query to return different results for dev and prod calls
+      // Mock the query to return different results for source and target calls
       let callCount = 0;
       mockClient.query = () => {
         callCount++;
         if (callCount === 1) {
-          return Promise.resolve({ rows: devFunctions });
+          return Promise.resolve({ rows: sourceFunctions });
         } else if (callCount === 2) {
-          return Promise.resolve({ rows: prodFunctions });
+          return Promise.resolve({ rows: targetFunctions });
         } else {
           // This is the call to get procedure definition
           return Promise.resolve({
@@ -437,26 +437,26 @@ describe('FunctionOperations', () => {
       expect(
         result.some(line =>
           line.includes(
-            '-- FUNCTION old_function exists in prod but not in dev'
+            '-- FUNCTION old_function exists in prod_schema but not in dev_schema'
           )
         )
       ).toBe(true);
       expect(
         result.some(line =>
-          line.includes('-- Creating procedure new_procedure in prod')
+          line.includes('-- Creating procedure new_procedure in prod_schema')
         )
       ).toBe(true);
     });
 
     it('should handle multiple functions to drop', async () => {
-      const devFunctions = [
+      const sourceFunctions = [
         {
           routine_name: 'get_user_by_id',
           routine_type: 'FUNCTION',
           specific_name: 'get_user_by_id_1',
         },
       ];
-      const prodFunctions = [
+      const targetFunctions = [
         {
           routine_name: 'get_user_by_id',
           routine_type: 'FUNCTION',
@@ -474,14 +474,14 @@ describe('FunctionOperations', () => {
         },
       ];
 
-      // Mock the query to return different results for dev and prod calls
+      // Mock the query to return different results for source and target calls
       let callCount = 0;
       mockClient.query = () => {
         callCount++;
         if (callCount === 1) {
-          return Promise.resolve({ rows: devFunctions });
+          return Promise.resolve({ rows: sourceFunctions });
         } else {
-          return Promise.resolve({ rows: prodFunctions });
+          return Promise.resolve({ rows: targetFunctions });
         }
       };
 
@@ -491,7 +491,9 @@ describe('FunctionOperations', () => {
         result.filter(
           line =>
             line.includes('-- FUNCTION') &&
-            line.includes('exists in prod but not in dev')
+            line.includes(
+              `exists in ${mockOptions.target} but not in ${mockOptions.source}`
+            )
         ).length
       ).toBe(2);
       expect(
@@ -500,7 +502,7 @@ describe('FunctionOperations', () => {
     });
 
     it('should handle multiple functions to create', async () => {
-      const devFunctions = [
+      const sourceFunctions = [
         {
           routine_name: 'get_user_by_id',
           routine_type: 'FUNCTION',
@@ -517,7 +519,7 @@ describe('FunctionOperations', () => {
           specific_name: 'new_function2_1',
         },
       ];
-      const prodFunctions = [
+      const targetFunctions = [
         {
           routine_name: 'get_user_by_id',
           routine_type: 'FUNCTION',
@@ -530,14 +532,14 @@ describe('FunctionOperations', () => {
       const mockFunctionDefinition2 =
         'CREATE FUNCTION dev_schema.new_function2() RETURNS integer AS $$ BEGIN RETURN 2; END; $$ LANGUAGE plpgsql;';
 
-      // Mock the query to return different results for dev and prod calls
+      // Mock the query to return different results for source and target calls
       let callCount = 0;
       mockClient.query = () => {
         callCount++;
         if (callCount === 1) {
-          return Promise.resolve({ rows: devFunctions });
+          return Promise.resolve({ rows: sourceFunctions });
         } else if (callCount === 2) {
-          return Promise.resolve({ rows: prodFunctions });
+          return Promise.resolve({ rows: targetFunctions });
         } else if (callCount === 3) {
           // First function definition
           return Promise.resolve({
@@ -677,7 +679,7 @@ describe('FunctionOperations', () => {
 
   describe('handleFunctionsToUpdate', () => {
     it('should handle functions that have changed', async () => {
-      const devFunctions = [
+      const sourceFunctions = [
         {
           routine_name: 'test_function',
           routine_type: 'FUNCTION',
@@ -686,7 +688,7 @@ describe('FunctionOperations', () => {
         },
       ];
 
-      const prodFunctions = [
+      const targetFunctions = [
         {
           routine_name: 'test_function',
           routine_type: 'FUNCTION',
@@ -704,24 +706,24 @@ describe('FunctionOperations', () => {
       });
 
       // First test the comparison function directly
-      const devFunction = devFunctions[0];
-      const prodFunction = prodFunctions[0];
+      const sourceFunction = sourceFunctions[0];
+      const targetFunction = targetFunctions[0];
       const isDifferent = functionOps.compareFunctionDefinitions(
-        devFunction,
-        prodFunction
+        sourceFunction,
+        targetFunction
       );
       expect(isDifferent).toBe(true);
 
       const alterStatements = [];
       await functionOps.handleFunctionsToUpdate(
-        devFunctions,
-        prodFunctions,
+        sourceFunctions,
+        targetFunctions,
         alterStatements
       );
 
       expect(alterStatements.length).toBeGreaterThan(0);
       expect(alterStatements).toContain(
-        '-- function test_function has changed, updating in prod'
+        '-- function test_function has changed, updating in prod_schema'
       );
       expect(
         alterStatements.some(line =>
@@ -743,7 +745,7 @@ describe('FunctionOperations', () => {
     });
 
     it('should not handle functions that are identical', async () => {
-      const devFunctions = [
+      const sourceFunctions = [
         {
           routine_name: 'test_function',
           routine_type: 'FUNCTION',
@@ -752,7 +754,7 @@ describe('FunctionOperations', () => {
         },
       ];
 
-      const prodFunctions = [
+      const targetFunctions = [
         {
           routine_name: 'test_function',
           routine_type: 'FUNCTION',
@@ -763,8 +765,8 @@ describe('FunctionOperations', () => {
 
       const alterStatements = [];
       await functionOps.handleFunctionsToUpdate(
-        devFunctions,
-        prodFunctions,
+        sourceFunctions,
+        targetFunctions,
         alterStatements
       );
 
@@ -772,7 +774,7 @@ describe('FunctionOperations', () => {
     });
 
     it('should handle multiple changed functions', async () => {
-      const devFunctions = [
+      const sourceFunctions = [
         {
           routine_name: 'function1',
           routine_type: 'FUNCTION',
@@ -787,7 +789,7 @@ describe('FunctionOperations', () => {
         },
       ];
 
-      const prodFunctions = [
+      const targetFunctions = [
         {
           routine_name: 'function1',
           routine_type: 'FUNCTION',
@@ -827,8 +829,8 @@ describe('FunctionOperations', () => {
 
       const alterStatements = [];
       await functionOps.handleFunctionsToUpdate(
-        devFunctions,
-        prodFunctions,
+        sourceFunctions,
+        targetFunctions,
         alterStatements
       );
 
@@ -863,23 +865,23 @@ describe('FunctionOperations', () => {
 
   describe('Edge cases and error handling', () => {
     it('should handle null function names', async () => {
-      const devFunctions = [
+      const sourceFunctions = [
         {
           routine_name: null,
           routine_type: 'FUNCTION',
           specific_name: 'null_function_1',
         },
       ];
-      const prodFunctions = [];
+      const targetFunctions = [];
 
-      // Mock the query to return different results for dev and prod calls
+      // Mock the query to return different results for source and target calls
       let callCount = 0;
       mockClient.query = () => {
         callCount++;
         if (callCount === 1) {
-          return Promise.resolve({ rows: devFunctions });
+          return Promise.resolve({ rows: sourceFunctions });
         } else {
-          return Promise.resolve({ rows: prodFunctions });
+          return Promise.resolve({ rows: targetFunctions });
         }
       };
 
@@ -889,138 +891,25 @@ describe('FunctionOperations', () => {
 
     it('should handle functions with very long names', async () => {
       const longFunctionName = 'a'.repeat(100);
-      const devFunctions = [
+      const sourceFunctions = [
         {
           routine_name: longFunctionName,
           routine_type: 'FUNCTION',
           specific_name: `${longFunctionName}_1`,
         },
       ];
-      const prodFunctions = [];
+      const targetFunctions = [];
 
       const mockFunctionDefinition = `CREATE FUNCTION dev_schema.${longFunctionName}() RETURNS integer AS $$ BEGIN RETURN 1; END; $$ LANGUAGE plpgsql;`;
 
-      // Mock the query to return different results for dev and prod calls
+      // Mock the query to return different results for source and target calls
       let callCount = 0;
       mockClient.query = () => {
         callCount++;
         if (callCount === 1) {
-          return Promise.resolve({ rows: devFunctions });
+          return Promise.resolve({ rows: sourceFunctions });
         } else if (callCount === 2) {
-          return Promise.resolve({ rows: prodFunctions });
-        } else {
-          // This is the call to get function definition
-          return Promise.resolve({
-            rows: [{ definition: mockFunctionDefinition }],
-          });
-        }
-      };
-
-      const result = await functionOps.generateFunctionOperations();
-
-      expect(
-        result.some(line =>
-          line.includes(`-- Creating function ${longFunctionName} in prod`)
-        )
-      ).toBe(true);
-    });
-
-    it('should handle malformed function data', async () => {
-      const devFunctions = [
-        {
-          routine_name: 'test_function',
-          // missing routine_type and specific_name
-        },
-      ];
-      const prodFunctions = [];
-
-      // Mock the query to return different results for dev and prod calls
-      let callCount = 0;
-      mockClient.query = () => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve({ rows: devFunctions });
-        } else {
-          return Promise.resolve({ rows: prodFunctions });
-        }
-      };
-
-      // Should not throw, but may produce unexpected results
-      const result = await functionOps.generateFunctionOperations();
-      expect(result).toBeDefined();
-    });
-
-    it('should handle functions with same name but different types', async () => {
-      const devFunctions = [
-        {
-          routine_name: 'get_user',
-          routine_type: 'FUNCTION',
-          specific_name: 'get_user_1',
-        },
-      ];
-      const prodFunctions = [
-        {
-          routine_name: 'get_user',
-          routine_type: 'PROCEDURE',
-          specific_name: 'get_user_1',
-        },
-      ];
-
-      const mockFunctionDefinition =
-        'CREATE FUNCTION dev_schema.get_user() RETURNS integer AS $$ BEGIN RETURN 1; END; $$ LANGUAGE plpgsql;';
-
-      // Mock the query to return different results for dev and prod calls
-      let callCount = 0;
-      mockClient.query = () => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve({ rows: devFunctions });
-        } else if (callCount === 2) {
-          return Promise.resolve({ rows: prodFunctions });
-        } else {
-          // This is the call to get function definition
-          return Promise.resolve({
-            rows: [{ definition: mockFunctionDefinition }],
-          });
-        }
-      };
-
-      const result = await functionOps.generateFunctionOperations();
-
-      // Should treat them as different functions
-      expect(
-        result.some(line =>
-          line.includes('-- PROCEDURE get_user exists in prod but not in dev')
-        )
-      ).toBe(true);
-      expect(
-        result.some(line =>
-          line.includes('-- Creating function get_user in prod')
-        )
-      ).toBe(true);
-    });
-
-    it('should handle functions with special characters in names', async () => {
-      const devFunctions = [
-        {
-          routine_name: 'get_user-by_id_with.special@chars',
-          routine_type: 'FUNCTION',
-          specific_name: 'get_user-by_id_with.special@chars_1',
-        },
-      ];
-      const prodFunctions = [];
-
-      const mockFunctionDefinition =
-        'CREATE FUNCTION dev_schema."get_user-by_id_with.special@chars"() RETURNS integer AS $$ BEGIN RETURN 1; END; $$ LANGUAGE plpgsql;';
-
-      // Mock the query to return different results for dev and prod calls
-      let callCount = 0;
-      mockClient.query = () => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve({ rows: devFunctions });
-        } else if (callCount === 2) {
-          return Promise.resolve({ rows: prodFunctions });
+          return Promise.resolve({ rows: targetFunctions });
         } else {
           // This is the call to get function definition
           return Promise.resolve({
@@ -1034,7 +923,124 @@ describe('FunctionOperations', () => {
       expect(
         result.some(line =>
           line.includes(
-            '-- Creating function get_user-by_id_with.special@chars in prod'
+            `-- Creating function ${longFunctionName} in prod_schema`
+          )
+        )
+      ).toBe(true);
+    });
+
+    it('should handle malformed function data', async () => {
+      const sourceFunctions = [
+        {
+          routine_name: 'test_function',
+          // missing routine_type and specific_name
+        },
+      ];
+      const targetFunctions = [];
+
+      // Mock the query to return different results for source and target calls
+      let callCount = 0;
+      mockClient.query = () => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({ rows: sourceFunctions });
+        } else {
+          return Promise.resolve({ rows: targetFunctions });
+        }
+      };
+
+      // Should not throw, but may produce unexpected results
+      const result = await functionOps.generateFunctionOperations();
+      expect(result).toBeDefined();
+    });
+
+    it('should handle functions with same name but different types', async () => {
+      const sourceFunctions = [
+        {
+          routine_name: 'get_user',
+          routine_type: 'FUNCTION',
+          specific_name: 'get_user_1',
+        },
+      ];
+      const targetFunctions = [
+        {
+          routine_name: 'get_user',
+          routine_type: 'PROCEDURE',
+          specific_name: 'get_user_1',
+        },
+      ];
+
+      const mockFunctionDefinition =
+        'CREATE FUNCTION dev_schema.get_user() RETURNS integer AS $$ BEGIN RETURN 1; END; $$ LANGUAGE plpgsql;';
+
+      // Mock the query to return different results for source and target calls
+      let callCount = 0;
+      mockClient.query = () => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({ rows: sourceFunctions });
+        } else if (callCount === 2) {
+          return Promise.resolve({ rows: targetFunctions });
+        } else {
+          // This is the call to get function definition
+          return Promise.resolve({
+            rows: [{ definition: mockFunctionDefinition }],
+          });
+        }
+      };
+
+      const result = await functionOps.generateFunctionOperations();
+
+      // Should treat them as different functions
+      expect(
+        result.some(line =>
+          line.includes(
+            '-- PROCEDURE get_user exists in prod_schema but not in dev_schema'
+          )
+        )
+      ).toBe(true);
+      expect(
+        result.some(line =>
+          line.includes('-- Creating function get_user in prod_schema')
+        )
+      ).toBe(true);
+    });
+
+    it('should handle functions with special characters in names', async () => {
+      const sourceFunctions = [
+        {
+          routine_name: 'get_user-by_id_with.special@chars',
+          routine_type: 'FUNCTION',
+          specific_name: 'get_user-by_id_with.special@chars_1',
+        },
+      ];
+      const targetFunctions = [];
+
+      const mockFunctionDefinition =
+        'CREATE FUNCTION dev_schema."get_user-by_id_with.special@chars"() RETURNS integer AS $$ BEGIN RETURN 1; END; $$ LANGUAGE plpgsql;';
+
+      // Mock the query to return different results for source and target calls
+      let callCount = 0;
+      mockClient.query = () => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({ rows: sourceFunctions });
+        } else if (callCount === 2) {
+          return Promise.resolve({ rows: targetFunctions });
+        } else {
+          // This is the call to get function definition
+          return Promise.resolve({
+            rows: [{ definition: mockFunctionDefinition }],
+          });
+        }
+      };
+
+      const result = await functionOps.generateFunctionOperations();
+
+      expect(
+        result.some(line =>
+          line.includes(
+            '-- Creating function get_user-by_id_with.special@chars in prod_schema'
           )
         )
       ).toBe(true);

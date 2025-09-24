@@ -256,8 +256,8 @@ describe('IndexOperations', () => {
   });
 
   describe('generateIndexOperations', () => {
-    it('should handle indexes to drop in production', async () => {
-      const devIndexes = [
+    it('should handle indexes to drop in target', async () => {
+      const sourceIndexes = [
         {
           schemaname: 'dev_schema',
           tablename: 'users',
@@ -266,7 +266,7 @@ describe('IndexOperations', () => {
             'CREATE INDEX users_email_idx ON dev_schema.users USING btree (email)',
         },
       ];
-      const prodIndexes = [
+      const targetIndexes = [
         {
           schemaname: 'prod_schema',
           tablename: 'users',
@@ -284,19 +284,19 @@ describe('IndexOperations', () => {
       ];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devIndexes })
-        .mockResolvedValueOnce({ rows: prodIndexes });
+        .mockResolvedValueOnce({ rows: sourceIndexes })
+        .mockResolvedValueOnce({ rows: targetIndexes });
 
       const result = await indexOps.generateIndexOperations();
 
       expect(result).toContain(
-        '-- Index old_index exists in prod but not in dev'
+        '-- Index old_index exists in prod_schema but not in dev_schema'
       );
       expect(result).toContain('DROP INDEX prod_schema.old_index;');
     });
 
-    it('should handle indexes to create in production', async () => {
-      const devIndexes = [
+    it('should handle indexes to create in target', async () => {
+      const sourceIndexes = [
         {
           schemaname: 'dev_schema',
           tablename: 'users',
@@ -312,7 +312,7 @@ describe('IndexOperations', () => {
             'CREATE INDEX orders_user_id_idx ON dev_schema.orders USING btree (user_id)',
         },
       ];
-      const prodIndexes = [
+      const targetIndexes = [
         {
           schemaname: 'prod_schema',
           tablename: 'users',
@@ -323,12 +323,14 @@ describe('IndexOperations', () => {
       ];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devIndexes })
-        .mockResolvedValueOnce({ rows: prodIndexes });
+        .mockResolvedValueOnce({ rows: sourceIndexes })
+        .mockResolvedValueOnce({ rows: targetIndexes });
 
       const result = await indexOps.generateIndexOperations();
 
-      expect(result).toContain('-- Creating index orders_user_id_idx in prod');
+      expect(result).toContain(
+        '-- Creating index orders_user_id_idx in prod_schema'
+      );
       expect(
         result.some(line =>
           line.includes(
@@ -339,7 +341,7 @@ describe('IndexOperations', () => {
     });
 
     it('should handle identical index schemas', async () => {
-      const devIndexes = [
+      const sourceIndexes = [
         {
           schemaname: 'dev_schema',
           tablename: 'users',
@@ -348,7 +350,7 @@ describe('IndexOperations', () => {
             'CREATE INDEX users_email_idx ON dev_schema.users USING btree (email)',
         },
       ];
-      const prodIndexes = [
+      const targetIndexes = [
         {
           schemaname: 'prod_schema',
           tablename: 'users',
@@ -359,8 +361,8 @@ describe('IndexOperations', () => {
       ];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devIndexes })
-        .mockResolvedValueOnce({ rows: prodIndexes });
+        .mockResolvedValueOnce({ rows: sourceIndexes })
+        .mockResolvedValueOnce({ rows: targetIndexes });
 
       const result = await indexOps.generateIndexOperations();
 
@@ -379,7 +381,7 @@ describe('IndexOperations', () => {
     });
 
     it('should handle multiple index operations', async () => {
-      const devIndexes = [
+      const sourceIndexes = [
         {
           schemaname: 'dev_schema',
           tablename: 'users',
@@ -395,7 +397,7 @@ describe('IndexOperations', () => {
             'CREATE INDEX orders_user_id_idx ON dev_schema.orders USING btree (user_id)',
         },
       ];
-      const prodIndexes = [
+      const targetIndexes = [
         {
           schemaname: 'prod_schema',
           tablename: 'users',
@@ -413,8 +415,8 @@ describe('IndexOperations', () => {
       ];
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: devIndexes })
-        .mockResolvedValueOnce({ rows: prodIndexes });
+        .mockResolvedValueOnce({ rows: sourceIndexes })
+        .mockResolvedValueOnce({ rows: targetIndexes });
 
       const result = await indexOps.generateIndexOperations();
 
@@ -422,7 +424,9 @@ describe('IndexOperations', () => {
         result.filter(
           line =>
             line.includes('-- Index') &&
-            line.includes('exists in prod but not in dev')
+            line.includes(
+              `exists in ${mockOptions.target} but not in ${mockOptions.source}`
+            )
         ).length
       ).toBe(2);
       expect(

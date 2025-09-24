@@ -70,22 +70,24 @@ describe('Utils', () => {
 
   describe('generateOutputFilename', () => {
     it('should generate filename with default prefix', () => {
-      const devSchema = 'dev';
-      const prodSchema = 'prod';
-      const filename = Utils.generateOutputFilename(devSchema, prodSchema);
+      const sourceSchema = 'source';
+      const targetSchema = 'target';
+      const filename = Utils.generateOutputFilename(sourceSchema, targetSchema);
 
       expect(filename).toMatch(
-        /^schema-sync_dev-to-prod_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.sql$/
+        new RegExp(
+          `^schema-sync_${sourceSchema}-to-${targetSchema}_\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}\\.sql$`
+        )
       );
     });
 
     it('should generate filename with custom prefix', () => {
-      const devSchema = 'development';
-      const prodSchema = 'production';
+      const sourceSchema = 'development';
+      const targetSchema = 'production';
       const prefix = 'migration';
       const filename = Utils.generateOutputFilename(
-        devSchema,
-        prodSchema,
+        sourceSchema,
+        targetSchema,
         prefix
       );
 
@@ -95,9 +97,9 @@ describe('Utils', () => {
     });
 
     it('should handle schema names with underscores', () => {
-      const devSchema = 'dev_schema';
-      const prodSchema = 'prod_schema';
-      const filename = Utils.generateOutputFilename(devSchema, prodSchema);
+      const sourceSchema = 'dev_schema';
+      const targetSchema = 'prod_schema';
+      const filename = Utils.generateOutputFilename(sourceSchema, targetSchema);
 
       expect(filename).toMatch(
         /^schema-sync_dev_schema-to-prod_schema_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.sql$/
@@ -105,7 +107,7 @@ describe('Utils', () => {
     });
 
     it('should truncate timestamp to 19 characters', () => {
-      const filename = Utils.generateOutputFilename('dev', 'prod');
+      const filename = Utils.generateOutputFilename('source', 'target');
       const timestampPart = filename.match(
         /_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})\.sql$/
       )[1];

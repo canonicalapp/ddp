@@ -69,7 +69,7 @@ export class ConstraintOperations {
   }
 
   /**
-   * Get detailed constraint definition from dev schema
+   * Get detailed constraint definition from source schema
    */
   async getConstraintDefinition(
     schemaName: string,
@@ -102,12 +102,12 @@ export class ConstraintOperations {
    * Compare two constraint definitions to detect changes
    */
   compareConstraintDefinitions(
-    devConstraint: IConstraintRow,
-    prodConstraint: IConstraintRow
+    sourceConstraint: IConstraintRow,
+    targetConstraint: IConstraintRow
   ): boolean {
     return this.constraintDefinitions.compareConstraintDefinitions(
-      devConstraint,
-      prodConstraint
+      sourceConstraint,
+      targetConstraint
     );
   }
 
@@ -152,43 +152,43 @@ export class ConstraintOperations {
    * Handle constraints that have changed
    */
   async handleConstraintsToUpdate(
-    devConstraints: IConstraintRow[],
-    prodConstraints: IConstraintRow[],
+    sourceConstraints: IConstraintRow[],
+    targetConstraints: IConstraintRow[],
     alterStatements: string[]
   ): Promise<void> {
     return this.constraintHandlers.handleConstraintsToUpdate(
-      devConstraints,
-      prodConstraints,
+      sourceConstraints,
+      targetConstraints,
       alterStatements
     );
   }
 
   /**
-   * Handle constraints to drop in production
+   * Handle constraints to drop in target
    */
   async handleConstraintsToDrop(
-    devConstraints: IConstraintRow[],
-    prodConstraints: IConstraintRow[],
+    sourceConstraints: IConstraintRow[],
+    targetConstraints: IConstraintRow[],
     alterStatements: string[]
   ): Promise<void> {
     return this.constraintHandlers.handleConstraintsToDrop(
-      devConstraints,
-      prodConstraints,
+      sourceConstraints,
+      targetConstraints,
       alterStatements
     );
   }
 
   /**
-   * Handle constraints to create in production
+   * Handle constraints to create in target
    */
   async handleConstraintsToCreate(
-    devConstraints: IConstraintRow[],
-    prodConstraints: IConstraintRow[],
+    sourceConstraints: IConstraintRow[],
+    targetConstraints: IConstraintRow[],
     alterStatements: string[]
   ): Promise<void> {
     return this.constraintHandlers.handleConstraintsToCreate(
-      devConstraints,
-      prodConstraints,
+      sourceConstraints,
+      targetConstraints,
       alterStatements
     );
   }
@@ -199,22 +199,22 @@ export class ConstraintOperations {
   async generateConstraintOperations(): Promise<string[]> {
     const alterStatements: string[] = [];
 
-    const devConstraints = await this.getConstraints(this.options.dev);
-    const prodConstraints = await this.getConstraints(this.options.prod);
+    const sourceConstraints = await this.getConstraints(this.options.source);
+    const targetConstraints = await this.getConstraints(this.options.target);
 
     await this.handleConstraintsToDrop(
-      devConstraints,
-      prodConstraints,
+      sourceConstraints,
+      targetConstraints,
       alterStatements
     );
     await this.handleConstraintsToCreate(
-      devConstraints,
-      prodConstraints,
+      sourceConstraints,
+      targetConstraints,
       alterStatements
     );
     await this.handleConstraintsToUpdate(
-      devConstraints,
-      prodConstraints,
+      sourceConstraints,
+      targetConstraints,
       alterStatements
     );
 
