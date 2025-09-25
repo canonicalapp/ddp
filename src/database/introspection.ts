@@ -3,12 +3,14 @@
  * Provides methods to introspect database schema and objects
  */
 
+import type { TArray, TNullable } from '@/types';
 import type { Client } from 'pg';
 import {
   GET_DATABASE_INFO_QUERY,
   GET_FUNCTIONS_QUERY,
   GET_FUNCTION_PARAMETERS_QUERY,
   GET_SCHEMA_INFO_QUERY,
+  GET_SEQUENCES_QUERY,
   GET_TABLES_QUERY,
   GET_TABLE_COLUMNS_QUERY,
   GET_TABLE_CONSTRAINTS_QUERY,
@@ -53,7 +55,7 @@ export interface IConstraintInfo {
   constraint_type: string;
   table_name: string;
   table_schema: string;
-  column_name: string | null;
+  column_names: string | null;
   foreign_table_name: string | null;
   foreign_column_name: string | null;
   update_rule: string | null;
@@ -124,6 +126,18 @@ export interface ISchemaInfo {
   schema_comment: string;
 }
 
+export interface ISequenceInfo {
+  sequence_name: string;
+  data_type: string;
+  start_value: string;
+  minimum_value: string;
+  maximum_value: string;
+  increment: string;
+  cycle_option: 'YES' | 'NO';
+  sequence_schema: string;
+  sequence_comment: string;
+}
+
 export interface IDatabaseInfo {
   version: string;
   database_name: string;
@@ -145,77 +159,96 @@ export class IntrospectionService {
   /**
    * Get all tables in the schema
    */
-  async getTables(): Promise<ITableInfo[]> {
+  async getTables(): Promise<TArray<ITableInfo>> {
     const result = await this.client.query(GET_TABLES_QUERY, [this.schema]);
+
+    return result.rows;
+  }
+
+  /**
+   * Get all sequences in the schema
+   */
+  async getSequences(): Promise<TArray<ISequenceInfo>> {
+    const result = await this.client.query(GET_SEQUENCES_QUERY, [this.schema]);
+
     return result.rows;
   }
 
   /**
    * Get all columns for a specific table
    */
-  async getTableColumns(tableName: string): Promise<IColumnInfo[]> {
+  async getTableColumns(tableName: string): Promise<TArray<IColumnInfo>> {
     const result = await this.client.query(GET_TABLE_COLUMNS_QUERY, [
       this.schema,
       tableName,
     ]);
+
     return result.rows;
   }
 
   /**
    * Get all constraints for a specific table
    */
-  async getTableConstraints(tableName: string): Promise<IConstraintInfo[]> {
+  async getTableConstraints(
+    tableName: string
+  ): Promise<TArray<IConstraintInfo>> {
     const result = await this.client.query(GET_TABLE_CONSTRAINTS_QUERY, [
       this.schema,
       tableName,
     ]);
+
     return result.rows;
   }
 
   /**
    * Get all indexes for a specific table
    */
-  async getTableIndexes(tableName: string): Promise<IIndexInfo[]> {
+  async getTableIndexes(tableName: string): Promise<TArray<IIndexInfo>> {
     const result = await this.client.query(GET_TABLE_INDEXES_QUERY, [
       this.schema,
       tableName,
     ]);
+
     return result.rows;
   }
 
   /**
    * Get all functions and procedures in the schema
    */
-  async getFunctions(): Promise<IFunctionInfo[]> {
+  async getFunctions(): Promise<TArray<IFunctionInfo>> {
     const result = await this.client.query(GET_FUNCTIONS_QUERY, [this.schema]);
+
     return result.rows;
   }
 
   /**
    * Get function parameters for all functions in the schema
    */
-  async getFunctionParameters(): Promise<IFunctionParameterInfo[]> {
+  async getFunctionParameters(): Promise<TArray<IFunctionParameterInfo>> {
     const result = await this.client.query(GET_FUNCTION_PARAMETERS_QUERY, [
       this.schema,
     ]);
+
     return result.rows;
   }
 
   /**
    * Get all triggers in the schema
    */
-  async getTriggers(): Promise<ITriggerInfo[]> {
+  async getTriggers(): Promise<TArray<ITriggerInfo>> {
     const result = await this.client.query(GET_TRIGGERS_QUERY, [this.schema]);
+
     return result.rows;
   }
 
   /**
    * Get schema information
    */
-  async getSchemaInfo(): Promise<ISchemaInfo | null> {
+  async getSchemaInfo(): Promise<TNullable<ISchemaInfo>> {
     const result = await this.client.query(GET_SCHEMA_INFO_QUERY, [
       this.schema,
     ]);
+
     return result.rows[0] ?? null;
   }
 
@@ -232,9 +265,9 @@ export class IntrospectionService {
    */
   async getCompleteTableInfo(tableName: string): Promise<{
     table: ITableInfo;
-    columns: IColumnInfo[];
-    constraints: IConstraintInfo[];
-    indexes: IIndexInfo[];
+    columns: TArray<IColumnInfo>;
+    constraints: TArray<IConstraintInfo>;
+    indexes: TArray<IIndexInfo>;
   }> {
     const [tableResult, columnsResult, constraintsResult, indexesResult] =
       await Promise.all([
@@ -261,17 +294,52 @@ export class IntrospectionService {
   }
 
   /**
+   * Check if the schema exists in the database
+   */
+  async checkSchemaExists(): Promise<boolean> {
+    const query = `
+      SELECT EXISTS(
+        SELECT 1 
+        FROM information_schema.schemata 
+        WHERE schema_name = $1
+      ) as exists;
+    `;
+
+    const result = await this.client.query(query, [this.schema]);
+
+    return result.rows[0]?.exists ?? false;
+  }
+
+  /**
+   * Get list of available schemas in the database
+   */
+  async getAvailableSchemas(): Promise<TArray<string>> {
+    const query = `
+      SELECT schema_name 
+      FROM information_schema.schemata 
+      WHERE schema_name NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+      ORDER BY schema_name;
+    `;
+
+    const result = await this.client.query(query);
+
+    return result.rows.map(row => row.schema_name);
+  }
+
+  /**
    * Get all tables with their complete information
    */
   async getAllTablesComplete(): Promise<
-    Array<{
+    TArray<{
       table: ITableInfo;
-      columns: IColumnInfo[];
-      constraints: IConstraintInfo[];
-      indexes: IIndexInfo[];
+      columns: TArray<IColumnInfo>;
+      constraints: TArray<IConstraintInfo>;
+      indexes: TArray<IIndexInfo>;
+      sequences: TArray<ISequenceInfo>;
     }>
   > {
     const tables = await this.getTables();
+    const sequences = await this.getSequences();
 
     const tablesMeta = tables.map(async table => {
       const [columns, constraints, indexes] = await Promise.all([
@@ -285,6 +353,7 @@ export class IntrospectionService {
         columns,
         constraints,
         indexes,
+        sequences,
       };
     });
 

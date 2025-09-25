@@ -132,7 +132,12 @@ describe('Triggers Generator', () => {
     it('should not throw when triggers are found', async () => {
       // Mock the client query to return trigger data
       mockClient.query.mockResolvedValue({
-        rows: [{ trigger_name: 'test_trigger' }],
+        rows: [
+          {
+            trigger_name: 'test_trigger',
+            event_object_table: 'test_table',
+          },
+        ],
       });
 
       const generator = new TriggersGenerator(
@@ -332,9 +337,9 @@ describe('Triggers Generator', () => {
 
         const result = (
           generator as unknown as {
-            generateTriggerSQL: (trigger: ITriggerDefinition) => string;
+            generateTriggerSQL: (triggers: ITriggerDefinition[]) => string;
           }
-        ).generateTriggerSQL(trigger);
+        ).generateTriggerSQL([trigger]);
 
         expect(result).toContain('-- Trigger: test_trigger');
         expect(result).toContain('-- Test trigger');
@@ -343,7 +348,9 @@ describe('Triggers Generator', () => {
         expect(result).toContain('ON public.test_table');
         expect(result).toContain('FOR EACH ROW');
         expect(result).toContain('WHEN (NEW.id > 0)');
-        expect(result).toContain('EXECUTE FUNCTION "test_function()"();');
+        expect(result).toContain(
+          'EXECUTE FUNCTION public."test_function()"();'
+        );
       });
 
       it('should generate trigger without condition', () => {
@@ -359,16 +366,18 @@ describe('Triggers Generator', () => {
 
         const result = (
           generator as unknown as {
-            generateTriggerSQL: (trigger: ITriggerDefinition) => string;
+            generateTriggerSQL: (triggers: ITriggerDefinition[]) => string;
           }
-        ).generateTriggerSQL(trigger);
+        ).generateTriggerSQL([trigger]);
 
         expect(result).toContain('CREATE TRIGGER simple_trigger');
         expect(result).toContain('AFTER UPDATE');
         expect(result).toContain('ON public.test_table');
         expect(result).toContain('FOR EACH ROW');
         expect(result).not.toContain('WHEN');
-        expect(result).toContain('EXECUTE FUNCTION "simple_function()"();');
+        expect(result).toContain(
+          'EXECUTE FUNCTION public."simple_function()"();'
+        );
       });
     });
 
@@ -412,9 +421,9 @@ describe('Triggers Generator', () => {
         expect(result.size).toBe(2);
         expect(result.get('table1')).toHaveLength(2);
         expect(result.get('table2')).toHaveLength(1);
-        expect(result.get('table1')![0].name).toBe('trigger1');
-        expect(result.get('table1')![1].name).toBe('trigger2');
-        expect(result.get('table2')![0].name).toBe('trigger3');
+        expect(result.get('table1')[0].name).toBe('trigger1');
+        expect(result.get('table1')[1].name).toBe('trigger2');
+        expect(result.get('table2')[0].name).toBe('trigger3');
       });
     });
   });

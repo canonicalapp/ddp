@@ -11,11 +11,11 @@ import {
 import { constraintDefinitions } from '../../../fixtures/constraintOperations/constraintDefinitions.ts';
 import {
   devConstraintsComplexTest,
+  prodConstraintsComplexTest,
   sourceConstraintsForAddTest,
   sourceConstraintsForDropTest,
   sourceConstraintsForIdenticalTest,
   sourceConstraintsWithOldConstraints,
-  prodConstraintsComplexTest,
   targetConstraintsForAddTest,
   targetConstraintsForDropTest,
   targetConstraintsForIdenticalTest,
@@ -28,20 +28,27 @@ import {
 
 describe('ConstraintOperations - Constraint Generation', () => {
   let constraintOps;
-  let mockClient;
+  let mockSourceClient;
+  let mockTargetClient;
   let mockOptions;
 
   beforeEach(() => {
-    mockClient = createMockClient();
+    mockSourceClient = createMockClient();
+    mockTargetClient = createMockClient();
     mockOptions = createMockOptions();
-    constraintOps = new ConstraintOperations(mockClient, mockOptions);
+    constraintOps = new ConstraintOperations(
+      mockSourceClient,
+      mockTargetClient,
+      mockOptions
+    );
   });
 
   describe('generateConstraintOperations', () => {
     it('should handle constraints to drop in target', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceConstraintsForDropTest })
-        .mockResolvedValueOnce({ rows: targetConstraintsForDropTest });
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: sourceConstraintsForDropTest });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: targetConstraintsForDropTest });
 
       const result = await constraintOps.generateConstraintOperations();
 
@@ -49,7 +56,7 @@ describe('ConstraintOperations - Constraint Generation', () => {
         '-- Constraint old_constraint exists in prod_schema but not in dev_schema'
       );
       expect(result).toContain(
-        'ALTER TABLE prod_schema.users DROP CONSTRAINT old_constraint;'
+        'ALTER TABLE prod_schema.users DROP CONSTRAINT IF EXISTS old_constraint;'
       );
     });
 
@@ -61,7 +68,7 @@ describe('ConstraintOperations - Constraint Generation', () => {
 
       // Mock the query to return different results for source and target calls
       let callCount = 0;
-      mockClient.query = () => {
+      mockSourceClient.query = () => {
         callCount++;
         if (callCount === 1) {
           return Promise.resolve({ rows: sourceConstraints });
@@ -104,21 +111,11 @@ describe('ConstraintOperations - Constraint Generation', () => {
       const sourceConstraints = [primaryKeyConstraint];
       const targetConstraints = [];
 
-      const mockConstraintDefinition = [constraintDefinitions.primaryKey];
-
-      // Mock the query to return different results for source and target calls
-      let callCount = 0;
-      mockClient.query = () => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve({ rows: sourceConstraints });
-        } else if (callCount === 2) {
-          return Promise.resolve({ rows: targetConstraints });
-        } else {
-          // This is the call to get constraint definition
-          return Promise.resolve({ rows: mockConstraintDefinition });
-        }
-      };
+      // Mock both source and target client queries
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: sourceConstraints });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
@@ -138,21 +135,11 @@ describe('ConstraintOperations - Constraint Generation', () => {
       const sourceConstraints = [uniqueConstraint];
       const targetConstraints = [];
 
-      const mockConstraintDefinition = [constraintDefinitions.unique];
-
-      // Mock the query to return different results for source and target calls
-      let callCount = 0;
-      mockClient.query = () => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve({ rows: sourceConstraints });
-        } else if (callCount === 2) {
-          return Promise.resolve({ rows: targetConstraints });
-        } else {
-          // This is the call to get constraint definition
-          return Promise.resolve({ rows: mockConstraintDefinition });
-        }
-      };
+      // Mock both source and target client queries
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: sourceConstraints });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
@@ -172,21 +159,11 @@ describe('ConstraintOperations - Constraint Generation', () => {
       const sourceConstraints = [checkConstraint];
       const targetConstraints = [];
 
-      const mockConstraintDefinition = [constraintDefinitions.check];
-
-      // Mock the query to return different results for source and target calls
-      let callCount = 0;
-      mockClient.query = () => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve({ rows: sourceConstraints });
-        } else if (callCount === 2) {
-          return Promise.resolve({ rows: targetConstraints });
-        } else {
-          // This is the call to get constraint definition
-          return Promise.resolve({ rows: mockConstraintDefinition });
-        }
-      };
+      // Mock both source and target client queries
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: sourceConstraints });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
@@ -206,9 +183,10 @@ describe('ConstraintOperations - Constraint Generation', () => {
       const sourceConstraints = sourceConstraintsForIdenticalTest;
       const targetConstraints = targetConstraintsForIdenticalTest;
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceConstraints })
-        .mockResolvedValueOnce({ rows: targetConstraints });
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: sourceConstraints });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
@@ -217,9 +195,8 @@ describe('ConstraintOperations - Constraint Generation', () => {
     });
 
     it('should handle empty schemas', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [] });
+      mockSourceClient.query = () => Promise.resolve({ rows: [] });
+      mockTargetClient.query = () => Promise.resolve({ rows: [] });
 
       const result = await constraintOps.generateConstraintOperations();
 
@@ -230,9 +207,10 @@ describe('ConstraintOperations - Constraint Generation', () => {
       const sourceConstraints = sourceConstraintsWithOldConstraints;
       const targetConstraints = targetConstraintsWithOldConstraints;
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceConstraints })
-        .mockResolvedValueOnce({ rows: targetConstraints });
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: sourceConstraints });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
@@ -257,9 +235,10 @@ describe('ConstraintOperations - Constraint Generation', () => {
       const sourceConstraints = devConstraintsComplexTest;
       const targetConstraints = prodConstraintsComplexTest;
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceConstraints })
-        .mockResolvedValueOnce({ rows: targetConstraints });
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: sourceConstraints });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
@@ -272,9 +251,10 @@ describe('ConstraintOperations - Constraint Generation', () => {
       const sourceConstraints = devConstraintsComplexTest;
       const targetConstraints = targetConstraintsWithOldConstraints;
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceConstraints })
-        .mockResolvedValueOnce({ rows: targetConstraints });
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: sourceConstraints });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
@@ -289,7 +269,7 @@ describe('ConstraintOperations - Constraint Generation', () => {
 
     it('should handle database errors', async () => {
       const error = new Error('Database connection failed');
-      mockClient.query.mockRejectedValue(error);
+      mockSourceClient.query = () => Promise.reject(error);
 
       await expect(
         constraintOps.generateConstraintOperations()
@@ -339,9 +319,11 @@ describe('ConstraintOperations - Constraint Generation', () => {
       ];
 
       // Mock the getConstraintDefinition call
-      mockClient.query.mockResolvedValue({ rows: mockConstraintDefinition });
+      mockSourceClient.query.mockResolvedValue({
+        rows: mockConstraintDefinition,
+      });
 
-      const alterStatements = [];
+      const alterStatements: string[] = [];
       await constraintOps.handleConstraintsToUpdate(
         sourceConstraints,
         targetConstraints,
@@ -397,7 +379,7 @@ describe('ConstraintOperations - Constraint Generation', () => {
         },
       ];
 
-      const alterStatements = [];
+      const alterStatements: string[] = [];
       await constraintOps.handleConstraintsToUpdate(
         sourceConstraints,
         targetConstraints,
@@ -481,11 +463,11 @@ describe('ConstraintOperations - Constraint Generation', () => {
       ];
 
       // Mock the getConstraintDefinition calls
-      mockClient.query
+      mockSourceClient.query
         .mockResolvedValueOnce({ rows: mockConstraintDefinition1 })
         .mockResolvedValueOnce({ rows: mockConstraintDefinition2 });
 
-      const alterStatements = [];
+      const alterStatements: string[] = [];
       await constraintOps.handleConstraintsToUpdate(
         sourceConstraints,
         targetConstraints,

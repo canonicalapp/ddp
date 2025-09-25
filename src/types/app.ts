@@ -1,7 +1,7 @@
 // Generic Utility Types
 export type TNumberOrString = number | string;
 export type TNullOrUndefined = null | undefined;
-export type TUnknownOrAny = unknown | never | any;
+export type TUnknownOrAny = unknown | never;
 export type TPromise<Type> = Promise<Type>;
 export type TArray<Type> = Array<Type>;
 export type TNullable<Type> = Type | null;

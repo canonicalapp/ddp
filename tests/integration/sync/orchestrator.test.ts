@@ -19,14 +19,16 @@ import {
 // Note: jest.mock is not available in global scope with ES modules
 
 describe('Main Application Integration', () => {
-  let mockClient;
+  let mockSourceClient;
+  let mockTargetClient;
   let mockOptions;
 
   beforeEach(() => {
-    mockClient = createMockClient();
+    mockSourceClient = createMockClient();
+    mockTargetClient = createMockClient();
 
     // Mock Client constructor
-    global.Client = () => mockClient;
+    global.Client = () => mockSourceClient;
 
     mockOptions = createMockOptions();
   });
@@ -36,16 +38,20 @@ describe('Main Application Integration', () => {
       let connectCalled = false;
       let endCalled = false;
 
-      mockClient.connect = () => {
+      mockSourceClient.connect = () => {
         connectCalled = true;
         return Promise.resolve();
       };
-      mockClient.end = () => {
+      mockSourceClient.end = () => {
         endCalled = true;
         return Promise.resolve();
       };
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       await orchestrator.execute();
 
@@ -57,13 +63,17 @@ describe('Main Application Integration', () => {
       const connectionError = new Error('Connection refused');
       let endCalled = false;
 
-      mockClient.connect = () => Promise.reject(connectionError);
-      mockClient.end = () => {
+      mockSourceClient.connect = () => Promise.reject(connectionError);
+      mockSourceClient.end = () => {
         endCalled = true;
         return Promise.resolve();
       };
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       await expect(orchestrator.execute()).rejects.toThrow(
         'Connection refused'
@@ -75,12 +85,16 @@ describe('Main Application Integration', () => {
       const scriptError = new Error('Script generation failed');
       let endCalled = false;
 
-      mockClient.end = () => {
+      mockSourceClient.end = () => {
         endCalled = true;
         return Promise.resolve();
       };
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       // Mock the generateSyncScript method to throw an error
       orchestrator.generateSyncScript = () => Promise.reject(scriptError);
@@ -100,13 +114,17 @@ describe('Main Application Integration', () => {
         identicalSchemasScenario.target
       );
 
-      mockClient.query = createQueryMock(responses);
+      mockSourceClient.query = createQueryMock(responses);
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
       await orchestrator.execute();
 
       // Verify all database queries were made
-      expect(responses.length).toBe(12);
+      expect(responses.length).toBe(14);
     });
 
     it('should handle schema differences correctly', async () => {
@@ -116,9 +134,26 @@ describe('Main Application Integration', () => {
         missingTableScenario.target
       );
 
-      mockClient.query = createQueryMock(responses);
+      // Use a single call count for both clients since they're called in sequence
+      let callCount = 0;
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      mockSourceClient.query = (..._args) => {
+        const response = responses[callCount] || { rows: [] };
+        callCount++;
+        return Promise.resolve(response);
+      };
+
+      mockTargetClient.query = (..._args) => {
+        const response = responses[callCount] || { rows: [] };
+        callCount++;
+        return Promise.resolve(response);
+      };
+
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
       const result = await orchestrator.execute();
 
       // Should generate operations for missing table
@@ -149,7 +184,11 @@ describe('Main Application Integration', () => {
       mockOptions.save = true;
       mockOptions.output = 'output/schema-sync.sql';
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       // Mock the saveScriptToFile method to use our global mocks
       orchestrator.saveScriptToFile = (_script, filename) => {
@@ -177,7 +216,11 @@ describe('Main Application Integration', () => {
       mockOptions.save = true;
       mockOptions.output = null;
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       // Mock the saveScriptToFile method to use our global mocks
       orchestrator.saveScriptToFile = (script, filename) => {
@@ -188,7 +231,7 @@ describe('Main Application Integration', () => {
 
       expect(writeFileSyncCalled).toBe(true);
       expect(filenameUsed).toMatch(
-        /schema-sync_dev_schema-to-prod_schema_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.sql/
+        /schema-sync_dev_schema-to-prod_schema_\d{1,19}\.sql/
       );
     });
 
@@ -204,7 +247,11 @@ describe('Main Application Integration', () => {
 
       mockOptions.save = false;
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
       await orchestrator.execute();
 
       expect(consoleLogCalled).toBe(true);
@@ -220,13 +267,17 @@ describe('Main Application Integration', () => {
       const queryError = new Error('Table does not exist');
       let endCalled = false;
 
-      mockClient.query = () => Promise.reject(queryError);
-      mockClient.end = () => {
+      mockSourceClient.query = () => Promise.reject(queryError);
+      mockSourceClient.end = () => {
         endCalled = true;
         return Promise.resolve();
       };
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       await expect(orchestrator.execute()).rejects.toThrow(
         'Table does not exist'
@@ -238,7 +289,7 @@ describe('Main Application Integration', () => {
       const fileError = new Error('Permission denied');
       let endCalled = false;
 
-      mockClient.end = () => {
+      mockSourceClient.end = () => {
         endCalled = true;
         return Promise.resolve();
       };
@@ -246,7 +297,11 @@ describe('Main Application Integration', () => {
       mockOptions.save = true;
       mockOptions.output = 'test.sql';
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       // Mock the saveScriptToFile method to throw the error
       orchestrator.saveScriptToFile = () => {
@@ -259,9 +314,13 @@ describe('Main Application Integration', () => {
 
     it('should handle malformed connection strings', async () => {
       const connectionError = new Error('Invalid connection string');
-      mockClient.connect = () => Promise.reject(connectionError);
+      mockSourceClient.connect = () => Promise.reject(connectionError);
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       await expect(orchestrator.execute()).rejects.toThrow(
         'Invalid connection string'
@@ -277,18 +336,26 @@ describe('Main Application Integration', () => {
         performanceTestScenario.target
       );
 
-      mockClient.query = createQueryMock(responses);
+      mockSourceClient.query = createQueryMock(responses);
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       await expect(orchestrator.execute()).resolves.not.toThrow();
-      expect(responses.length).toBe(12);
+      expect(responses.length).toBe(14);
     });
 
     it('should handle empty schemas', async () => {
-      mockClient.query = () => Promise.resolve({ rows: [] });
+      mockSourceClient.query = () => Promise.resolve({ rows: [] });
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
       const result = await orchestrator.execute();
 
       expect(result).toContain('-- Schema Sync Script');
@@ -300,9 +367,13 @@ describe('Main Application Integration', () => {
       mockOptions.source = 'source-schema_with.special@chars';
       mockOptions.target = 'target-schema_with.special@chars';
 
-      mockClient.query = () => Promise.resolve({ rows: [] });
+      mockSourceClient.query = () => Promise.resolve({ rows: [] });
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
       const result = await orchestrator.execute();
 
       expect(result).toContain(
@@ -314,12 +385,22 @@ describe('Main Application Integration', () => {
     });
 
     it('should handle concurrent execution scenarios', async () => {
-      const orchestrator1 = new SchemaSyncOrchestrator(mockClient, mockOptions);
-      const orchestrator2 = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator1 = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
+      const orchestrator2 = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       // Setup for orchestrator1: table1 in source, nothing in target
       let callCount1 = 0;
       const responses1 = [
+        { rows: [] }, // source sequences
+        { rows: [] }, // target sequences
         { rows: [{ table_name: 'table1' }] }, // source tables
         { rows: [] }, // target tables
         { rows: [] }, // source columns
@@ -328,11 +409,18 @@ describe('Main Application Integration', () => {
         { rows: [] }, // target functions
         { rows: [] }, // source constraints
         { rows: [] }, // target constraints
+        { rows: [] }, // source indexes
+        { rows: [] }, // target indexes
         { rows: [] }, // source triggers
         { rows: [] }, // target triggers
       ];
 
-      mockClient.query = () => {
+      mockSourceClient.query = () => {
+        const response = responses1[callCount1] || { rows: [] };
+        callCount1++;
+        return Promise.resolve(response);
+      };
+      mockTargetClient.query = () => {
         const response = responses1[callCount1] || { rows: [] };
         callCount1++;
         return Promise.resolve(response);
@@ -343,6 +431,8 @@ describe('Main Application Integration', () => {
       // Setup for orchestrator2: nothing in source, table2 in target
       let callCount2 = 0;
       const responses2 = [
+        { rows: [] }, // source sequences
+        { rows: [] }, // target sequences
         { rows: [] }, // source tables
         { rows: [{ table_name: 'table2' }] }, // target tables
         { rows: [] }, // source columns
@@ -351,11 +441,18 @@ describe('Main Application Integration', () => {
         { rows: [] }, // target functions
         { rows: [] }, // source constraints
         { rows: [] }, // target constraints
+        { rows: [] }, // source indexes
+        { rows: [] }, // target indexes
         { rows: [] }, // source triggers
         { rows: [] }, // target triggers
       ];
 
-      mockClient.query = () => {
+      mockSourceClient.query = () => {
+        const response = responses2[callCount2] || { rows: [] };
+        callCount2++;
+        return Promise.resolve(response);
+      };
+      mockTargetClient.query = () => {
         const response = responses2[callCount2] || { rows: [] };
         callCount2++;
         return Promise.resolve(response);
@@ -404,7 +501,7 @@ describe('Main Application Integration', () => {
   //       { rows: [{ definition: mockFunctionDefinitions[0] }] }, // get_user_by_id definition (for update) - pg_get_functiondef query
   //     ];
 
-  //     mockClient.query = (query, _params) => {
+  //     mockSourceClient.query = (query, _params) => {
   //       // Handle function definition queries specifically
   //       if (query.includes('pg_get_functiondef')) {
   //         // Function definition query for get_user_by_id
@@ -440,7 +537,7 @@ describe('Main Application Integration', () => {
   //       return Promise.resolve(response);
   //     };
 
-  //     const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+  //     const orchestrator = new SchemaSyncOrchestrator(mockSourceClient, mockTargetClient, mockOptions);
   //     const result = await orchestrator.execute();
 
   //     // Should handle function diff (rename old, create new)
@@ -515,13 +612,13 @@ describe('Main Application Integration', () => {
   //       { rows: [sourceTriggers[1]] }, // audit_user_changes definition (for create)
   //     ];
 
-  //     mockClient.query = () => {
+  //     mockSourceClient.query = () => {
   //       const response = responses[callCount] || { rows: [] };
   //       callCount++;
   //       return Promise.resolve(response);
   //     };
 
-  //     const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+  //     const orchestrator = new SchemaSyncOrchestrator(mockSourceClient, mockTargetClient, mockOptions);
   //     const result = await orchestrator.execute();
 
   //     // Should handle trigger diff (rename old, create new)
@@ -606,13 +703,13 @@ describe('Main Application Integration', () => {
   //       { rows: [sourceConstraints[1]] }, // orders_user_id_fkey definition (for create)
   //     ];
 
-  //     mockClient.query = () => {
+  //     mockSourceClient.query = () => {
   //       const response = responses[callCount] || { rows: [] };
   //       callCount++;
   //       return Promise.resolve(response);
   //     };
 
-  //     const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+  //     const orchestrator = new SchemaSyncOrchestrator(mockSourceClient, mockTargetClient, mockOptions);
   //     const result = await orchestrator.execute();
 
   //     // Should handle constraint creation
@@ -669,13 +766,13 @@ describe('Main Application Integration', () => {
   //       { rows: targetIndexes }, // target indexes
   //     ];
 
-  //     mockClient.query = () => {
+  //     mockSourceClient.query = () => {
   //       const response = responses[callCount] || { rows: [] };
   //       callCount++;
   //       return Promise.resolve(response);
   //     };
 
-  //     const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+  //     const orchestrator = new SchemaSyncOrchestrator(mockSourceClient, mockTargetClient, mockOptions);
   //     const result = await orchestrator.execute();
 
   //     // Should handle index creation
@@ -776,13 +873,13 @@ describe('Main Application Integration', () => {
   //       { rows: [sourceConstraints[0]] }, // calculations_pkey definition (for create)
   //     ];
 
-  //     mockClient.query = () => {
+  //     mockSourceClient.query = () => {
   //       const response = responses[callCount] || { rows: [] };
   //       callCount++;
   //       return Promise.resolve(response);
   //     };
 
-  //     const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+  //     const orchestrator = new SchemaSyncOrchestrator(mockSourceClient, mockTargetClient, mockOptions);
   //     const result = await orchestrator.execute();
 
   //     // Should handle function diff
@@ -882,13 +979,13 @@ describe('Main Application Integration', () => {
   //       { rows: [sourceTriggers[0]] }, // old_trigger definition (for update)
   //     ];
 
-  //     mockClient.query = () => {
+  //     mockSourceClient.query = () => {
   //       const response = responses[callCount] || { rows: [] };
   //       callCount++;
   //       return Promise.resolve(response);
   //     };
 
-  //     const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+  //     const orchestrator = new SchemaSyncOrchestrator(mockSourceClient, mockTargetClient, mockOptions);
   //     const result = await orchestrator.execute();
 
   //     // Should rename old objects instead of dropping them

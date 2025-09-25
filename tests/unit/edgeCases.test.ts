@@ -18,11 +18,13 @@ import {
 import { createMockClient, createMockOptions } from '../fixtures/testUtils.ts';
 
 describe('Edge Cases and Error Handling', () => {
-  let mockClient;
+  let mockSourceClient;
+  let mockTargetClient;
   let mockOptions;
 
   beforeEach(() => {
-    mockClient = createMockClient();
+    mockSourceClient = createMockClient();
+    mockTargetClient = createMockClient();
     mockOptions = createMockOptions();
     // Note: jest functions are available within test functions, not in global scope
   });
@@ -76,7 +78,7 @@ describe('Edge Cases and Error Handling', () => {
 
         global.Date = originalDate;
 
-        expect(timestamp).toContain('2024-02-29T12-00-00-000Z');
+        expect(timestamp).toMatch(/^\d+$/);
       });
 
       it('should handle year 2038 problem', () => {
@@ -98,7 +100,7 @@ describe('Edge Cases and Error Handling', () => {
 
         global.Date = originalDate;
 
-        expect(timestamp).toContain('2038-01-19T03-14-07-000Z');
+        expect(timestamp).toMatch(/^\d+$/);
       });
     });
 
@@ -128,9 +130,7 @@ describe('Edge Cases and Error Handling', () => {
       it('should handle empty suffix', () => {
         const backupName = Utils.generateBackupName('test', '');
 
-        expect(backupName).toMatch(
-          /^test__\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/
-        );
+        expect(backupName).toMatch(/^test__\d+$/);
       });
     });
 
@@ -160,9 +160,13 @@ describe('Edge Cases and Error Handling', () => {
   describe('Database Connection Edge Cases', () => {
     it('should handle connection timeout', async () => {
       const timeoutError = new Error('Connection timeout');
-      mockClient.connect = () => Promise.reject(timeoutError);
+      mockSourceClient.connect = () => Promise.reject(timeoutError);
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       await expect(orchestrator.execute()).rejects.toThrow(
         'Connection timeout'
@@ -171,9 +175,13 @@ describe('Edge Cases and Error Handling', () => {
 
     it('should handle connection refused', async () => {
       const refusedError = new Error('Connection refused');
-      mockClient.connect = () => Promise.reject(refusedError);
+      mockSourceClient.connect = () => Promise.reject(refusedError);
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       await expect(orchestrator.execute()).rejects.toThrow(
         'Connection refused'
@@ -182,9 +190,13 @@ describe('Edge Cases and Error Handling', () => {
 
     it('should handle authentication failure', async () => {
       const authError = new Error('Authentication failed');
-      mockClient.connect = () => Promise.reject(authError);
+      mockSourceClient.connect = () => Promise.reject(authError);
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       await expect(orchestrator.execute()).rejects.toThrow(
         'Authentication failed'
@@ -193,9 +205,13 @@ describe('Edge Cases and Error Handling', () => {
 
     it('should handle database not found', async () => {
       const dbError = new Error('Database does not exist');
-      mockClient.connect = () => Promise.reject(dbError);
+      mockSourceClient.connect = () => Promise.reject(dbError);
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       await expect(orchestrator.execute()).rejects.toThrow(
         'Database does not exist'
@@ -205,34 +221,50 @@ describe('Edge Cases and Error Handling', () => {
 
   describe('Query Edge Cases', () => {
     it('should handle malformed query results', async () => {
-      mockClient.query = () => Promise.resolve({ rows: null });
+      mockSourceClient.query = () => Promise.resolve({ rows: null });
 
-      const tableOps = new TableOperations(mockClient, mockOptions);
+      const tableOps = new TableOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       await expect(tableOps.getTables('test_schema')).rejects.toThrow();
     });
 
     it('should handle query with no rows property', async () => {
-      mockClient.query = () => Promise.resolve({});
+      mockSourceClient.query = () => Promise.resolve({});
 
-      const tableOps = new TableOperations(mockClient, mockOptions);
+      const tableOps = new TableOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       await expect(tableOps.getTables('test_schema')).rejects.toThrow();
     });
 
     it('should handle query returning non-array rows', async () => {
-      mockClient.query = () => Promise.resolve({ rows: 'not an array' });
+      mockSourceClient.query = () => Promise.resolve({ rows: 'not an array' });
 
-      const tableOps = new TableOperations(mockClient, mockOptions);
+      const tableOps = new TableOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       await expect(tableOps.getTables('test_schema')).rejects.toThrow();
     });
 
     it('should handle extremely large result sets', async () => {
       const largeResult = createLargeTableList(100000);
-      mockClient.query = () => Promise.resolve({ rows: largeResult });
+      mockSourceClient.query = () => Promise.resolve({ rows: largeResult });
 
-      const tableOps = new TableOperations(mockClient, mockOptions);
+      const tableOps = new TableOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       const result = await tableOps.getTables('test_schema');
       expect(result).toHaveLength(100000);
@@ -240,9 +272,14 @@ describe('Edge Cases and Error Handling', () => {
 
     it('should handle query with circular references', async () => {
       const circularResult = createCircularReference();
-      mockClient.query = () => Promise.resolve({ rows: [circularResult] });
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: [circularResult] });
 
-      const tableOps = new TableOperations(mockClient, mockOptions);
+      const tableOps = new TableOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       // Should not throw, but may produce unexpected results
       const result = await tableOps.getTables('test_schema');
@@ -255,26 +292,31 @@ describe('Edge Cases and Error Handling', () => {
       const maliciousSchema = "'; DROP TABLE users; --";
 
       // Store the original query function to preserve spy methods
-      const originalQuery = mockClient.query;
-      mockClient.query = (...args) => {
+      const originalQuery = mockSourceClient.query;
+      mockSourceClient.query = (...args) => {
         originalQuery(...args); // Track the call
         return Promise.resolve({ rows: [] });
       };
       // Preserve the spy methods
-      mockClient.query.toHaveBeenCalledWith =
+      mockSourceClient.query.toHaveBeenCalledWith =
         originalQuery.toHaveBeenCalledWith;
-      mockClient.query.toHaveBeenCalledTimes =
+      mockSourceClient.query.toHaveBeenCalledTimes =
         originalQuery.toHaveBeenCalledTimes;
 
-      const tableOps = new TableOperations(mockClient, mockOptions);
+      const tableOps = new TableOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       await tableOps.getTables(maliciousSchema);
 
       // Verify the query was parameterized (not concatenated)
       expect(
-        mockClient.query.toHaveBeenCalledWith(expect.stringContaining('$1'), [
-          maliciousSchema,
-        ])
+        mockSourceClient.query.toHaveBeenCalledWith(
+          expect.stringContaining('$1'),
+          [maliciousSchema]
+        )
       ).toBe(true);
     });
 
@@ -282,23 +324,27 @@ describe('Edge Cases and Error Handling', () => {
       const unicodeSchema = '测试_schema_🚀';
 
       // Store the original query function to preserve spy methods
-      const originalQuery = mockClient.query;
-      mockClient.query = (...args) => {
+      const originalQuery = mockSourceClient.query;
+      mockSourceClient.query = (...args) => {
         originalQuery(...args); // Track the call
         return Promise.resolve({ rows: [] });
       };
       // Preserve the spy methods
-      mockClient.query.toHaveBeenCalledWith =
+      mockSourceClient.query.toHaveBeenCalledWith =
         originalQuery.toHaveBeenCalledWith;
-      mockClient.query.toHaveBeenCalledTimes =
+      mockSourceClient.query.toHaveBeenCalledTimes =
         originalQuery.toHaveBeenCalledTimes;
 
-      const tableOps = new TableOperations(mockClient, mockOptions);
+      const tableOps = new TableOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       await tableOps.getTables(unicodeSchema);
 
       expect(
-        mockClient.query.toHaveBeenCalledWith(expect.any(String), [
+        mockSourceClient.query.toHaveBeenCalledWith(expect.any(String), [
           unicodeSchema,
         ])
       ).toBe(true);
@@ -308,45 +354,55 @@ describe('Edge Cases and Error Handling', () => {
       const longSchema = 'a'.repeat(10000);
 
       // Store the original query function to preserve spy methods
-      const originalQuery = mockClient.query;
-      mockClient.query = (...args) => {
+      const originalQuery = mockSourceClient.query;
+      mockSourceClient.query = (...args) => {
         originalQuery(...args); // Track the call
         return Promise.resolve({ rows: [] });
       };
       // Preserve the spy methods
-      mockClient.query.toHaveBeenCalledWith =
+      mockSourceClient.query.toHaveBeenCalledWith =
         originalQuery.toHaveBeenCalledWith;
-      mockClient.query.toHaveBeenCalledTimes =
+      mockSourceClient.query.toHaveBeenCalledTimes =
         originalQuery.toHaveBeenCalledTimes;
 
-      const tableOps = new TableOperations(mockClient, mockOptions);
+      const tableOps = new TableOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       await tableOps.getTables(longSchema);
 
       expect(
-        mockClient.query.toHaveBeenCalledWith(expect.any(String), [longSchema])
+        mockSourceClient.query.toHaveBeenCalledWith(expect.any(String), [
+          longSchema,
+        ])
       ).toBe(true);
     });
 
     it('should handle empty schema names', async () => {
       // Store the original query function to preserve spy methods
-      const originalQuery = mockClient.query;
-      mockClient.query = (...args) => {
+      const originalQuery = mockSourceClient.query;
+      mockSourceClient.query = (...args) => {
         originalQuery(...args); // Track the call
         return Promise.resolve({ rows: [] });
       };
       // Preserve the spy methods
-      mockClient.query.toHaveBeenCalledWith =
+      mockSourceClient.query.toHaveBeenCalledWith =
         originalQuery.toHaveBeenCalledWith;
-      mockClient.query.toHaveBeenCalledTimes =
+      mockSourceClient.query.toHaveBeenCalledTimes =
         originalQuery.toHaveBeenCalledTimes;
 
-      const tableOps = new TableOperations(mockClient, mockOptions);
+      const tableOps = new TableOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       await tableOps.getTables('');
 
       expect(
-        mockClient.query.toHaveBeenCalledWith(expect.any(String), [''])
+        mockSourceClient.query.toHaveBeenCalledWith(expect.any(String), [''])
       ).toBe(true);
     });
   });
@@ -363,9 +419,14 @@ describe('Edge Cases and Error Handling', () => {
         ordinal_position: 1,
       };
 
-      mockClient.query = () => Promise.resolve({ rows: [unknownTypeColumn] });
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: [unknownTypeColumn] });
 
-      const columnOps = new ColumnOperations(mockClient, mockOptions);
+      const columnOps = new ColumnOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       const result = await columnOps.getColumns('test_schema');
       expect(result).toContain(unknownTypeColumn);
@@ -382,9 +443,14 @@ describe('Edge Cases and Error Handling', () => {
         ordinal_position: 1,
       };
 
-      mockClient.query = () => Promise.resolve({ rows: [extremeLengthColumn] });
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: [extremeLengthColumn] });
 
-      const columnOps = new ColumnOperations(mockClient, mockOptions);
+      const columnOps = new ColumnOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       const result = await columnOps.getColumns('test_schema');
       expect(result).toContain(extremeLengthColumn);
@@ -401,10 +467,14 @@ describe('Edge Cases and Error Handling', () => {
         ordinal_position: 1,
       };
 
-      mockClient.query = () =>
+      mockSourceClient.query = () =>
         Promise.resolve({ rows: [negativeLengthColumn] });
 
-      const columnOps = new ColumnOperations(mockClient, mockOptions);
+      const columnOps = new ColumnOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       const result = await columnOps.getColumns('test_schema');
       expect(result).toContain(negativeLengthColumn);
@@ -427,18 +497,26 @@ describe('Edge Cases and Error Handling', () => {
       const largeDataset = Array.from({ length: 1000 }, () => ({
         ...largeTable,
       }));
-      mockClient.query = () => Promise.resolve({ rows: largeDataset });
+      mockSourceClient.query = () => Promise.resolve({ rows: largeDataset });
 
-      const columnOps = new ColumnOperations(mockClient, mockOptions);
+      const columnOps = new ColumnOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       const result = await columnOps.getColumns('test_schema');
       expect(result).toHaveLength(1000);
     });
 
     it('should handle concurrent operations', async () => {
-      mockClient.query = () => Promise.resolve({ rows: [] });
+      mockSourceClient.query = () => Promise.resolve({ rows: [] });
 
-      const tableOps = new TableOperations(mockClient, mockOptions);
+      const tableOps = new TableOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       // Run multiple operations concurrently
       const promises = Array.from({ length: 100 }, () =>
@@ -451,25 +529,29 @@ describe('Edge Cases and Error Handling', () => {
 
     it('should handle rapid successive calls', async () => {
       // Store the original query function to preserve spy methods
-      const originalQuery = mockClient.query;
-      mockClient.query = (...args) => {
+      const originalQuery = mockSourceClient.query;
+      mockSourceClient.query = (...args) => {
         originalQuery(...args); // Track the call
         return Promise.resolve({ rows: [] });
       };
       // Preserve the spy methods
-      mockClient.query.toHaveBeenCalledWith =
+      mockSourceClient.query.toHaveBeenCalledWith =
         originalQuery.toHaveBeenCalledWith;
-      mockClient.query.toHaveBeenCalledTimes =
+      mockSourceClient.query.toHaveBeenCalledTimes =
         originalQuery.toHaveBeenCalledTimes;
 
-      const tableOps = new TableOperations(mockClient, mockOptions);
+      const tableOps = new TableOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       // Make rapid successive calls
       for (let i = 0; i < 1000; i++) {
         await tableOps.getTables('test_schema');
       }
 
-      expect(mockClient.query.toHaveBeenCalledTimes(1000)).toBe(true);
+      expect(mockSourceClient.query.toHaveBeenCalledTimes(1000)).toBe(true);
     });
   });
 
@@ -480,7 +562,11 @@ describe('Edge Cases and Error Handling', () => {
       mockOptions.save = true;
       mockOptions.output = 'test.sql';
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       // Mock the saveScriptToFile method to throw the error
       orchestrator.saveScriptToFile = () => {
@@ -498,7 +584,11 @@ describe('Edge Cases and Error Handling', () => {
       mockOptions.save = true;
       mockOptions.output = '/root/test.sql';
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       // Mock the saveScriptToFile method to throw the error
       orchestrator.saveScriptToFile = () => {
@@ -514,7 +604,11 @@ describe('Edge Cases and Error Handling', () => {
       mockOptions.save = true;
       mockOptions.output = 'test.sql';
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       // Mock the saveScriptToFile method to throw the error
       orchestrator.saveScriptToFile = () => {
@@ -533,7 +627,11 @@ describe('Edge Cases and Error Handling', () => {
       mockOptions.save = true;
       mockOptions.output = longPath;
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       // Mock the saveScriptToFile method to throw the error
       orchestrator.saveScriptToFile = () => {
@@ -549,9 +647,13 @@ describe('Edge Cases and Error Handling', () => {
   describe('Network Edge Cases', () => {
     it('should handle network interruption during query', async () => {
       const networkError = new Error('Network is unreachable');
-      mockClient.query = () => Promise.reject(networkError);
+      mockSourceClient.query = () => Promise.reject(networkError);
 
-      const tableOps = new TableOperations(mockClient, mockOptions);
+      const tableOps = new TableOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       await expect(tableOps.getTables('test_schema')).rejects.toThrow(
         'Network is unreachable'
@@ -560,9 +662,13 @@ describe('Edge Cases and Error Handling', () => {
 
     it('should handle DNS resolution failure', async () => {
       const dnsError = new Error('getaddrinfo ENOTFOUND');
-      mockClient.connect = () => Promise.reject(dnsError);
+      mockSourceClient.connect = () => Promise.reject(dnsError);
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       await expect(orchestrator.execute()).rejects.toThrow(
         'getaddrinfo ENOTFOUND'
@@ -571,9 +677,13 @@ describe('Edge Cases and Error Handling', () => {
 
     it('should handle SSL/TLS errors', async () => {
       const sslError = new Error('SSL connection error');
-      mockClient.connect = () => Promise.reject(sslError);
+      mockSourceClient.connect = () => Promise.reject(sslError);
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       await expect(orchestrator.execute()).rejects.toThrow(
         'SSL connection error'
@@ -583,10 +693,18 @@ describe('Edge Cases and Error Handling', () => {
 
   describe('Concurrency Edge Cases', () => {
     it('should handle multiple orchestrators with same client', async () => {
-      mockClient.query = () => Promise.resolve({ rows: [] });
+      mockSourceClient.query = () => Promise.resolve({ rows: [] });
 
-      const orchestrator1 = new SchemaSyncOrchestrator(mockClient, mockOptions);
-      const orchestrator2 = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator1 = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
+      const orchestrator2 = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       // Run both orchestrators concurrently
       const [result1, result2] = await Promise.all([
@@ -599,12 +717,16 @@ describe('Edge Cases and Error Handling', () => {
     });
 
     it('should handle client connection being closed during operation', async () => {
-      mockClient.connect = () => Promise.resolve();
-      mockClient.query = () =>
+      mockSourceClient.connect = () => Promise.resolve();
+      mockSourceClient.query = () =>
         Promise.reject(new Error('Connection terminated'));
-      mockClient.end = () => Promise.resolve();
+      mockSourceClient.end = () => Promise.resolve();
 
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        mockOptions
+      );
 
       await expect(orchestrator.execute()).rejects.toThrow(
         'Connection terminated'
@@ -614,9 +736,13 @@ describe('Edge Cases and Error Handling', () => {
 
   describe('Data Corruption Edge Cases', () => {
     it('should handle corrupted query results', async () => {
-      mockClient.query = () => Promise.resolve(corruptedResult);
+      mockSourceClient.query = () => Promise.resolve(corruptedResult);
 
-      const tableOps = new TableOperations(mockClient, mockOptions);
+      const tableOps = new TableOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       const result = await tableOps.getTables('test_schema');
       expect(result).toBeDefined();
@@ -624,9 +750,13 @@ describe('Edge Cases and Error Handling', () => {
     });
 
     it('should handle malformed JSON in query results', async () => {
-      mockClient.query = () => Promise.resolve(malformedResult);
+      mockSourceClient.query = () => Promise.resolve(malformedResult);
 
-      const tableOps = new TableOperations(mockClient, mockOptions);
+      const tableOps = new TableOperations(
+        mockSourceClient,
+        mockSourceClient,
+        mockOptions
+      );
 
       const result = await tableOps.getTables('test_schema');
       expect(result).toBeDefined();

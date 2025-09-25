@@ -111,7 +111,7 @@ export const GET_TABLE_INDEXES_QUERY = `
       ELSE false 
     END as is_unique,
     CASE 
-      WHEN i.indexdef LIKE '%PRIMARY%' THEN true 
+      WHEN i.indexname LIKE '%_pkey' THEN true 
       ELSE false 
     END as is_primary,
     -- Extract column names from indexdef
@@ -212,6 +212,27 @@ export const GET_SCHEMA_INFO_QUERY = `
   FROM information_schema.schemata s
   LEFT JOIN pg_namespace n ON n.nspname = s.schema_name
   WHERE schema_name = $1;
+`;
+
+/**
+ * Get all sequences in a schema
+ */
+export const GET_SEQUENCES_QUERY = `
+  SELECT 
+    s.sequence_name,
+    s.data_type,
+    s.start_value,
+    s.minimum_value,
+    s.maximum_value,
+    s.increment,
+    s.cycle_option,
+    s.sequence_schema,
+    COALESCE(obj_description(pgc.oid), '') as sequence_comment
+  FROM information_schema.sequences s
+  LEFT JOIN pg_class pgc ON pgc.relname = s.sequence_name
+  LEFT JOIN pg_namespace pgn ON pgn.oid = pgc.relnamespace AND pgn.nspname = s.sequence_schema
+  WHERE s.sequence_schema = $1
+  ORDER BY s.sequence_name;
 `;
 
 /**

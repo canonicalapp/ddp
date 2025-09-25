@@ -10,13 +10,19 @@ import {
 
 describe('ConstraintOperations - Index Operations', () => {
   let constraintOps;
-  let mockClient;
+  let mockSourceClient;
+  let mockTargetClient;
   let mockOptions;
 
   beforeEach(() => {
-    mockClient = createMockClient();
+    mockSourceClient = createMockClient();
+    mockTargetClient = createMockClient();
     mockOptions = createMockOptions();
-    constraintOps = new ConstraintOperations(mockClient, mockOptions);
+    constraintOps = new ConstraintOperations(
+      mockSourceClient,
+      mockTargetClient,
+      mockOptions
+    );
   });
 
   describe('generateCreateIndexStatement', () => {
@@ -29,7 +35,7 @@ describe('ConstraintOperations - Index Operations', () => {
       );
 
       expect(result).toContain(
-        'CREATE INDEX prod_schema.users_email_idx ON prod_schema.users'
+        'CREATE INDEX IF NOT EXISTS users_email_idx ON prod_schema.users'
       );
       expect(result).toContain('USING btree (email)');
       expect(result).toContain(';');
@@ -44,7 +50,7 @@ describe('ConstraintOperations - Index Operations', () => {
       );
 
       expect(result).toContain(
-        'CREATE UNIQUE INDEX prod_schema.users_email_unique ON prod_schema.users'
+        'CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON prod_schema.users'
       );
     });
 
@@ -57,7 +63,7 @@ describe('ConstraintOperations - Index Operations', () => {
       );
 
       expect(result).toContain(
-        'CREATE INDEX prod_schema.complex_idx ON prod_schema.orders'
+        'CREATE INDEX IF NOT EXISTS complex_idx ON prod_schema.orders'
       );
       expect(result).toContain('USING btree (user_id, created_at DESC)');
       expect(result).toContain("WHERE status = 'active'");
@@ -92,9 +98,8 @@ describe('ConstraintOperations - Index Operations', () => {
         },
       ];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceIndexes })
-        .mockResolvedValueOnce({ rows: targetIndexes });
+      mockSourceClient.query = () => Promise.resolve({ rows: sourceIndexes });
+      mockTargetClient.query = () => Promise.resolve({ rows: targetIndexes });
 
       const result = await constraintOps.generateIndexOperations();
 
@@ -131,9 +136,8 @@ describe('ConstraintOperations - Index Operations', () => {
         },
       ];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceIndexes })
-        .mockResolvedValueOnce({ rows: targetIndexes });
+      mockSourceClient.query = () => Promise.resolve({ rows: sourceIndexes });
+      mockTargetClient.query = () => Promise.resolve({ rows: targetIndexes });
 
       const result = await constraintOps.generateIndexOperations();
 
@@ -143,7 +147,7 @@ describe('ConstraintOperations - Index Operations', () => {
       expect(
         result.some(line =>
           line.includes(
-            'CREATE INDEX prod_schema.orders_user_id_idx ON prod_schema.orders'
+            'CREATE INDEX IF NOT EXISTS orders_user_id_idx ON prod_schema.orders'
           )
         )
       ).toBe(true);
@@ -169,9 +173,8 @@ describe('ConstraintOperations - Index Operations', () => {
         },
       ];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceIndexes })
-        .mockResolvedValueOnce({ rows: targetIndexes });
+      mockSourceClient.query = () => Promise.resolve({ rows: sourceIndexes });
+      mockTargetClient.query = () => Promise.resolve({ rows: targetIndexes });
 
       const result = await constraintOps.generateIndexOperations();
 
@@ -180,9 +183,8 @@ describe('ConstraintOperations - Index Operations', () => {
     });
 
     it('should handle empty schemas', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [] });
+      mockSourceClient.query = () => Promise.resolve({ rows: [] });
+      mockTargetClient.query = () => Promise.resolve({ rows: [] });
 
       const result = await constraintOps.generateIndexOperations();
 
@@ -223,9 +225,8 @@ describe('ConstraintOperations - Index Operations', () => {
         },
       ];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceIndexes })
-        .mockResolvedValueOnce({ rows: targetIndexes });
+      mockSourceClient.query = () => Promise.resolve({ rows: sourceIndexes });
+      mockTargetClient.query = () => Promise.resolve({ rows: targetIndexes });
 
       const result = await constraintOps.generateIndexOperations();
 
@@ -245,7 +246,7 @@ describe('ConstraintOperations - Index Operations', () => {
 
     it('should handle database errors', async () => {
       const error = new Error('Database connection failed');
-      mockClient.query.mockRejectedValue(error);
+      mockSourceClient.query = () => Promise.reject(error);
 
       await expect(constraintOps.generateIndexOperations()).rejects.toThrow(
         'Database connection failed'

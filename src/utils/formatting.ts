@@ -13,10 +13,10 @@ interface ColumnInfo {
 export class Utils {
   /**
    * Generate a timestamp string suitable for file/object naming
-   * @returns {string} Timestamp in format: 2024-01-15T10-30-45-123Z
+   * @returns {string} Timestamp in milliseconds since epoch for uniqueness
    */
   static generateTimestamp(): string {
-    return new Date().toISOString().replace(/[:.]/g, '-');
+    return Date.now().toString();
   }
 
   /**
@@ -52,9 +52,13 @@ export class Utils {
   /**
    * Format column definition for SQL generation
    * @param {ColumnInfo} column - Column object with properties
+   * @param {string} targetSchema - Target schema name for sequence references
    * @returns {string} Formatted column definition
    */
-  static formatColumnDefinition(column: ColumnInfo): string {
+  static formatColumnDefinition(
+    column: ColumnInfo,
+    targetSchema?: string
+  ): string {
     let def = `"${column.column_name}" ${column.data_type}`;
 
     if (column.character_maximum_length) {
@@ -66,7 +70,18 @@ export class Utils {
     }
 
     if (column.column_default) {
-      def += ` DEFAULT ${column.column_default}`;
+      let defaultValue = column.column_default;
+
+      // Replace schema references in sequence defaults if target schema is provided
+      if (targetSchema && defaultValue.includes('nextval(')) {
+        // Replace schema references in nextval() calls
+        defaultValue = defaultValue.replace(
+          /nextval\('([^.]+)\.([^']+)'::regclass\)/g,
+          `nextval('${targetSchema}.$2'::regclass)`
+        );
+      }
+
+      def += ` DEFAULT ${defaultValue}`;
     }
 
     return def;

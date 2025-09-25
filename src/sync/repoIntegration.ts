@@ -32,7 +32,7 @@ export class RepoIntegration {
   /**
    * Execute repository-based sync
    */
-  async execute(): Promise<string> {
+  async execute() {
     try {
       console.log('DDP REPO SYNC - Pulling schema files from repositories...');
       console.log(
@@ -44,7 +44,7 @@ export class RepoIntegration {
       console.log(`Output: ${this.options.output ?? 'alter.sql'}`);
 
       // Create temporary directory
-      const tempDir = this.options.tempDir || './temp-repos';
+      const tempDir = this.options.tempDir ?? './temp-repos';
       if (existsSync(tempDir)) {
         rmSync(tempDir, { recursive: true });
       }
@@ -53,13 +53,13 @@ export class RepoIntegration {
       // Clone repositories
       const sourceDir = await this.cloneRepository(
         this.options.sourceRepo,
-        this.options.sourceBranch || 'main',
+        this.options.sourceBranch ?? 'main',
         join(tempDir, 'source')
       );
 
       const targetDir = await this.cloneRepository(
         this.options.targetRepo,
-        this.options.targetBranch || 'main',
+        this.options.targetBranch ?? 'main',
         join(tempDir, 'target')
       );
 
@@ -90,7 +90,7 @@ export class RepoIntegration {
     repoUrl: string,
     branch: string,
     targetDir: string
-  ): Promise<string> {
+  ) {
     try {
       console.log(`📥 Cloning ${repoUrl} (${branch}) to ${targetDir}...`);
 
@@ -115,7 +115,7 @@ export class RepoIntegration {
    * Find schema files in a repository
    * Looks for schema.sql, procs.sql, triggers.sql in common locations
    */
-  private findSchemaFiles(repoDir: string): string | null {
+  private findSchemaFiles(repoDir: string) {
     const commonPaths = [
       '', // Root directory
       'schema',
@@ -141,7 +141,7 @@ export class RepoIntegration {
   /**
    * Check if a directory contains schema files
    */
-  private hasSchemaFiles(dir: string): boolean {
+  private hasSchemaFiles(dir: string) {
     if (!existsSync(dir)) {
       return false;
     }
@@ -153,7 +153,7 @@ export class RepoIntegration {
   /**
    * Get repository information (for GitHub Actions)
    */
-  static getRepoInfo(): { owner: string; repo: string; branch: string } | null {
+  static getRepoInfo() {
     try {
       // Try to get info from git remote
       const remoteUrl = execSync('git remote get-url origin', {
@@ -170,6 +170,7 @@ export class RepoIntegration {
       const match = remoteUrl.match(
         /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?$/
       );
+
       if (match?.[1] && match[2]) {
         return {
           owner: match[1],

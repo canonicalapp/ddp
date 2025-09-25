@@ -9,16 +9,17 @@ describe('Utils', () => {
     it('should generate a timestamp in the correct format', () => {
       const timestamp = Utils.generateTimestamp();
 
-      // Should match format: 2024-01-15T10-30-45-123Z
-      expect(timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/);
+      // Should be a number string (milliseconds since epoch)
+      expect(timestamp).toMatch(/^\d+$/);
     });
 
-    it('should replace colons and dots with dashes', () => {
+    it('should be a simple numeric timestamp', () => {
       const timestamp = Utils.generateTimestamp();
 
       expect(timestamp).not.toContain(':');
       expect(timestamp).not.toContain('.');
-      expect(timestamp).toContain('-');
+      expect(timestamp).not.toContain('-');
+      expect(timestamp).toMatch(/^\d+$/);
     });
 
     it('should generate unique timestamps', () => {
@@ -36,9 +37,7 @@ describe('Utils', () => {
       const originalName = 'test_table';
       const backupName = Utils.generateBackupName(originalName);
 
-      expect(backupName).toMatch(
-        /^test_table_dropped_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/
-      );
+      expect(backupName).toMatch(/^test_table_dropped_\d+$/);
     });
 
     it('should generate backup name with custom suffix', () => {
@@ -46,17 +45,13 @@ describe('Utils', () => {
       const suffix = 'backup';
       const backupName = Utils.generateBackupName(originalName, suffix);
 
-      expect(backupName).toMatch(
-        /^test_column_backup_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/
-      );
+      expect(backupName).toMatch(/^test_column_backup_\d+$/);
     });
 
     it('should handle empty original name', () => {
       const backupName = Utils.generateBackupName('');
 
-      expect(backupName).toMatch(
-        /^_dropped_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/
-      );
+      expect(backupName).toMatch(/^_dropped_\d+$/);
     });
 
     it('should handle special characters in original name', () => {
@@ -76,7 +71,7 @@ describe('Utils', () => {
 
       expect(filename).toMatch(
         new RegExp(
-          `^schema-sync_${sourceSchema}-to-${targetSchema}_\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}\\.sql$`
+          `^schema-sync_${sourceSchema}-to-${targetSchema}_\\d{1,19}\\.sql$`
         )
       );
     });
@@ -92,7 +87,7 @@ describe('Utils', () => {
       );
 
       expect(filename).toMatch(
-        /^migration_development-to-production_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.sql$/
+        /^migration_development-to-production_\d{1,19}\.sql$/
       );
     });
 
@@ -102,17 +97,15 @@ describe('Utils', () => {
       const filename = Utils.generateOutputFilename(sourceSchema, targetSchema);
 
       expect(filename).toMatch(
-        /^schema-sync_dev_schema-to-prod_schema_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.sql$/
+        /^schema-sync_dev_schema-to-prod_schema_\d{1,19}\.sql$/
       );
     });
 
     it('should truncate timestamp to 19 characters', () => {
       const filename = Utils.generateOutputFilename('source', 'target');
-      const timestampPart = filename.match(
-        /_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})\.sql$/
-      )[1];
+      const timestampPart = filename.match(/_(\d{1,19})\.sql$/)![1];
 
-      expect(timestampPart).toHaveLength(19);
+      expect(timestampPart.length).toBeLessThanOrEqual(19);
     });
   });
 
