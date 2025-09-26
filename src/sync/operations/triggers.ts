@@ -3,8 +3,9 @@
  * Handles triggers sync logic
  */
 
+import type { ILegacySyncOptions, TArray, TNullable } from '@/types';
 import type { Client } from 'pg';
-import type { ILegacySyncOptions } from '@/types';
+import { Utils } from '@/utils/formatting';
 
 interface ITriggerRow {
   trigger_name: string;
@@ -25,18 +26,24 @@ interface ITriggerDefinition {
 }
 
 export class TriggerOperations {
-  private client: Client;
+  private sourceClient: Client;
+  private targetClient: Client;
   private options: ILegacySyncOptions;
 
-  constructor(client: Client, options: ILegacySyncOptions) {
-    this.client = client;
+  constructor(
+    sourceClient: Client,
+    targetClient: Client,
+    options: ILegacySyncOptions
+  ) {
+    this.sourceClient = sourceClient;
+    this.targetClient = targetClient;
     this.options = options;
   }
 
   /**
    * Get all triggers from a schema
    */
-  async getTriggers(schemaName: string): Promise<ITriggerRow[]> {
+  async getTriggers(schemaName: string): Promise<TArray<ITriggerRow>> {
     const triggersQuery = `
       SELECT 
         trigger_name,
@@ -49,7 +56,13 @@ export class TriggerOperations {
       ORDER BY event_object_table, trigger_name
     `;
 
-    const result = await this.client.query(triggersQuery, [schemaName]);
+    // Use the appropriate client based on schema
+    const client =
+      schemaName === this.options.source
+        ? this.sourceClient
+        : this.targetClient;
+
+    const result = await client.query(triggersQuery, [schemaName]);
     return result.rows;
   }
 
@@ -60,7 +73,7 @@ export class TriggerOperations {
     schemaName: string,
     triggerName: string,
     tableName: string
-  ): Promise<ITriggerDefinition | null> {
+  ): Promise<TNullable<ITriggerDefinition>> {
     try {
       // Get more detailed trigger information including the function it calls
       const triggerDefQuery = `
@@ -78,7 +91,13 @@ export class TriggerOperations {
         AND t.event_object_table = $3
       `;
 
-      const result = await this.client.query(triggerDefQuery, [
+      // Use the appropriate client based on schema
+      const client =
+        schemaName === this.options.source
+          ? this.sourceClient
+          : this.targetClient;
+
+      const result = await client.query(triggerDefQuery, [
         schemaName,
         triggerName,
         tableName,
@@ -88,7 +107,7 @@ export class TriggerOperations {
         return null;
       }
 
-      return result.rows[0] as ITriggerDefinition;
+      return result.rows[0];
     } catch (error) {
       console.warn(
         `Failed to get definition for trigger ${triggerName}:`,
@@ -104,7 +123,8 @@ export class TriggerOperations {
   compareTriggerDefinitions(
     sourceTrigger: ITriggerDefinition,
     targetTrigger: ITriggerDefinition
-  ): boolean {
+  ) {
+    // Handle null values
     if (!sourceTrigger || !targetTrigger) {
       return false;
     }
@@ -138,43 +158,50 @@ export class TriggerOperations {
   }
 
   /**
-   * Generate CREATE TRIGGER statement
+   * Generate CREATE TRIGGER statement for multi-event triggers
    */
   generateCreateTriggerStatement(
-    trigger: ITriggerDefinition | null,
+    triggerGroup: ITriggerRow[],
     targetSchema: string
-  ): string {
-    if (!trigger) {
+  ) {
+    if (triggerGroup.length === 0) {
+      return `-- TODO: Could not retrieve definition for trigger`;
+    }
+
+    const firstTrigger = triggerGroup[0];
+
+    if (!firstTrigger) {
       return `-- TODO: Could not retrieve definition for trigger`;
     }
 
     const {
       trigger_name,
-      event_manipulation,
       event_object_table,
       action_timing,
       action_statement,
-      action_orientation,
-      action_condition,
-    } = trigger;
+    } = firstTrigger;
+
+    // Get all event manipulations for this trigger
+    const events = triggerGroup.map(t => t.event_manipulation).join(' OR ');
 
     // Build the CREATE TRIGGER statement
-    let createStatement = `CREATE TRIGGER ${trigger_name}\n`;
-    createStatement += `  ${action_timing} ${event_manipulation}\n`;
+    let createStatement = `CREATE OR REPLACE TRIGGER ${trigger_name}\n`;
+    createStatement += `  ${action_timing} ${events}\n`;
     createStatement += `  ON ${targetSchema}.${event_object_table}\n`;
 
-    // Add orientation if specified
-    if (action_orientation) {
-      createStatement += `  FOR EACH ${action_orientation}\n`;
-    }
-
-    // Add condition if specified
-    if (action_condition) {
-      createStatement += `  WHEN (${action_condition})\n`;
-    }
+    // Add default orientation (ROW is the default in PostgreSQL)
+    createStatement += `  FOR EACH ROW\n`;
 
     // Add action statement (action_statement already includes EXECUTE)
-    createStatement += `  ${action_statement};`;
+    // Replace schema references in action statement
+    let actionStatement = action_statement;
+    if (actionStatement) {
+      actionStatement = actionStatement.replace(
+        new RegExp(`\\b${this.options.source}\\b`, 'g'),
+        targetSchema
+      );
+    }
+    createStatement += `  ${actionStatement};`;
 
     return createStatement;
   }
@@ -186,7 +213,7 @@ export class TriggerOperations {
     sourceTriggers: ITriggerRow[],
     targetTriggers: ITriggerRow[],
     alterStatements: string[]
-  ): Promise<void> {
+  ) {
     const triggersToDrop = targetTriggers.filter(
       p => !sourceTriggers.some(d => d.trigger_name === p.trigger_name)
     );
@@ -208,24 +235,31 @@ export class TriggerOperations {
     sourceTriggers: ITriggerRow[],
     targetTriggers: ITriggerRow[],
     alterStatements: string[]
-  ): Promise<void> {
-    const triggersToCreate = sourceTriggers.filter(
-      d => !targetTriggers.some(p => p.trigger_name === d.trigger_name)
-    );
+  ) {
+    // Group triggers by name to handle multi-event triggers
+    const groupedSourceTriggers = this.groupTriggersByName(sourceTriggers);
+    const groupedTargetTriggers = this.groupTriggersByName(targetTriggers);
 
-    for (const trigger of triggersToCreate) {
+    const triggersToCreate: string[] = [];
+
+    for (const [triggerName] of groupedSourceTriggers) {
+      const targetTriggerGroup = groupedTargetTriggers.get(triggerName);
+
+      if (!targetTriggerGroup) {
+        triggersToCreate.push(triggerName);
+      }
+    }
+
+    for (const triggerName of triggersToCreate) {
+      const sourceTriggerGroup = groupedSourceTriggers.get(triggerName);
+      if (!sourceTriggerGroup) continue;
+
       alterStatements.push(
-        `-- Creating trigger ${trigger.trigger_name} in ${this.options.target}`
-      );
-
-      const triggerDefinition = await this.getTriggerDefinition(
-        this.options.source,
-        trigger.trigger_name,
-        trigger.event_object_table
+        `-- Creating trigger ${triggerName} in ${this.options.target}`
       );
 
       const createStatement = this.generateCreateTriggerStatement(
-        triggerDefinition,
+        sourceTriggerGroup,
         this.options.target
       );
 
@@ -235,32 +269,57 @@ export class TriggerOperations {
   }
 
   /**
+   * Group triggers by name to handle multi-event triggers
+   */
+  private groupTriggersByName(
+    triggers: ITriggerRow[]
+  ): Map<string, ITriggerRow[]> {
+    const grouped = new Map<string, ITriggerRow[]>();
+
+    for (const trigger of triggers) {
+      const existing = grouped.get(trigger.trigger_name) ?? [];
+
+      existing.push(trigger);
+      grouped.set(trigger.trigger_name, existing);
+    }
+
+    return grouped;
+  }
+
+  /**
    * Handle triggers that have changed
    */
   async handleTriggersToUpdate(
     sourceTriggers: ITriggerRow[],
     targetTriggers: ITriggerRow[],
     alterStatements: string[]
-  ): Promise<void> {
-    const triggersToUpdate: ITriggerRow[] = [];
+  ) {
+    // Group triggers by name to handle multi-event triggers
+    const groupedSourceTriggers = this.groupTriggersByName(sourceTriggers);
+    const groupedTargetTriggers = this.groupTriggersByName(targetTriggers);
 
-    for (const sourceTrigger of sourceTriggers) {
-      const targetTrigger = targetTriggers.find(
-        t => t.trigger_name === sourceTrigger.trigger_name
-      );
+    const triggersToUpdate: string[] = [];
 
-      if (!targetTrigger) continue;
+    for (const [triggerName, sourceTriggerGroup] of groupedSourceTriggers) {
+      const targetTriggerGroup = groupedTargetTriggers.get(triggerName);
+
+      if (!targetTriggerGroup) continue;
 
       // Get detailed definitions for comparison
+      const sourceFirstTrigger = sourceTriggerGroup[0];
+      const targetFirstTrigger = targetTriggerGroup[0];
+
+      if (!sourceFirstTrigger || !targetFirstTrigger) continue;
+
       const sourceDefinition = await this.getTriggerDefinition(
         this.options.source,
-        sourceTrigger.trigger_name,
-        sourceTrigger.event_object_table
+        triggerName,
+        sourceFirstTrigger.event_object_table
       );
       const targetDefinition = await this.getTriggerDefinition(
         this.options.target,
-        targetTrigger.trigger_name,
-        targetTrigger.event_object_table
+        triggerName,
+        targetFirstTrigger.event_object_table
       );
 
       if (
@@ -268,31 +327,33 @@ export class TriggerOperations {
         targetDefinition &&
         this.compareTriggerDefinitions(sourceDefinition, targetDefinition)
       ) {
-        triggersToUpdate.push(sourceTrigger);
+        triggersToUpdate.push(triggerName);
       }
     }
 
-    for (const sourceTrigger of triggersToUpdate) {
+    for (const triggerName of triggersToUpdate) {
+      const sourceTriggerGroup = groupedSourceTriggers.get(triggerName);
+
+      if (!sourceTriggerGroup) continue;
+
       alterStatements.push(
-        `-- Trigger ${sourceTrigger.trigger_name} has changed, updating in ${this.options.target}`
+        `-- Trigger ${triggerName} has changed, updating in ${this.options.target}`
       );
 
-      const oldTriggerName = `${sourceTrigger.trigger_name}_old_${Date.now()}`;
+      const sourceFirstTrigger = sourceTriggerGroup[0];
+
+      if (!sourceFirstTrigger) continue;
+
+      const oldTriggerName = `${triggerName}_old_${Utils.generateTimestamp()}`;
       alterStatements.push(
         `-- Renaming old trigger to ${oldTriggerName} for manual review`
       );
       alterStatements.push(
-        `ALTER TRIGGER ${sourceTrigger.trigger_name} ON ${this.options.target}.${sourceTrigger.event_object_table} RENAME TO ${oldTriggerName};`
-      );
-
-      const triggerDefinition = await this.getTriggerDefinition(
-        this.options.source,
-        sourceTrigger.trigger_name,
-        sourceTrigger.event_object_table
+        `ALTER TRIGGER ${triggerName} ON ${this.options.target}.${sourceFirstTrigger.event_object_table} RENAME TO ${oldTriggerName};`
       );
 
       const createStatement = this.generateCreateTriggerStatement(
-        triggerDefinition,
+        sourceTriggerGroup,
         this.options.target
       );
 
@@ -304,7 +365,7 @@ export class TriggerOperations {
   /**
    * Generate trigger operations for schema sync
    */
-  async generateTriggerOperations(): Promise<string[]> {
+  async generateTriggerOperations() {
     const alterStatements: string[] = [];
 
     const sourceTriggers = await this.getTriggers(this.options.source);

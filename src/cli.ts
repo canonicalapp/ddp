@@ -7,7 +7,7 @@ import type { IGenCommandOptions, ISyncCommandOptions } from '@/types/index';
 program
   .name('ddp')
   .description('Declarative Database Provisioning - DDP CLI tool')
-  .version('1.0.0');
+  .version(require('../package.json').version);
 
 // DDP GEN command
 program

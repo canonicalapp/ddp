@@ -3,9 +3,9 @@
  * Handles table creation, dropping, and comparison logic
  */
 
-import type { Client } from 'pg';
+import type { ILegacySyncOptions, TArray, TNullable } from '@/types';
 import { Utils } from '@/utils/formatting';
-import type { ILegacySyncOptions, TNullable } from '@/types';
+import type { Client } from 'pg';
 
 interface ITableRow {
   table_name: string;
@@ -21,18 +21,24 @@ interface IColumnRow {
 }
 
 export class TableOperations {
-  private client: Client;
+  private sourceClient: Client;
+  private targetClient: Client;
   private options: ILegacySyncOptions;
 
-  constructor(client: Client, options: ILegacySyncOptions) {
-    this.client = client;
+  constructor(
+    sourceClient: Client,
+    targetClient: Client,
+    options: ILegacySyncOptions
+  ) {
+    this.sourceClient = sourceClient;
+    this.targetClient = targetClient;
     this.options = options;
   }
 
   /**
    * Get all tables from a schema
    */
-  async getTables(schemaName: string): Promise<ITableRow[]> {
+  async getTables(schemaName: string): Promise<TArray<ITableRow>> {
     const tablesQuery = `
       SELECT table_name 
       FROM information_schema.tables 
@@ -40,7 +46,12 @@ export class TableOperations {
       AND table_type = 'BASE TABLE'
     `;
 
-    const result = await this.client.query(tablesQuery, [schemaName]);
+    // Use the appropriate client based on schema
+    const client =
+      schemaName === this.options.source
+        ? this.sourceClient
+        : this.targetClient;
+    const result = await client.query(tablesQuery, [schemaName]);
 
     // Validate query result structure
     if (typeof result !== 'object') {
@@ -64,7 +75,7 @@ export class TableOperations {
   async getTableDefinition(
     schemaName: string,
     tableName: string
-  ): Promise<IColumnRow[]> {
+  ): Promise<TArray<IColumnRow>> {
     const tableDefQuery = `
       SELECT 
         column_name,
@@ -78,10 +89,12 @@ export class TableOperations {
       ORDER BY ordinal_position
     `;
 
-    const result = await this.client.query(tableDefQuery, [
-      schemaName,
-      tableName,
-    ]);
+    // Use the appropriate client based on schema
+    const client =
+      schemaName === this.options.source
+        ? this.sourceClient
+        : this.targetClient;
+    const result = await client.query(tableDefQuery, [schemaName, tableName]);
 
     return result.rows;
   }
@@ -116,17 +129,19 @@ export class TableOperations {
   /**
    * Generate CREATE TABLE statement
    */
-  generateCreateTableStatement(
-    tableName: string,
-    columns: IColumnRow[]
-  ): string | null {
+  generateCreateTableStatement(tableName: string, columns: TArray<IColumnRow>) {
     if (columns.length === 0) return null;
 
     const columnDefs = columns
-      .map(col => Utils.formatColumnDefinition(this.convertToColumnInfo(col)))
+      .map(col =>
+        Utils.formatColumnDefinition(
+          this.convertToColumnInfo(col),
+          this.options.target
+        )
+      )
       .join(',\n  ');
 
-    return `CREATE TABLE ${this.options.target}.${tableName} (\n  ${columnDefs}\n);`;
+    return `CREATE TABLE IF NOT EXISTS ${this.options.target}.${tableName} (\n  ${columnDefs}\n);`;
   }
 
   /**
@@ -135,7 +150,7 @@ export class TableOperations {
   async handleMissingTables(
     missingTables: ITableRow[],
     alterStatements: string[]
-  ): Promise<void> {
+  ) {
     for (const table of missingTables) {
       alterStatements.push(`-- Create missing table ${table.table_name}`);
 
@@ -159,9 +174,9 @@ export class TableOperations {
    * Handle tables that need to be dropped
    */
   handleTablesToDrop(
-    tablesToDrop: ITableRow[],
-    alterStatements: string[]
-  ): void {
+    tablesToDrop: TArray<ITableRow>,
+    alterStatements: TArray<string>
+  ) {
     for (const table of tablesToDrop) {
       const backupName = Utils.generateBackupName(table.table_name);
 
@@ -186,7 +201,7 @@ export class TableOperations {
   /**
    * Generate table operations for schema sync
    */
-  async generateTableOperations(): Promise<string[]> {
+  async generateTableOperations() {
     const alterStatements: string[] = [];
 
     const sourceTables = await this.getTables(this.options.source);

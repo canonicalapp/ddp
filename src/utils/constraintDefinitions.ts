@@ -3,8 +3,9 @@
  * Handles constraint definition, comparison, and generation logic
  */
 
-import type { Client } from 'pg';
 import type { ILegacySyncOptions, TNullable } from '@/types';
+import type { Client } from 'pg';
+import { Utils } from './formatting';
 
 interface IConstraintRow {
   table_name: string;
@@ -30,11 +31,17 @@ interface IConstraintClauseParams {
 }
 
 export class ConstraintDefinitions {
-  private client: Client;
+  private sourceClient: Client;
+  private targetClient: Client;
   private options: ILegacySyncOptions;
 
-  constructor(client: Client, options: ILegacySyncOptions) {
-    this.client = client;
+  constructor(
+    sourceClient: Client,
+    targetClient: Client,
+    options: ILegacySyncOptions
+  ) {
+    this.sourceClient = sourceClient;
+    this.targetClient = targetClient;
     this.options = options;
   }
 
@@ -73,7 +80,13 @@ export class ConstraintDefinitions {
         ORDER BY kcu.ordinal_position
       `;
 
-      const result = await this.client.query(constraintDefQuery, [
+      // Use the appropriate client based on schema
+      const client =
+        schemaName === this.options.source
+          ? this.sourceClient
+          : this.targetClient;
+
+      const result = await client.query(constraintDefQuery, [
         schemaName,
         constraintName,
         tableName,
@@ -208,13 +221,23 @@ export class ConstraintDefinitions {
       check_clause,
     } = firstRow;
 
-    // Get all columns for multi-column constraints
+    // Get all columns for multi-column constraints (deduplicated)
     const columns = constraintRows
       .map(row => row.column_name)
       .filter((name): name is string => Boolean(name))
+      .filter((name, index, array) => array.indexOf(name) === index) // Remove duplicates
       .join(', ');
 
-    const baseStatement = `ALTER TABLE ${targetSchema}.${table_name} ADD CONSTRAINT ${constraint_name}`;
+    // Generate a proper constraint name if the original is numeric or invalid
+    const properConstraintName = this.generateProperConstraintName(
+      constraint_name,
+      constraint_type,
+      table_name,
+      columns
+    );
+
+    const baseStatement = `ALTER TABLE ${targetSchema}.${table_name} ADD CONSTRAINT ${properConstraintName}`;
+
     const constraintClause = this.generateConstraintClause({
       constraintType: constraint_type,
       columns,
@@ -227,5 +250,48 @@ export class ConstraintDefinitions {
     });
 
     return `${baseStatement}${constraintClause};`;
+  }
+
+  /**
+   * Generate a proper constraint name
+   * Uses consistent naming strategy with gen command
+   */
+  private generateProperConstraintName(
+    originalName: string,
+    constraintType: string,
+    tableName: string,
+    columns: string
+  ): string {
+    // Always use the original name if it exists and is valid
+    if (
+      originalName &&
+      originalName.length <= 63 &&
+      /^[a-zA-Z_]/.test(originalName) &&
+      !/^\d+/.test(originalName)
+    ) {
+      return originalName;
+    }
+
+    // Generate a descriptive name based on constraint type and columns
+    const columnList = columns
+      ? columns.replace(/\s+/g, '_').toLowerCase()
+      : 'col';
+
+    switch (constraintType) {
+      case 'PRIMARY KEY':
+        return `${tableName}_pkey`;
+      case 'UNIQUE':
+        return `${tableName}_${columnList}_key`;
+      case 'FOREIGN KEY':
+        return `${tableName}_${columnList}_fkey`;
+      case 'CHECK': {
+        // For CHECK constraints, include timestamp to ensure uniqueness
+        const timestamp = Utils.generateTimestamp();
+
+        return `${tableName}_${columnList}_check_${timestamp}`;
+      }
+      default:
+        return `${tableName}_${columnList}_${(constraintType || 'unknown').toLowerCase().replace(/\s+/g, '_')}`;
+    }
   }
 }

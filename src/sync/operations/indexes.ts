@@ -4,9 +4,9 @@
  */
 
 import type { Client } from 'pg';
-import type { ILegacySyncOptions } from '@/types';
+import type { ILegacySyncOptions, TNullable } from '@/types';
 
-interface IIndexRow {
+export interface IIndexRow {
   schemaname: string;
   tablename: string;
   indexname: string;
@@ -21,11 +21,17 @@ interface IParsedIndexDefinition {
 }
 
 export class IndexOperations {
-  private client: Client;
+  private sourceClient: Client;
+  private targetClient: Client;
   private options: ILegacySyncOptions;
 
-  constructor(client: Client, options: ILegacySyncOptions) {
-    this.client = client;
+  constructor(
+    sourceClient: Client,
+    targetClient: Client,
+    options: ILegacySyncOptions
+  ) {
+    this.sourceClient = sourceClient;
+    this.targetClient = targetClient;
     this.options = options;
   }
 
@@ -44,7 +50,14 @@ export class IndexOperations {
       ORDER BY tablename, indexname
     `;
 
-    const result = await this.client.query(indexesQuery, [schemaName]);
+    // Use the appropriate client based on schema
+    const client =
+      schemaName === this.options.source
+        ? this.sourceClient
+        : this.targetClient;
+
+    const result = await client.query(indexesQuery, [schemaName]);
+
     return result.rows;
   }
 
@@ -53,13 +66,13 @@ export class IndexOperations {
    */
   private parseIndexDefinition(
     indexDef: string
-  ): IParsedIndexDefinition | null {
+  ): TNullable<IParsedIndexDefinition> {
     const isUnique = indexDef.includes('UNIQUE');
     const uniqueKeyword = isUnique ? 'UNIQUE ' : '';
 
     // Try to match with schema prefix first
     let indexMatch = indexDef.match(
-      /CREATE\s+(?:UNIQUE\s+)?INDEX\s+([^.]+)\.([^.]+)\s+ON\s+([^.]+)\.([^.]+)/
+      /CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?([^.]+)\.([^.]+)\s+ON\s+([^.]+)\.([^.]+)/
     );
 
     if (indexMatch) {
@@ -74,7 +87,7 @@ export class IndexOperations {
 
     // Try to match without schema prefix
     indexMatch = indexDef.match(
-      /CREATE\s+(?:UNIQUE\s+)?INDEX\s+([^\s]+)\s+ON\s+([^.]+)\.([^.]+)/
+      /CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?([^\s]+)\s+ON\s+([^.]+)\.([^.]+)/
     );
 
     if (indexMatch) {
@@ -96,7 +109,7 @@ export class IndexOperations {
   private generateFallbackIndexStatement(
     indexDef: string,
     targetSchema: string
-  ): string {
+  ) {
     const replaced = indexDef.replace(
       /CREATE\s+(?:UNIQUE\s+)?INDEX\s+[^.]+\.[^.]+\s+ON\s+[^.]+\.[^.]+/,
       match => {
@@ -106,16 +119,17 @@ export class IndexOperations {
         const tableNamePart = parts[parts.length - 1];
         const indexName = indexNamePart?.split('.')[1] ?? 'unknown_index';
         const tableName = tableNamePart?.split('.')[1] ?? 'unknown_table';
-        return `CREATE ${uniqueKeyword}INDEX ${targetSchema}.${indexName} ON ${targetSchema}.${tableName}`;
+        return `CREATE ${uniqueKeyword}INDEX IF NOT EXISTS ${indexName} ON ${targetSchema}.${tableName}`;
       }
     );
+
     return `${replaced};`;
   }
 
   /**
    * Generate CREATE INDEX statement
    */
-  generateCreateIndexStatement(indexDef: string, targetSchema: string): string {
+  generateCreateIndexStatement(indexDef: string, targetSchema: string) {
     if (!indexDef) {
       return `-- TODO: Could not retrieve index definition`;
     }
@@ -124,7 +138,8 @@ export class IndexOperations {
 
     if (parsed) {
       const { uniqueKeyword, indexName, tableName, restOfDefinition } = parsed;
-      return `CREATE ${uniqueKeyword}INDEX ${targetSchema}.${indexName} ON ${targetSchema}.${tableName}${restOfDefinition};`;
+
+      return `CREATE ${uniqueKeyword}INDEX IF NOT EXISTS ${indexName} ON ${targetSchema}.${tableName}${restOfDefinition};`;
     }
 
     return this.generateFallbackIndexStatement(indexDef, targetSchema);
@@ -133,7 +148,7 @@ export class IndexOperations {
   /**
    * Generate index operations for schema sync
    */
-  async generateIndexOperations(): Promise<string[]> {
+  async generateIndexOperations() {
     const alterStatements: string[] = [];
 
     const sourceIndexes = await this.getIndexes(this.options.source);
@@ -148,6 +163,7 @@ export class IndexOperations {
       alterStatements.push(
         `-- Index ${index.indexname} exists in ${this.options.target} but not in ${this.options.source}`
       );
+
       alterStatements.push(
         `DROP INDEX ${this.options.target}.${index.indexname};`
       );

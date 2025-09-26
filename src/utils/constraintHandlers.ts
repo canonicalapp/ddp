@@ -3,9 +3,10 @@
  * Handles constraint operation handlers (create, drop, update)
  */
 
+import type { ILegacySyncOptions, TNullable } from '@/types';
 import type { Client } from 'pg';
 import { ConstraintDefinitions } from './constraintDefinitions';
-import type { ILegacySyncOptions, TNullable } from '@/types';
+import { Utils } from './formatting';
 
 interface IConstraintRow {
   table_name: string;
@@ -19,14 +20,24 @@ interface IConstraintRow {
 }
 
 export class ConstraintHandlers {
-  private client: Client;
+  private sourceClient: Client;
+  private targetClient: Client;
   private options: ILegacySyncOptions;
   private constraintDefinitions: ConstraintDefinitions;
 
-  constructor(client: Client, options: ILegacySyncOptions) {
-    this.client = client;
+  constructor(
+    sourceClient: Client,
+    targetClient: Client,
+    options: ILegacySyncOptions
+  ) {
+    this.sourceClient = sourceClient;
+    this.targetClient = targetClient;
     this.options = options;
-    this.constraintDefinitions = new ConstraintDefinitions(client, options);
+    this.constraintDefinitions = new ConstraintDefinitions(
+      sourceClient,
+      targetClient,
+      options
+    );
   }
 
   /**
@@ -55,13 +66,17 @@ export class ConstraintHandlers {
         `-- Constraint ${sourceConstraint.constraint_name} has changed, updating in ${this.options.target}`
       );
 
-      const oldConstraintName = `${sourceConstraint.constraint_name}_old_${Date.now()}`;
-      alterStatements.push(
-        `-- Renaming old constraint to ${oldConstraintName} for manual review`
+      // Generate proper constraint name for dropping
+      const properConstraintName = this.generateProperConstraintName(
+        sourceConstraint.constraint_name,
+        sourceConstraint.constraint_type,
+        sourceConstraint.table_name,
+        sourceConstraint.column_name ?? ''
       );
 
+      // Drop the existing constraint first
       alterStatements.push(
-        `ALTER TABLE ${this.options.target}.${sourceConstraint.table_name} RENAME CONSTRAINT ${sourceConstraint.constraint_name} TO ${oldConstraintName};`
+        `ALTER TABLE ${this.options.target}.${sourceConstraint.table_name} DROP CONSTRAINT IF EXISTS ${properConstraintName};`
       );
 
       const constraintDefinition =
@@ -95,12 +110,62 @@ export class ConstraintHandlers {
     );
 
     for (const constraint of constraintsToDrop) {
+      // Generate proper constraint name for dropping
+      const properConstraintName = this.generateProperConstraintName(
+        constraint.constraint_name,
+        constraint.constraint_type,
+        constraint.table_name,
+        constraint.column_name ?? ''
+      );
+
       alterStatements.push(
         `-- Constraint ${constraint.constraint_name} exists in ${this.options.target} but not in ${this.options.source}`
       );
       alterStatements.push(
-        `ALTER TABLE ${this.options.target}.${constraint.table_name} DROP CONSTRAINT ${constraint.constraint_name};`
+        `ALTER TABLE ${this.options.target}.${constraint.table_name} DROP CONSTRAINT IF EXISTS ${properConstraintName};`
       );
+    }
+  }
+
+  /**
+   * Generate a proper constraint name (same logic as ConstraintDefinitions)
+   */
+  private generateProperConstraintName(
+    originalName: string,
+    constraintType: string,
+    tableName: string,
+    columns: string
+  ): string {
+    // Always use the original name if it exists and is valid
+    if (
+      originalName &&
+      originalName.length <= 63 &&
+      /^[a-zA-Z_]/.test(originalName) &&
+      !/^\d+/.test(originalName)
+    ) {
+      return originalName;
+    }
+
+    // Generate a descriptive name based on constraint type and columns
+    const columnList = columns
+      ? columns.replace(/\s+/g, '_').toLowerCase()
+      : 'col';
+
+    switch (constraintType) {
+      case 'PRIMARY KEY':
+        return `${tableName}_pkey`;
+      case 'UNIQUE':
+        return `${tableName}_${columnList}_key`;
+      case 'FOREIGN KEY':
+        return `${tableName}_${columnList}_fkey`;
+      case 'CHECK': {
+        // For CHECK constraints, include timestamp to ensure uniqueness
+        const timestamp = Utils.generateTimestamp();
+
+        return `${tableName}_${columnList}_check_${timestamp}`;
+      }
+      default:
+        return `${tableName}_${columnList}_${constraintType.toLowerCase().replace(/\s+/g, '_')}`;
     }
   }
 

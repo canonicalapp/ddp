@@ -42,14 +42,20 @@ import {
 
 describe('ColumnOperations', () => {
   let columnOps;
-  let mockClient;
+  let mockSourceClient;
+  let mockTargetClient;
   let mockOptions;
   let mockUtils;
 
   beforeEach(() => {
-    mockClient = createMockClient();
+    mockSourceClient = createMockClient();
+    mockTargetClient = createMockClient();
     mockOptions = createMockOptions();
-    columnOps = new ColumnOperations(mockClient, mockOptions);
+    columnOps = new ColumnOperations(
+      mockSourceClient,
+      mockTargetClient,
+      mockOptions
+    );
 
     // Create mock Utils functions
     mockUtils = {
@@ -75,8 +81,9 @@ describe('ColumnOperations', () => {
   });
 
   describe('constructor', () => {
-    it('should initialize with client and options', () => {
-      expect(columnOps.client).toBe(mockClient);
+    it('should initialize with source client, target client and options', () => {
+      expect(columnOps.sourceClient).toBe(mockSourceClient);
+      expect(columnOps.targetClient).toBe(mockTargetClient);
       expect(columnOps.options).toBe(mockOptions);
     });
   });
@@ -85,27 +92,27 @@ describe('ColumnOperations', () => {
     it('should query for columns in a schema', async () => {
       const mockColumns = [basicColumn];
 
-      mockClient.query.mockResolvedValue({ rows: mockColumns });
+      mockSourceClient.query.mockResolvedValue({ rows: mockColumns });
 
-      const result = await columnOps.getColumns('test_schema');
+      const result = await columnOps.getColumns('dev_schema');
 
       // Check that query was called with correct parameters
-      const calls = mockClient.query.mock.calls;
+      const calls = mockSourceClient.query.mock.calls;
       expect(calls.length).toBe(1);
       expect(calls[0][0]).toContain('information_schema.columns');
-      expect(calls[0][1]).toEqual(['test_schema']);
+      expect(calls[0][1]).toEqual(['dev_schema']);
       expect(result).toEqual(mockColumns);
     });
 
     it('should order columns by table name and ordinal position', async () => {
-      await columnOps.getColumns('test_schema');
+      await columnOps.getColumns('dev_schema');
 
-      const query = mockClient.query.mock.calls[0][0];
+      const query = mockSourceClient.query.mock.calls[0][0];
       expect(query).toContain('ORDER BY table_name, ordinal_position');
     });
 
     it('should handle empty results', async () => {
-      mockClient.query.mockResolvedValue({ rows: [] });
+      mockSourceClient.query.mockResolvedValue({ rows: [] });
 
       const result = await columnOps.getColumns('empty_schema');
 
@@ -114,9 +121,9 @@ describe('ColumnOperations', () => {
 
     it('should handle database errors', async () => {
       const error = new Error('Database connection failed');
-      mockClient.query.mockRejectedValue(error);
+      mockSourceClient.query.mockRejectedValue(error);
 
-      await expect(columnOps.getColumns('test_schema')).rejects.toThrow(
+      await expect(columnOps.getColumns('dev_schema')).rejects.toThrow(
         'Database connection failed'
       );
     });
@@ -283,21 +290,33 @@ describe('ColumnOperations', () => {
 
   describe('generateColumnOperations', () => {
     it('should add missing columns to production', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceColumnsForAddTest })
-        .mockResolvedValueOnce({ rows: targetColumnsForAddTest });
+      mockSourceClient.query.mockResolvedValue({
+        rows: sourceColumnsForAddTest,
+      });
+      mockTargetClient.query.mockResolvedValue({
+        rows: targetColumnsForAddTest,
+      });
 
       const result = await columnOps.generateColumnOperations();
 
       expect(result).toContain(
-        'ALTER TABLE prod_schema.users ADD COLUMN "email" character varying(255) NOT NULL;'
+        'ALTER TABLE prod_schema.users ADD COLUMN "email" character varying(255);'
+      );
+      expect(result).toContain(
+        'UPDATE prod_schema.users SET "email" = \'\' WHERE "email" IS NULL;'
+      );
+      expect(result).toContain(
+        'ALTER TABLE prod_schema.users ALTER COLUMN "email" SET NOT NULL;'
       );
     });
 
     it('should handle columns to drop in target', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceColumnsForDropTest })
-        .mockResolvedValueOnce({ rows: targetColumnsForDropTest });
+      mockSourceClient.query.mockResolvedValue({
+        rows: sourceColumnsForDropTest,
+      });
+      mockTargetClient.query.mockResolvedValue({
+        rows: targetColumnsForDropTest,
+      });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -316,9 +335,12 @@ describe('ColumnOperations', () => {
     });
 
     it('should handle column modifications', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceColumnsForModifyTest })
-        .mockResolvedValueOnce({ rows: targetColumnsForModifyTest });
+      mockSourceClient.query.mockResolvedValue({
+        rows: sourceColumnsForModifyTest,
+      });
+      mockTargetClient.query.mockResolvedValue({
+        rows: targetColumnsForModifyTest,
+      });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -339,9 +361,12 @@ describe('ColumnOperations', () => {
     });
 
     it('should handle identical columns', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceColumnsForIdenticalTest })
-        .mockResolvedValueOnce({ rows: targetColumnsForIdenticalTest });
+      mockSourceClient.query.mockResolvedValue({
+        rows: sourceColumnsForIdenticalTest,
+      });
+      mockTargetClient.query.mockResolvedValue({
+        rows: targetColumnsForIdenticalTest,
+      });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -350,9 +375,12 @@ describe('ColumnOperations', () => {
     });
 
     it('should handle tables that exist only in development', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceColumnsForNewTableTest })
-        .mockResolvedValueOnce({ rows: targetColumnsForNewTableTest });
+      mockSourceClient.query.mockResolvedValue({
+        rows: sourceColumnsForNewTableTest,
+      });
+      mockTargetClient.query.mockResolvedValue({
+        rows: targetColumnsForNewTableTest,
+      });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -361,9 +389,12 @@ describe('ColumnOperations', () => {
     });
 
     it('should handle tables that exist only in target', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceColumnsForOldTableTest })
-        .mockResolvedValueOnce({ rows: targetColumnsForOldTableTest });
+      mockSourceClient.query.mockResolvedValue({
+        rows: sourceColumnsForOldTableTest,
+      });
+      mockTargetClient.query.mockResolvedValue({
+        rows: targetColumnsForOldTableTest,
+      });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -372,9 +403,8 @@ describe('ColumnOperations', () => {
     });
 
     it('should handle empty schemas', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [] });
+      mockSourceClient.query.mockResolvedValue({ rows: [] });
+      mockTargetClient.query.mockResolvedValue({ rows: [] });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -383,7 +413,7 @@ describe('ColumnOperations', () => {
 
     it('should handle database errors', async () => {
       const error = new Error('Database connection failed');
-      mockClient.query.mockRejectedValue(error);
+      mockSourceClient.query.mockRejectedValue(error);
 
       await expect(columnOps.generateColumnOperations()).rejects.toThrow(
         'Database connection failed'
@@ -393,18 +423,22 @@ describe('ColumnOperations', () => {
 
   describe('Edge cases and error handling', () => {
     it('should handle null column names', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceColumnsWithNullName })
-        .mockResolvedValueOnce({ rows: [] });
+      mockSourceClient.query.mockResolvedValue({
+        rows: sourceColumnsWithNullName,
+      });
+      mockTargetClient.query.mockResolvedValue({ rows: [] });
 
       const result = await columnOps.generateColumnOperations();
       expect(result).toBeDefined();
     });
 
     it('should handle special characters in column names', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceColumnsWithSpecialChars }) // getColumns for source
-        .mockResolvedValueOnce({ rows: targetColumnsForSpecialChars }); // getColumns for target
+      mockSourceClient.query.mockResolvedValue({
+        rows: sourceColumnsWithSpecialChars,
+      });
+      mockTargetClient.query.mockResolvedValue({
+        rows: targetColumnsForSpecialChars,
+      });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -419,11 +453,12 @@ describe('ColumnOperations', () => {
 
     it('should handle very long column names', async () => {
       const longColumnName = 'a'.repeat(100);
-      mockClient.query
-        .mockResolvedValueOnce({
-          rows: sourceColumnsWithLongName(longColumnName),
-        }) // getColumns for source
-        .mockResolvedValueOnce({ rows: targetColumnsForLongName }); // getColumns for target
+      mockSourceClient.query.mockResolvedValue({
+        rows: sourceColumnsWithLongName(longColumnName),
+      });
+      mockTargetClient.query.mockResolvedValue({
+        rows: targetColumnsForLongName,
+      });
 
       const result = await columnOps.generateColumnOperations();
 
@@ -437,9 +472,10 @@ describe('ColumnOperations', () => {
     });
 
     it('should handle malformed column data', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceColumnsWithMalformedData })
-        .mockResolvedValueOnce({ rows: [] });
+      mockSourceClient.query.mockResolvedValue({
+        rows: sourceColumnsWithMalformedData,
+      });
+      mockTargetClient.query.mockResolvedValue({ rows: [] });
 
       // Should not throw, but may produce unexpected results
       const result = await columnOps.generateColumnOperations();

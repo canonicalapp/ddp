@@ -3,9 +3,8 @@
  * Handles stored procedures and functions sync logic
  */
 
-import type { Client } from 'pg';
-import { Utils } from '@/utils/formatting';
 import type { ILegacySyncOptions, TNullable } from '@/types';
+import type { Client } from 'pg';
 
 interface IFunctionRow {
   routine_name: string;
@@ -23,11 +22,17 @@ interface IFunctionDefinition {
 }
 
 export class FunctionOperations {
-  private client: Client;
+  private sourceClient: Client;
+  private targetClient: Client;
   private options: ILegacySyncOptions;
 
-  constructor(client: Client, options: ILegacySyncOptions) {
-    this.client = client;
+  constructor(
+    sourceClient: Client,
+    targetClient: Client,
+    options: ILegacySyncOptions
+  ) {
+    this.sourceClient = sourceClient;
+    this.targetClient = targetClient;
     this.options = options;
   }
 
@@ -47,7 +52,14 @@ export class FunctionOperations {
       AND routine_type IN ('FUNCTION', 'PROCEDURE')
     `;
 
-    const result = await this.client.query(functionsQuery, [schemaName]);
+    // Use the appropriate client based on schema
+    const client =
+      schemaName === this.options.source
+        ? this.sourceClient
+        : this.targetClient;
+
+    const result = await client.query(functionsQuery, [schemaName]);
+
     return result.rows;
   }
 
@@ -60,25 +72,34 @@ export class FunctionOperations {
     routineType: string
   ): Promise<string | null> {
     try {
-      // For functions, use pg_get_functiondef to get the complete definition
-      if (routineType === 'FUNCTION') {
-        const functionDefQuery = `
-          SELECT pg_get_functiondef(p.oid) as definition
-          FROM pg_proc p
-          JOIN pg_namespace n ON p.pronamespace = n.oid
-          WHERE n.nspname = $1 AND p.proname = $2
-        `;
+      // Use pg_get_functiondef to get the complete definition for both functions and procedures
+      const functionDefQuery = `
+        SELECT pg_get_functiondef(p.oid) as definition
+        FROM pg_proc p
+        JOIN pg_namespace n ON p.pronamespace = n.oid
+        WHERE n.nspname = $1 AND p.proname = $2
+        LIMIT 1
+      `;
 
-        const result = await this.client.query(functionDefQuery, [
-          schemaName,
-          routineName,
-        ]);
-        return result.rows[0]?.definition ?? null;
+      // Use the appropriate client based on schema
+      const client =
+        schemaName === this.options.source
+          ? this.sourceClient
+          : this.targetClient;
+
+      const result = await client.query(functionDefQuery, [
+        schemaName,
+        routineName,
+      ]);
+
+      const definition = result.rows[0]?.definition;
+
+      if (definition) {
+        return definition;
       }
 
-      // For procedures, we'll need to reconstruct from information_schema
-      // This is a simplified approach - in practice, you might need more complex logic
-      const procedureDefQuery = `
+      // Fallback to information_schema if pg_get_functiondef fails
+      const fallbackQuery = `
         SELECT 
           routine_name,
           routine_type,
@@ -90,12 +111,13 @@ export class FunctionOperations {
         AND routine_type = $3
       `;
 
-      const result = await this.client.query(procedureDefQuery, [
+      const fallbackResult = await client.query(fallbackQuery, [
         schemaName,
         routineName,
         routineType,
       ]);
-      return result.rows[0]?.routine_definition ?? null;
+
+      return fallbackResult.rows[0]?.routine_definition ?? null;
     } catch (error) {
       console.warn(
         `Failed to get definition for ${routineType} ${routineName}:`,
@@ -111,7 +133,8 @@ export class FunctionOperations {
   compareFunctionDefinitions(
     sourceFunction: IFunctionDefinition,
     targetFunction: IFunctionDefinition
-  ): boolean {
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!sourceFunction || !targetFunction) {
       return false;
     }
@@ -120,13 +143,17 @@ export class FunctionOperations {
     const sourceProps = {
       routine_type: sourceFunction.routine_type,
       data_type: sourceFunction.data_type,
-      routine_definition: sourceFunction.routine_definition,
+      routine_definition: this.normalizeFunctionDefinition(
+        sourceFunction.routine_definition ?? ''
+      ),
     };
 
     const targetProps = {
       routine_type: targetFunction.routine_type,
       data_type: targetFunction.data_type,
-      routine_definition: targetFunction.routine_definition,
+      routine_definition: this.normalizeFunctionDefinition(
+        targetFunction.routine_definition ?? ''
+      ),
     };
 
     // Compare each property
@@ -141,6 +168,18 @@ export class FunctionOperations {
   }
 
   /**
+   * Normalize function definition by replacing schema references
+   */
+  private normalizeFunctionDefinition(definition: string) {
+    if (!definition) return definition;
+
+    // Replace schema references with a placeholder to normalize comparison
+    return definition
+      .replace(/\b(dev|prod)\./g, 'SCHEMA.')
+      .replace(/\b(dev|prod)\b/g, 'SCHEMA');
+  }
+
+  /**
    * Generate CREATE statement for function/procedure
    */
   generateCreateStatement(
@@ -148,7 +187,7 @@ export class FunctionOperations {
     routineName: string,
     routineType: string,
     targetSchema: string
-  ): string {
+  ) {
     if (!definition) {
       return `-- TODO: Could not retrieve definition for ${routineType} ${routineName}`;
     }
@@ -162,12 +201,95 @@ export class FunctionOperations {
       targetSchema
     );
 
+    // Clean up the definition - remove any malformed parts
+    createStatement = this.cleanFunctionDefinition(
+      createStatement,
+      routineType
+    );
+
     // Ensure it's a CREATE statement
     if (!createStatement.trim().toUpperCase().startsWith('CREATE')) {
-      createStatement = `CREATE ${routineType} ${targetSchema}.${routineName} AS\n${createStatement}`;
+      createStatement = `CREATE OR REPLACE ${routineType} ${targetSchema}.${routineName} AS\n${createStatement}`;
+    }
+
+    // Ensure proper function syntax
+    if (routineType === 'FUNCTION' && !createStatement.includes('AS')) {
+      createStatement = createStatement.replace(
+        new RegExp(
+          `CREATE OR REPLACE FUNCTION ${targetSchema}\\.${routineName}\\b`
+        ),
+        `CREATE OR REPLACE FUNCTION ${targetSchema}.${routineName} AS`
+      );
+    }
+
+    // Ensure proper procedure syntax
+    if (routineType === 'PROCEDURE' && !createStatement.includes('AS')) {
+      createStatement = createStatement.replace(
+        new RegExp(
+          `CREATE OR REPLACE PROCEDURE ${targetSchema}\\.${routineName}\\b`
+        ),
+        `CREATE OR REPLACE PROCEDURE ${targetSchema}.${routineName} AS`
+      );
+    }
+
+    // Ensure the statement ends with a semicolon
+    if (!createStatement.trim().endsWith(';')) {
+      createStatement += ';';
     }
 
     return createStatement;
+  }
+
+  /**
+   * Clean up function definition to remove malformed parts
+   */
+  private cleanFunctionDefinition(definition: string, _routineType: string) {
+    let cleaned = definition;
+
+    // Remove any lines that don't belong to the function definition
+    const lines = cleaned.split('\n');
+    const cleanedLines: string[] = [];
+    let inFunctionBody = false;
+    let dollarQuoteCount = 0;
+    let foundEnd = false;
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+
+      // Skip empty lines at the beginning
+      if (!inFunctionBody && !trimmedLine) {
+        continue;
+      }
+
+      // Check if we're starting the function body
+      if (trimmedLine.includes('AS') || trimmedLine.includes('$$')) {
+        inFunctionBody = true;
+      }
+
+      // Count dollar quotes to track function body
+      if (inFunctionBody) {
+        dollarQuoteCount += (trimmedLine.match(/\$\$/g) ?? []).length;
+
+        // If we have an even number of $$, we've found the end
+        if (dollarQuoteCount > 0 && dollarQuoteCount % 2 === 0) {
+          foundEnd = true;
+        }
+      }
+
+      // Stop if we hit another CREATE statement (malformed definition)
+      if (trimmedLine.startsWith('CREATE') && cleanedLines.length > 0) {
+        break;
+      }
+
+      // Stop if we've found the end of the function
+      if (foundEnd && trimmedLine.startsWith('CREATE')) {
+        break;
+      }
+
+      cleanedLines.push(line);
+    }
+
+    return cleanedLines.join('\n');
   }
 
   /**
@@ -177,7 +299,7 @@ export class FunctionOperations {
     sourceFunctions: IFunctionRow[],
     targetFunctions: IFunctionRow[],
     alterStatements: string[]
-  ): Promise<void> {
+  ) {
     const functionsToUpdate = sourceFunctions.filter(sourceFunction => {
       const targetFunction = targetFunctions.find(
         p =>
@@ -192,17 +314,14 @@ export class FunctionOperations {
 
     for (const sourceFunction of functionsToUpdate) {
       alterStatements.push(
-        `-- ${sourceFunction.routine_type.toLowerCase()} ${
+        `-- ${sourceFunction.routine_type.toLowerCase() || 'function'} ${
           sourceFunction.routine_name
         } has changed, updating in ${this.options.target}`
       );
 
-      const oldFunctionName = `${sourceFunction.routine_name}_old_${Date.now()}`;
+      // Drop the existing function first
       alterStatements.push(
-        `-- Renaming old ${sourceFunction.routine_type.toLowerCase()} to ${oldFunctionName} for manual review`
-      );
-      alterStatements.push(
-        `ALTER ${sourceFunction.routine_type} ${this.options.target}.${sourceFunction.routine_name} RENAME TO ${oldFunctionName};`
+        `DROP ${sourceFunction.routine_type.toLowerCase() === 'procedure' ? 'PROCEDURE' : 'FUNCTION'} IF EXISTS ${this.options.target}.${sourceFunction.routine_name};`
       );
 
       const definition = await this.getFunctionDefinition(
@@ -226,7 +345,7 @@ export class FunctionOperations {
   /**
    * Generate function operations for schema sync
    */
-  async generateFunctionOperations(): Promise<string[]> {
+  async generateFunctionOperations() {
     const alterStatements: string[] = [];
 
     const sourceFunctions = await this.getFunctions(this.options.source);
@@ -258,7 +377,7 @@ export class FunctionOperations {
     alterStatements: string[],
     sourceFunctions: IFunctionRow[],
     targetFunctions: IFunctionRow[]
-  ): void {
+  ) {
     const functionsToDrop = targetFunctions.filter(
       p =>
         !sourceFunctions.some(
@@ -269,21 +388,11 @@ export class FunctionOperations {
     );
 
     for (const func of functionsToDrop) {
-      const backupName = Utils.generateBackupName(func.routine_name);
-
       alterStatements.push(
         `-- ${func.routine_type} ${func.routine_name} exists in ${this.options.target} but not in ${this.options.source}`
       );
       alterStatements.push(
-        `-- Renaming ${func.routine_type.toLowerCase()} to preserve before manual drop`
-      );
-      alterStatements.push(
-        `ALTER ${func.routine_type} ${this.options.target}.${func.routine_name} RENAME TO ${backupName};`
-      );
-      alterStatements.push(
-        `-- TODO: Manually drop ${func.routine_type.toLowerCase()} ${
-          this.options.target
-        }.${backupName} after confirming it's no longer needed`
+        `DROP ${func.routine_type.toLowerCase() === 'procedure' ? 'PROCEDURE' : 'FUNCTION'} IF EXISTS ${this.options.target}.${func.routine_name};`
       );
     }
   }
@@ -295,7 +404,7 @@ export class FunctionOperations {
     alterStatements: string[],
     sourceFunctions: IFunctionRow[],
     targetFunctions: IFunctionRow[]
-  ): Promise<void> {
+  ) {
     const functionsToCreate = sourceFunctions.filter(
       d =>
         !targetFunctions.some(
@@ -307,7 +416,7 @@ export class FunctionOperations {
 
     for (const func of functionsToCreate) {
       alterStatements.push(
-        `-- Creating ${func.routine_type?.toLowerCase() ?? 'function'} ${
+        `-- Creating ${(func.routine_type || 'function').toLowerCase()} ${
           func.routine_name
         } in ${this.options.target}`
       );

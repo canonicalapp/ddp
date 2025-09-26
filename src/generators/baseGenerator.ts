@@ -78,10 +78,8 @@ export abstract class BaseGenerator {
         errorMessage
       );
 
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      // Re-throw the original error to preserve error details for better handling
+      throw error;
     }
   }
 
@@ -93,7 +91,7 @@ export abstract class BaseGenerator {
   /**
    * Output files to stdout
    */
-  private outputToStdout(files: IGeneratedFile[]): void {
+  private outputToStdout(files: IGeneratedFile[]) {
     files.forEach((file, index) => {
       if (index > 0) {
         console.log('\n' + '='.repeat(80) + '\n');
@@ -107,7 +105,7 @@ export abstract class BaseGenerator {
   /**
    * Output files to disk
    */
-  private async outputToFiles(files: IGeneratedFile[]): Promise<void> {
+  private async outputToFiles(files: IGeneratedFile[]) {
     // Ensure output directory exists
     const outputDir = this.options.outputDir;
     mkdirSync(outputDir, { recursive: true });
@@ -124,7 +122,7 @@ export abstract class BaseGenerator {
   /**
    * Generate SQL header with metadata
    */
-  protected generateHeader(title: string, description: string): string {
+  protected generateHeader(title: string, description: string) {
     const timestamp = new Date().toISOString();
     const database = this.connection.database;
     const schema = this.schema;
@@ -145,7 +143,7 @@ export abstract class BaseGenerator {
   /**
    * Generate SQL footer
    */
-  protected generateFooter(): string {
+  protected generateFooter() {
     return `
 -- ===========================================
 -- END OF ${this.getGeneratorName().toUpperCase()}
@@ -156,7 +154,7 @@ export abstract class BaseGenerator {
   /**
    * Format SQL with proper indentation
    */
-  protected formatSQL(sql: string, indentLevel: number = 0): string {
+  protected formatSQL(sql: string, indentLevel: number = 0) {
     const indent = '  '.repeat(indentLevel);
     return sql
       .split('\n')
@@ -171,7 +169,7 @@ export abstract class BaseGenerator {
   /**
    * Escape SQL identifiers
    */
-  protected escapeIdentifier(identifier: string): string {
+  protected escapeIdentifier(identifier: string) {
     // Only escape if it contains special characters or is a reserved word
     if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(identifier)) {
       return identifier;
@@ -182,21 +180,21 @@ export abstract class BaseGenerator {
   /**
    * Escape SQL string literals
    */
-  protected escapeString(str: string): string {
+  protected escapeString(str: string) {
     return `'${str.replace(/'/g, "''")}'`;
   }
 
   /**
    * Generate comment block
    */
-  protected generateComment(comment: string): string {
+  protected generateComment(comment: string) {
     return `-- ${comment}`;
   }
 
   /**
    * Generate section header
    */
-  protected generateSectionHeader(title: string): string {
+  protected generateSectionHeader(title: string) {
     return `
 -- ===========================================
 -- ${title}
@@ -207,7 +205,7 @@ export abstract class BaseGenerator {
   /**
    * Check if generation should be skipped based on options
    */
-  protected shouldSkip(): boolean {
+  protected shouldSkip() {
     // This will be overridden by specific generators
     return false;
   }
@@ -215,14 +213,30 @@ export abstract class BaseGenerator {
   /**
    * Validate required data before generation
    */
-  protected async validateData(): Promise<void> {
+  protected async validateData() {
     // Override in subclasses for specific validation
   }
 
   /**
    * Get database connection info for logging
    */
-  protected getConnectionInfo(): string {
+  protected getConnectionInfo() {
     return `${this.connection.host}:${this.connection.port}/${this.connection.database}.${this.schema}`;
+  }
+
+  /**
+   * Generate schema creation SQL if not using public schema
+   * This ensures generated files can be run on blank databases
+   */
+  protected generateSchemaCreationSQL() {
+    if (this.schema !== 'public') {
+      return (
+        this.generateComment('Schema Creation') +
+        '\n' +
+        `CREATE SCHEMA IF NOT EXISTS ${this.escapeIdentifier(this.schema)};\n\n`
+      );
+    }
+
+    return '';
   }
 }

@@ -12,6 +12,7 @@ export type {
   IColumnDefinition,
   IConstraintDefinition,
   IIndexDefinition,
+  ISequenceDefinition,
   ITableDefinition,
   IFunctionDefinition,
   IFunctionParameter,
@@ -39,41 +40,18 @@ export type {
 
 // Sync Types
 export type {
-  ISyncOptions,
   ILegacySyncOptions,
-  ISyncResult,
-  ISyncOperation,
   TSyncOperationType,
   TSyncObjectType,
 } from './sync';
 
-// File Types
-export type {
-  IFileOutputOptions,
-  IFileOutputResult,
-  TFileFormat,
-  TFileEncoding,
-} from './file';
+// Validation Types - Removed unused types
 
-// Validation Types
-export type {
-  IValidationResult,
-  IValidationErrorItem,
-  TValidationRule,
-  TValidationSeverity,
-} from './validation';
-
-// Environment Types
-export type {
-  IEnvironmentConfig,
-  TEnvironmentKey,
-  TEnvironmentValue,
-} from './environment';
+// Environment Types - Removed unused types
 
 // Error Types
 export { DDPError, DatabaseError, ValidationError, FileError } from './errors';
 
 export type { TErrorCode, TErrorSeverity } from './errors';
 
-// Utility Types
-export type { IComparisonResult } from './utils';
+// Utility Types - Removed unused types

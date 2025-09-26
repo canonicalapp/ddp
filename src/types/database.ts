@@ -53,10 +53,24 @@ export interface IConstraintDefinition {
 export interface IIndexDefinition {
   name: string;
   table: string;
+  schema?: string;
   columns: string[];
   unique: boolean;
   partial?: string;
   method?: 'btree' | 'hash' | 'gist' | 'gin' | 'spgist' | 'brin';
+  is_primary?: boolean;
+}
+
+export interface ISequenceDefinition {
+  name: string;
+  schema: string;
+  dataType: string;
+  startValue: string;
+  minimumValue: string;
+  maximumValue: string;
+  increment: string;
+  cycleOption: 'YES' | 'NO';
+  comment?: TOptional<string>;
 }
 
 export interface ITableDefinition {
@@ -65,6 +79,7 @@ export interface ITableDefinition {
   columns: IColumnDefinition[];
   constraints: IConstraintDefinition[];
   indexes: IIndexDefinition[];
+  sequences: ISequenceDefinition[];
   comment?: TOptional<string>;
 }
 

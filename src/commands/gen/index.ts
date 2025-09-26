@@ -7,10 +7,12 @@ import type {
   IDatabaseConnection,
   IGenCommandOptions,
   IGeneratorOptions,
-  TRecord,
 } from '@/types';
-import { findUp } from 'find-up';
-import { readFileSync } from 'fs';
+import { ValidationError } from '@/types/errors';
+import { loadEnvFile } from '@/utils/envLoader';
+import { DatabaseConnectionError } from '@/utils/generatorErrors';
+import { logDebug, logError, logInfo } from '@/utils/logger';
+import { createProgress } from '@/utils/progress';
 import { Client } from 'pg';
 
 /**
@@ -47,45 +49,11 @@ const determineIntrospectionPlan = (
  */
 type IntrospectionPlan = ReturnType<typeof determineIntrospectionPlan>;
 
-// Load environment variables from .env file
-const loadEnvFile = async (): Promise<void> => {
-  // Skip loading .env file in test environment
-  if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID) {
-    return;
-  }
-
+export const genCommand = async (options: IGenCommandOptions) => {
   try {
-    const envPath = await findUp('.env', { cwd: process.cwd() });
+    logInfo('Starting DDP gen command', { options });
 
-    if (envPath) {
-      const envContent = readFileSync(envPath, 'utf8');
-      const envVars: TRecord<string, string> = {};
-
-      envContent.split('\n').forEach((line: string) => {
-        const [key, ...valueParts] = line.split('=');
-
-        if (key && valueParts.length > 0) {
-          const value = valueParts.join('=').trim();
-
-          envVars[key.trim()] = value;
-        }
-      });
-
-      // Set environment variables
-      Object.entries(envVars).forEach(([key, value]) => {
-        process.env[key] ??= value;
-      });
-    }
-  } catch {
-    // .env file not found or couldn't be read, continue without it
-  }
-};
-
-export const genCommand = async (
-  options: IGenCommandOptions
-): Promise<void> => {
-  try {
-    await loadEnvFile();
+    await loadEnvFile(true); // Skip in test environment
 
     // Build connection string from options or environment
     const database = options.database ?? process.env.DB_NAME;
@@ -96,6 +64,7 @@ export const genCommand = async (
     if (!database || !username || !password) {
       // In test environment, continue with placeholder generation
       if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID) {
+        logInfo('Running in test mode - no credentials provided');
         console.log('⚠️  Running in test mode - no credentials provided');
         console.log('✅ Database connection validation skipped (test mode)');
         console.log('✅ Read-only access validation skipped (test mode)');
@@ -106,9 +75,17 @@ export const genCommand = async (
         return;
       }
 
+      const error = new ValidationError(
+        'Database credentials are required',
+        'credentials',
+        { database: !!database, username: !!username, password: !!password }
+      );
+
+      logError('Missing database credentials', error);
       console.error('Database credentials are required');
       console.error('Required: --database, --username, --password');
-      throw new Error('Failed to establish database connection');
+
+      throw error;
     }
 
     // Build connection configuration
@@ -131,13 +108,21 @@ export const genCommand = async (
 
     // if the connection is not successful error out and exit
     if (!connectionTest.connected) {
+      const error = new DatabaseConnectionError(
+        `Database connection failed: ${connectionTest.error}`,
+        { connectionConfig, testResult: connectionTest }
+      );
+
+      logError('Database connection failed', error);
       console.error('❌ Database connection failed');
+
       if (connectionTest.error) {
         console.error(`Error: ${connectionTest.error}`);
       }
 
       // In test environment or when connection fails, continue as placeholder
       if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID) {
+        logInfo('Running in test mode - continuing as placeholder');
         console.log('⚠️  Running in test mode - continuing as placeholder');
         console.log('✅ Database connection validation skipped (test mode)');
         console.log('✅ Read-only access validation skipped (test mode)');
@@ -148,11 +133,17 @@ export const genCommand = async (
         return;
       }
 
-      process.exit(1);
+      throw error;
     }
 
     // if the connection is not read-only error out and exit
     if (!connectionTest.readOnly) {
+      const error = new DatabaseConnectionError(
+        `Read-only access validation failed: ${connectionTest.error}`,
+        { connectionConfig, testResult: connectionTest }
+      );
+
+      logError('Read-only access validation failed', error);
       console.error('❌ Read-only access validation failed');
 
       if (connectionTest.error) {
@@ -160,10 +151,13 @@ export const genCommand = async (
       }
 
       console.error('Please ensure the database user has read-only access');
-      process.exit(1);
+      throw error;
     }
 
     // if database connection is successful, log the success and the output
+    logInfo('Database connection validated successfully', {
+      readOnly: connectionTest.readOnly,
+    });
     console.log('✅ Database connection validated successfully');
     console.log('✅ Read-only access confirmed');
     console.log(`Output: ${options.stdout ? 'stdout' : options.output}`);
@@ -240,9 +234,35 @@ export const genCommand = async (
       await client.end();
     }
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error';
-    console.error('DDP GEN failed:', errorMessage);
+    logError('DDP gen command failed', error as Error, { options });
+
+    // Handle specific error types with better user guidance
+    if (error instanceof ValidationError) {
+      console.error('❌ Validation Error:', error.message);
+
+      // Provide additional context for schema-related errors
+      if (
+        error.field === 'schema' &&
+        error.details?.availableSchemas &&
+        Array.isArray(error.details.availableSchemas)
+      ) {
+        console.error('\n💡 Available schemas in the database:');
+
+        error.details.availableSchemas.forEach((schema: string) => {
+          console.error(`   - ${schema}`);
+        });
+
+        console.error('\n🔧 To create a new schema, run:');
+        console.error(
+          `   CREATE SCHEMA ${options.schema ?? 'your_schema_name'};`
+        );
+      }
+    } else {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      console.error('❌ DDP GEN failed:', errorMessage);
+    }
+
     process.exit(1);
   }
 };
@@ -270,7 +290,7 @@ const generateSQLFiles = async (
   connectionConfig: IDatabaseConnection,
   options: IGenCommandOptions,
   introspectionPlan: IntrospectionPlan
-): Promise<void> => {
+) => {
   const generatorOptions = convertToGeneratorOptions(options);
 
   const generators = [];
@@ -281,35 +301,59 @@ const generateSQLFiles = async (
       new SchemaGenerator(client, connectionConfig, generatorOptions)
     );
   }
+
   if (introspectionPlan.procs) {
     generators.push(
       new ProcsGenerator(client, connectionConfig, generatorOptions)
     );
   }
+
   if (introspectionPlan.triggers) {
     generators.push(
       new TriggersGenerator(client, connectionConfig, generatorOptions)
     );
   }
 
-  // Execute all generators
-  for (const generator of generators) {
-    const result = await generator.execute();
+  // Execute all generators with progress indicator
+  const progress = createProgress({
+    total: generators.length,
+    title: 'Generating SQL files',
+    showPercentage: true,
+    showTime: true,
+  });
 
-    if (!result.success) {
-      throw new Error(`Generator failed: ${result.error}`);
+  for (const generator of generators) {
+    try {
+      logDebug(`Executing generator: ${generator.constructor.name}`);
+      const result = await generator.execute();
+
+      if (!result.success) {
+        throw new Error(`Generator failed: ${result.error}`);
+      }
+
+      progress.update();
+    } catch (error) {
+      logError(
+        `Generator ${generator.constructor.name} failed`,
+        error as Error
+      );
+      // Re-throw the original error to preserve error details
+      throw error;
     }
   }
 
+  progress.complete();
+
+  logInfo('All SQL files generated successfully', {
+    generatorCount: generators.length,
+  });
   console.log('🎉 All SQL files generated successfully!');
 };
 
 /**
  * Generate placeholder files for test mode
  */
-const generatePlaceholderFiles = async (
-  options: IGenCommandOptions
-): Promise<void> => {
+const generatePlaceholderFiles = async (options: IGenCommandOptions) => {
   const outputDir = options.output ?? './output';
 
   if (options.stdout) {

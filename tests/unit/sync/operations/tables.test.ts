@@ -20,14 +20,20 @@ import {
 
 describe('TableOperations', () => {
   let tableOps;
-  let mockClient;
+  let mockSourceClient;
+  let mockTargetClient;
   let mockOptions;
   let mockUtils;
 
   beforeEach(() => {
-    mockClient = createMockClient();
+    mockSourceClient = createMockClient();
+    mockTargetClient = createMockClient();
     mockOptions = createMockOptions();
-    tableOps = new TableOperations(mockClient, mockOptions);
+    tableOps = new TableOperations(
+      mockSourceClient,
+      mockTargetClient,
+      mockOptions
+    );
 
     // Create mock Utils functions
     mockUtils = {
@@ -48,8 +54,9 @@ describe('TableOperations', () => {
   });
 
   describe('constructor', () => {
-    it('should initialize with client and options', () => {
-      expect(tableOps.client).toBe(mockClient);
+    it('should initialize with source client, target client and options', () => {
+      expect(tableOps.sourceClient).toBe(mockSourceClient);
+      expect(tableOps.targetClient).toBe(mockTargetClient);
       expect(tableOps.options).toBe(mockOptions);
     });
   });
@@ -58,38 +65,38 @@ describe('TableOperations', () => {
     it('should query for tables in a schema', async () => {
       const mockTables = [usersTable, ordersTable];
 
-      mockClient.query.mockResolvedValue({ rows: mockTables });
+      mockSourceClient.query.mockResolvedValue({ rows: mockTables });
 
-      const result = await tableOps.getTables('test_schema');
+      const result = await tableOps.getTables('dev_schema');
 
       // Check that query was called with correct parameters
-      const calls = mockClient.query.mock.calls;
+      const calls = mockSourceClient.query.mock.calls;
       expect(calls.length).toBe(1);
       expect(calls[0][0]).toContain('information_schema.tables');
-      expect(calls[0][1]).toEqual(['test_schema']);
+      expect(calls[0][1]).toEqual(['dev_schema']);
       expect(result).toEqual(mockTables);
     });
 
     it('should filter for BASE TABLE type only', async () => {
-      await tableOps.getTables('test_schema');
+      await tableOps.getTables('dev_schema');
 
-      const query = mockClient.query.mock.calls[0][0];
+      const query = mockSourceClient.query.mock.calls[0][0];
       expect(query).toContain("table_type = 'BASE TABLE'");
     });
 
     it('should handle empty results', async () => {
-      mockClient.query.mockResolvedValue({ rows: [] });
+      mockSourceClient.query.mockResolvedValue({ rows: [] });
 
-      const result = await tableOps.getTables('empty_schema');
+      const result = await tableOps.getTables('dev_schema');
 
       expect(result).toEqual([]);
     });
 
     it('should handle database errors', async () => {
       const error = new Error('Database connection failed');
-      mockClient.query.mockRejectedValue(error);
+      mockSourceClient.query.mockRejectedValue(error);
 
-      await expect(tableOps.getTables('test_schema')).rejects.toThrow(
+      await expect(tableOps.getTables('dev_schema')).rejects.toThrow(
         'Database connection failed'
       );
     });
@@ -116,30 +123,30 @@ describe('TableOperations', () => {
         },
       ];
 
-      mockClient.query.mockResolvedValue({ rows: mockColumns });
+      mockSourceClient.query.mockResolvedValue({ rows: mockColumns });
 
-      const result = await tableOps.getTableDefinition('test_schema', 'users');
+      const result = await tableOps.getTableDefinition('dev_schema', 'users');
 
       // Check that query was called with correct parameters
-      const calls = mockClient.query.mock.calls;
+      const calls = mockSourceClient.query.mock.calls;
       expect(calls.length).toBe(1);
       expect(calls[0][0]).toContain('information_schema.columns');
-      expect(calls[0][1]).toEqual(['test_schema', 'users']);
+      expect(calls[0][1]).toEqual(['dev_schema', 'users']);
       expect(result).toEqual(mockColumns);
     });
 
     it('should order columns by ordinal position', async () => {
-      await tableOps.getTableDefinition('test_schema', 'users');
+      await tableOps.getTableDefinition('dev_schema', 'users');
 
-      const query = mockClient.query.mock.calls[0][0];
+      const query = mockSourceClient.query.mock.calls[0][0];
       expect(query).toContain('ORDER BY ordinal_position');
     });
 
     it('should handle table not found', async () => {
-      mockClient.query.mockResolvedValue({ rows: [] });
+      mockSourceClient.query.mockResolvedValue({ rows: [] });
 
       const result = await tableOps.getTableDefinition(
-        'test_schema',
+        'dev_schema',
         'nonexistent'
       );
 
@@ -168,7 +175,7 @@ describe('TableOperations', () => {
 
       const result = tableOps.generateCreateTableStatement('users', columns);
 
-      expect(result).toContain('CREATE TABLE prod_schema.users');
+      expect(result).toContain('CREATE TABLE IF NOT EXISTS prod_schema.users');
       expect(result).toContain(
         '"id" integer NOT NULL DEFAULT nextval(\'users_id_seq\'::regclass)'
       );
@@ -194,7 +201,7 @@ describe('TableOperations', () => {
 
       const result = tableOps.generateCreateTableStatement('users', columns);
 
-      expect(result).toContain('CREATE TABLE prod_schema.users');
+      expect(result).toContain('CREATE TABLE IF NOT EXISTS prod_schema.users');
     });
 
     it('should format columns with proper indentation', () => {
@@ -226,16 +233,17 @@ describe('TableOperations', () => {
       const sourceTables = sourceTablesForAddTest;
       const targetTables = targetTablesForAddTest;
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceTables }) // getTables for source
-        .mockResolvedValueOnce({ rows: targetTables }) // getTables for target
-        .mockResolvedValueOnce({ rows: mockColumns }); // getTableDefinition for orders
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTables });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTables });
+      mockSourceClient.query.mockResolvedValue({ rows: mockColumns }); // getTableDefinition for orders
 
       const result = await tableOps.generateTableOperations();
 
       expect(result).toContain('-- Create missing table orders');
       expect(
-        result.some(line => line.includes('CREATE TABLE prod_schema.orders'))
+        result.some(line =>
+          line.includes('CREATE TABLE IF NOT EXISTS prod_schema.orders')
+        )
       ).toBe(true);
     });
 
@@ -243,9 +251,8 @@ describe('TableOperations', () => {
       const sourceTables = sourceTablesForDropTest;
       const targetTables = targetTablesForDropTest;
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceTables })
-        .mockResolvedValueOnce({ rows: targetTables });
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTables });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTables });
 
       const result = await tableOps.generateTableOperations();
 
@@ -267,9 +274,8 @@ describe('TableOperations', () => {
       const sourceTables = [{ table_name: 'users' }];
       const targetTables = [{ table_name: 'users' }];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceTables })
-        .mockResolvedValueOnce({ rows: targetTables });
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTables });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTables });
 
       const result = await tableOps.generateTableOperations();
 
@@ -279,9 +285,8 @@ describe('TableOperations', () => {
     });
 
     it('should handle empty schemas', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [] }) // source tables
-        .mockResolvedValueOnce({ rows: [] }); // target tables
+      mockSourceClient.query.mockResolvedValue({ rows: [] });
+      mockTargetClient.query.mockResolvedValue({ rows: [] });
 
       const result = await tableOps.generateTableOperations();
 
@@ -306,9 +311,9 @@ describe('TableOperations', () => {
         },
       ];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceTables })
-        .mockResolvedValueOnce({ rows: targetTables })
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTables });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTables });
+      mockSourceClient.query
         .mockResolvedValueOnce({ rows: mockColumns }) // orders
         .mockResolvedValueOnce({ rows: mockColumns }); // products
 
@@ -329,9 +334,8 @@ describe('TableOperations', () => {
         { table_name: 'old_table2' },
       ];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceTables })
-        .mockResolvedValueOnce({ rows: targetTables });
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTables });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTables });
 
       const result = await tableOps.generateTableOperations();
 
@@ -349,7 +353,7 @@ describe('TableOperations', () => {
 
     it('should handle database errors during table operations', async () => {
       const error = new Error('Database connection failed');
-      mockClient.query.mockRejectedValue(error);
+      mockSourceClient.query.mockRejectedValue(error);
 
       await expect(tableOps.generateTableOperations()).rejects.toThrow(
         'Database connection failed'
@@ -361,10 +365,9 @@ describe('TableOperations', () => {
       const targetTables = [];
       const error = new Error('Table not found');
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceTables })
-        .mockResolvedValueOnce({ rows: targetTables })
-        .mockRejectedValueOnce(error);
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTables });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTables });
+      mockSourceClient.query.mockRejectedValueOnce(error);
 
       await expect(tableOps.generateTableOperations()).rejects.toThrow(
         'Table not found'
@@ -377,9 +380,8 @@ describe('TableOperations', () => {
       const sourceTables = [{ table_name: null }];
       const targetTables = [];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceTables })
-        .mockResolvedValueOnce({ rows: targetTables });
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTables });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTables });
 
       // Should not throw, but may produce unexpected results
       const result = await tableOps.generateTableOperations();
@@ -400,10 +402,9 @@ describe('TableOperations', () => {
         },
       ];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceTables })
-        .mockResolvedValueOnce({ rows: targetTables })
-        .mockResolvedValueOnce({ rows: mockColumns });
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTables });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTables });
+      mockSourceClient.query.mockResolvedValue({ rows: mockColumns });
 
       const result = await tableOps.generateTableOperations();
 
@@ -413,7 +414,7 @@ describe('TableOperations', () => {
       expect(
         result.some(line =>
           line.includes(
-            'CREATE TABLE prod_schema.user-table_with.special@chars'
+            'CREATE TABLE IF NOT EXISTS prod_schema.user-table_with.special@chars'
           )
         )
       ).toBe(true);
@@ -434,10 +435,9 @@ describe('TableOperations', () => {
         },
       ];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceTables })
-        .mockResolvedValueOnce({ rows: targetTables })
-        .mockResolvedValueOnce({ rows: mockColumns });
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTables });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTables });
+      mockSourceClient.query.mockResolvedValue({ rows: mockColumns });
 
       const result = await tableOps.generateTableOperations();
 

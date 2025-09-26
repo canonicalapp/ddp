@@ -3,11 +3,11 @@
  * Main orchestrator for constraint and index operations
  */
 
-import type { Client } from 'pg';
+import type { ILegacySyncOptions, TArray, TNullable } from '@/types';
 import { ConstraintDefinitions } from '@/utils/constraintDefinitions';
 import { ConstraintHandlers } from '@/utils/constraintHandlers';
-import { IndexOperations } from './indexes';
-import type { ILegacySyncOptions, TNullable } from '@/types';
+import type { Client } from 'pg';
+import { IndexOperations, type IIndexRow } from './indexes';
 
 interface IConstraintRow {
   table_name: string;
@@ -22,24 +22,42 @@ interface IConstraintRow {
 }
 
 export class ConstraintOperations {
-  private client: Client;
+  private sourceClient: Client;
+  private targetClient: Client;
   private options: ILegacySyncOptions;
   private indexOperations: IndexOperations;
   private constraintDefinitions: ConstraintDefinitions;
   private constraintHandlers: ConstraintHandlers;
 
-  constructor(client: Client, options: ILegacySyncOptions) {
-    this.client = client;
+  constructor(
+    sourceClient: Client,
+    targetClient: Client,
+    options: ILegacySyncOptions
+  ) {
+    this.sourceClient = sourceClient;
+    this.targetClient = targetClient;
     this.options = options;
-    this.indexOperations = new IndexOperations(client, options);
-    this.constraintDefinitions = new ConstraintDefinitions(client, options);
-    this.constraintHandlers = new ConstraintHandlers(client, options);
+    this.indexOperations = new IndexOperations(
+      sourceClient,
+      targetClient,
+      options
+    );
+    this.constraintDefinitions = new ConstraintDefinitions(
+      sourceClient,
+      targetClient,
+      options
+    );
+    this.constraintHandlers = new ConstraintHandlers(
+      sourceClient,
+      targetClient,
+      options
+    );
   }
 
   /**
    * Get all constraints from a schema
    */
-  async getConstraints(schemaName: string): Promise<IConstraintRow[]> {
+  async getConstraints(schemaName: string) {
     const constraintsQuery = `
       SELECT 
         tc.table_name,
@@ -61,11 +79,29 @@ export class ConstraintOperations {
       LEFT JOIN information_schema.check_constraints cc
         ON tc.constraint_name = cc.constraint_name
       WHERE tc.table_schema = $1
+        AND tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY', 'CHECK')
       ORDER BY tc.table_name, tc.constraint_name
     `;
 
-    const result = await this.client.query(constraintsQuery, [schemaName]);
-    return result.rows;
+    // Use the appropriate client based on schema
+    const client =
+      schemaName === this.options.source
+        ? this.sourceClient
+        : this.targetClient;
+
+    const result = await client.query(constraintsQuery, [schemaName]);
+
+    // Deduplicate constraint rows by constraint_name
+    const uniqueConstraints = new Map<string, IConstraintRow>();
+
+    for (const row of result.rows) {
+      const key = `${row.constraint_name}_${row.table_name}`;
+      if (!uniqueConstraints.has(key)) {
+        uniqueConstraints.set(key, row);
+      }
+    }
+
+    return Array.from(uniqueConstraints.values());
   }
 
   /**
@@ -75,7 +111,7 @@ export class ConstraintOperations {
     schemaName: string,
     constraintName: string,
     tableName: string
-  ): Promise<TNullable<IConstraintRow[]>> {
+  ): Promise<TNullable<TArray<IConstraintRow>>> {
     return this.constraintDefinitions.getConstraintDefinition(
       schemaName,
       constraintName,
@@ -94,7 +130,7 @@ export class ConstraintOperations {
     updateRule?: string | null;
     deleteRule?: string | null;
     targetSchema: string;
-  }): string {
+  }) {
     return this.constraintDefinitions.generateConstraintClause(params);
   }
 
@@ -104,7 +140,7 @@ export class ConstraintOperations {
   compareConstraintDefinitions(
     sourceConstraint: IConstraintRow,
     targetConstraint: IConstraintRow
-  ): boolean {
+  ) {
     return this.constraintDefinitions.compareConstraintDefinitions(
       sourceConstraint,
       targetConstraint
@@ -115,9 +151,9 @@ export class ConstraintOperations {
    * Generate CREATE CONSTRAINT statement
    */
   generateCreateConstraintStatement(
-    constraintRows: IConstraintRow[],
+    constraintRows: TArray<IConstraintRow>,
     targetSchema: string
-  ): string {
+  ) {
     return this.constraintDefinitions.generateCreateConstraintStatement(
       constraintRows,
       targetSchema
@@ -127,14 +163,14 @@ export class ConstraintOperations {
   /**
    * Get all indexes from a schema
    */
-  async getIndexes(schemaName: string): Promise<unknown[]> {
+  async getIndexes(schemaName: string): Promise<TArray<IIndexRow>> {
     return this.indexOperations.getIndexes(schemaName);
   }
 
   /**
    * Generate CREATE INDEX statement
    */
-  generateCreateIndexStatement(indexDef: string, targetSchema: string): string {
+  generateCreateIndexStatement(indexDef: string, targetSchema: string) {
     return this.indexOperations.generateCreateIndexStatement(
       indexDef,
       targetSchema
@@ -144,7 +180,7 @@ export class ConstraintOperations {
   /**
    * Generate index operations for schema sync
    */
-  async generateIndexOperations(): Promise<string[]> {
+  async generateIndexOperations() {
     return this.indexOperations.generateIndexOperations();
   }
 
@@ -152,10 +188,10 @@ export class ConstraintOperations {
    * Handle constraints that have changed
    */
   async handleConstraintsToUpdate(
-    sourceConstraints: IConstraintRow[],
-    targetConstraints: IConstraintRow[],
-    alterStatements: string[]
-  ): Promise<void> {
+    sourceConstraints: TArray<IConstraintRow>,
+    targetConstraints: TArray<IConstraintRow>,
+    alterStatements: TArray<string>
+  ) {
     return this.constraintHandlers.handleConstraintsToUpdate(
       sourceConstraints,
       targetConstraints,
@@ -167,10 +203,10 @@ export class ConstraintOperations {
    * Handle constraints to drop in target
    */
   async handleConstraintsToDrop(
-    sourceConstraints: IConstraintRow[],
-    targetConstraints: IConstraintRow[],
-    alterStatements: string[]
-  ): Promise<void> {
+    sourceConstraints: TArray<IConstraintRow>,
+    targetConstraints: TArray<IConstraintRow>,
+    alterStatements: TArray<string>
+  ) {
     return this.constraintHandlers.handleConstraintsToDrop(
       sourceConstraints,
       targetConstraints,
@@ -182,10 +218,10 @@ export class ConstraintOperations {
    * Handle constraints to create in target
    */
   async handleConstraintsToCreate(
-    sourceConstraints: IConstraintRow[],
-    targetConstraints: IConstraintRow[],
-    alterStatements: string[]
-  ): Promise<void> {
+    sourceConstraints: TArray<IConstraintRow>,
+    targetConstraints: TArray<IConstraintRow>,
+    alterStatements: TArray<string>
+  ) {
     return this.constraintHandlers.handleConstraintsToCreate(
       sourceConstraints,
       targetConstraints,
@@ -196,8 +232,8 @@ export class ConstraintOperations {
   /**
    * Generate constraint operations for schema sync
    */
-  async generateConstraintOperations(): Promise<string[]> {
-    const alterStatements: string[] = [];
+  async generateConstraintOperations() {
+    const alterStatements: TArray<string> = [];
 
     const sourceConstraints = await this.getConstraints(this.options.source);
     const targetConstraints = await this.getConstraints(this.options.target);

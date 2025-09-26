@@ -1,6 +1,6 @@
 {
   "name": "@advcomm/ddp",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "Declarative Database Provisioning - DDP CLI tool",
   "main": "dist/cli.js",
   "bin": {

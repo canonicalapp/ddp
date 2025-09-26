@@ -15,12 +15,15 @@ DDP (Declarative Database Provisioning) is a Node.js CLI tool designed to help d
 
 - **Complete Schema Extraction**: Generate comprehensive schema definitions from live PostgreSQL databases
 - **Modular Output**: Separate files for different schema components
-  - `schema.sql` - Tables, columns, constraints, indexes
+  - `schema.sql` - Tables, columns, constraints, indexes, sequences
   - `procs.sql` - Functions and stored procedures
   - `triggers.sql` - Database triggers
 - **Flexible Output**: Console output or file generation
 - **Selective Generation**: Generate specific components only
 - **Environment Integration**: Support for `.env` files and environment variables
+- **Enhanced Error Handling**: Comprehensive validation and error reporting
+- **Progress Indicators**: Visual progress for long-running operations
+- **Structured Logging**: Detailed logging with context and error tracking
 
 ### 🔄 Schema Synchronization (`ddp sync`)
 
@@ -34,6 +37,16 @@ DDP (Declarative Database Provisioning) is a Node.js CLI tool designed to help d
   - Triggers (sync trigger definitions and events)
 - **Data Preservation**: All destructive operations rename objects first to preserve data
 - **Safe Migration**: Generate ALTER scripts for review before execution
+
+### 🛠️ Enhanced Features
+
+- **Comprehensive Validation**: Input validation for all database operations
+- **Structured Error Handling**: Custom error classes with detailed context
+- **Progress Tracking**: Visual progress indicators for long-running operations
+- **Structured Logging**: Multi-level logging with context and error tracking
+- **Test Infrastructure**: Comprehensive testing utilities and helpers
+- **Code Quality**: ESLint, Prettier, and TypeScript strict mode
+- **Documentation**: Comprehensive JSDoc and API documentation
 
 ## Installation
 

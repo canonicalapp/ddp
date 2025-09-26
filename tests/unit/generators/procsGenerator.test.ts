@@ -118,7 +118,7 @@ describe('Procs Generator', () => {
     it('should not throw when functions are found', async () => {
       // Mock the client query to return function data
       mockClient.query.mockResolvedValue({
-        rows: [{ routine_name: 'test_function' }],
+        rows: [{ function_name: 'test_function' }],
       });
 
       const generator = new ProcsGenerator(
@@ -139,7 +139,7 @@ describe('Procs Generator', () => {
     it('should generate procs.sql file with functions', async () => {
       // Mock the client query to return function data
       mockClient.query
-        .mockResolvedValueOnce({ rows: [{ routine_name: 'get_user_by_id' }] }) // for getFunctions (validateData)
+        .mockResolvedValueOnce({ rows: [{ function_name: 'get_user_by_id' }] }) // for getFunctions (validateData)
         .mockResolvedValueOnce({ rows: [createMockFunctionData()] }); // for getFunctions (generate)
 
       const generator = new ProcsGenerator(
@@ -158,7 +158,7 @@ describe('Procs Generator', () => {
     it('should handle functions without comments', async () => {
       // Mock the client query to return function data
       mockClient.query
-        .mockResolvedValueOnce({ rows: [{ routine_name: 'simple_function' }] }) // for getFunctions (validateData)
+        .mockResolvedValueOnce({ rows: [{ function_name: 'simple_function' }] }) // for getFunctions (validateData)
         .mockResolvedValueOnce({
           rows: [
             createMockFunctionData({
@@ -338,7 +338,7 @@ describe('Procs Generator', () => {
         expect(result).toContain('LANGUAGE plpgsql');
         expect(result).toContain('VOLATILE');
         expect(result).toContain('SECURITY DEFINER');
-        expect(result).toContain('BEGIN RETURN id; END;');
+        expect(result).toContain('$$BEGIN RETURN id; END$$');
       });
 
       it('should generate function without parameters', () => {
@@ -360,7 +360,7 @@ describe('Procs Generator', () => {
         ).generateFunctionSQL(func);
 
         expect(result).toContain(
-          'CREATE OR REPLACE FUNCTION public.simple_function()'
+          'CREATE OR REPLACE PROCEDURE public.simple_function()'
         );
         // Function without parameters doesn't have RETURNS clause when return type is void
       });
