@@ -46,6 +46,7 @@ export const createMockIntrospectionService = () => {
     getAllTablesComplete: () => Promise.resolve([]),
     getFunctions: () => Promise.resolve([]),
     getTriggers: () => Promise.resolve([]),
+    checkSchemaExists: () => Promise.resolve(true),
   };
 };
 
@@ -116,6 +117,7 @@ export const createMockTableData = (overrides = {}) => ({
       is_primary: true,
     },
   ],
+  sequences: [],
   ...overrides,
 });
 

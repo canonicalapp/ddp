@@ -11,6 +11,7 @@ import { ColumnOperations } from '@/sync/operations/columns';
 import { ConstraintOperations } from '@/sync/operations/constraints';
 import { FunctionOperations } from '@/sync/operations/functions';
 import { IndexOperations } from '@/sync/operations/indexes';
+import { SequenceOperations } from '@/sync/operations/sequences';
 import { TableOperations } from '@/sync/operations/tables';
 import { TriggerOperations } from '@/sync/operations/triggers';
 
@@ -26,45 +27,75 @@ interface SyncOptions {
 }
 
 export class SchemaSyncOrchestrator {
-  private client: Client;
+  private sourceClient: Client;
+  private targetClient: Client;
   private options: SyncOptions;
   private tableOps: TableOperations;
   private columnOps: ColumnOperations;
   private functionOps: FunctionOperations;
   private constraintOps: ConstraintOperations;
   private indexOps: IndexOperations;
+  private sequenceOps: SequenceOperations;
   private triggerOps: TriggerOperations;
 
-  constructor(client: Client, options: SyncOptions) {
-    this.client = client;
+  constructor(
+    sourceClient: Client,
+    targetClient: Client,
+    options: SyncOptions
+  ) {
+    this.sourceClient = sourceClient;
+    this.targetClient = targetClient;
     this.options = options;
 
-    // Initialize all operation modules
-    this.tableOps = new TableOperations(client, options);
-    this.columnOps = new ColumnOperations(client, options);
-    this.functionOps = new FunctionOperations(client, options);
-    this.constraintOps = new ConstraintOperations(client, options);
-    this.indexOps = new IndexOperations(client, options);
-    this.triggerOps = new TriggerOperations(client, options);
+    // Initialize all operation modules with both clients
+    this.tableOps = new TableOperations(sourceClient, targetClient, options);
+    this.columnOps = new ColumnOperations(sourceClient, targetClient, options);
+    this.functionOps = new FunctionOperations(
+      sourceClient,
+      targetClient,
+      options
+    );
+    this.constraintOps = new ConstraintOperations(
+      sourceClient,
+      targetClient,
+      options
+    );
+    this.indexOps = new IndexOperations(sourceClient, targetClient, options);
+    this.sequenceOps = new SequenceOperations(
+      sourceClient,
+      targetClient,
+      options
+    );
+    this.triggerOps = new TriggerOperations(
+      sourceClient,
+      targetClient,
+      options
+    );
   }
 
   /**
    * Execute all schema operations and collect results
    */
-  async executeAllOperations(alterStatements: string[]): Promise<void> {
-    // 1. Handle table operations
+  async executeAllOperations(alterStatements: string[]) {
+    // 1. Handle sequence operations (must come before tables)
+    alterStatements.push(...Utils.generateSectionHeader('SEQUENCE OPERATIONS'));
+    const sequenceOps = await this.sequenceOps.generateSequenceOperations();
+    alterStatements.push(...sequenceOps);
+    alterStatements.push('');
+
+    // 2. Handle table operations
     alterStatements.push(...Utils.generateSectionHeader('TABLE OPERATIONS'));
     const tableOps = await this.tableOps.generateTableOperations();
     alterStatements.push(...tableOps);
     alterStatements.push('');
 
-    // 2. Handle column operations
+    // 3. Handle column operations
     alterStatements.push(...Utils.generateSectionHeader('COLUMN OPERATIONS'));
     const columnOps = await this.columnOps.generateColumnOperations();
     alterStatements.push(...columnOps);
     alterStatements.push('');
 
-    // 3. Handle function operations
+    // 4. Handle function operations
     alterStatements.push(
       ...Utils.generateSectionHeader('FUNCTION/PROCEDURE OPERATIONS')
     );
@@ -72,7 +103,7 @@ export class SchemaSyncOrchestrator {
     alterStatements.push(...functionOps);
     alterStatements.push('');
 
-    // 4. Handle constraint operations
+    // 5. Handle constraint operations
     alterStatements.push(
       ...Utils.generateSectionHeader('CONSTRAINT OPERATIONS')
     );
@@ -81,13 +112,13 @@ export class SchemaSyncOrchestrator {
     alterStatements.push(...constraintOps);
     alterStatements.push('');
 
-    // 5. Handle index operations
+    // 6. Handle index operations
     alterStatements.push(...Utils.generateSectionHeader('INDEX OPERATIONS'));
     const indexOps = await this.indexOps.generateIndexOperations();
     alterStatements.push(...indexOps);
     alterStatements.push('');
 
-    // 6. Handle trigger operations
+    // 7. Handle trigger operations
     alterStatements.push(...Utils.generateSectionHeader('TRIGGER OPERATIONS'));
     const triggerOps = await this.triggerOps.generateTriggerOperations();
     alterStatements.push(...triggerOps);
@@ -97,7 +128,7 @@ export class SchemaSyncOrchestrator {
   /**
    * Generate complete schema sync script
    */
-  async generateSyncScript(): Promise<string[]> {
+  async generateSyncScript() {
     const alterStatements: string[] = [];
 
     // Add header
@@ -125,7 +156,7 @@ export class SchemaSyncOrchestrator {
   /**
    * Generate output filename with timestamp
    */
-  generateOutputFilename(): string {
+  generateOutputFilename() {
     return Utils.generateOutputFilename(
       this.options.source,
       this.options.target
@@ -135,7 +166,7 @@ export class SchemaSyncOrchestrator {
   /**
    * Save script to file
    */
-  saveScriptToFile(script: string, filename: string): void {
+  saveScriptToFile(script: string, filename: string) {
     try {
       // Ensure output directory exists
       const outputDir = dirname(filename);
@@ -155,10 +186,11 @@ export class SchemaSyncOrchestrator {
   /**
    * Execute the schema sync process
    */
-  async execute(): Promise<string> {
+  async execute() {
     try {
-      // Establish connection
-      await this.client.connect();
+      // Establish connections
+      await this.sourceClient.connect();
+      await this.targetClient.connect();
 
       // Generate sync script
       const alterStatements = await this.generateSyncScript();
@@ -183,8 +215,9 @@ export class SchemaSyncOrchestrator {
       console.error('Schema sync execution failed:', error);
       throw error;
     } finally {
-      // Close connection
-      await this.client.end();
+      // Close connections
+      await this.sourceClient.end();
+      await this.targetClient.end();
     }
   }
 }

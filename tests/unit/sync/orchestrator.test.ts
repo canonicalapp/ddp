@@ -11,7 +11,8 @@ import {
 
 describe('SchemaSyncOrchestrator', () => {
   let orchestrator;
-  let mockClient;
+  let mockSourceClient;
+  let mockTargetClient;
   let mockOptions;
   let mockTableOps;
   let mockColumnOps;
@@ -21,7 +22,8 @@ describe('SchemaSyncOrchestrator', () => {
   let mockTriggerOps;
 
   beforeEach(() => {
-    mockClient = createMockClient();
+    mockSourceClient = createMockClient();
+    mockTargetClient = createMockClient();
     mockOptions = createMockOptions();
 
     // Create mock operation instances with call tracking
@@ -93,7 +95,11 @@ describe('SchemaSyncOrchestrator', () => {
     global.mkdirSync = () => {};
     global.dirname = path => path.split('/').slice(0, -1).join('/') || '.';
 
-    orchestrator = new SchemaSyncOrchestrator(mockClient, mockOptions);
+    orchestrator = new SchemaSyncOrchestrator(
+      mockSourceClient,
+      mockTargetClient,
+      mockOptions
+    );
 
     // Replace the operation instances with our mocks
     orchestrator.tableOps = mockTableOps;
@@ -105,8 +111,9 @@ describe('SchemaSyncOrchestrator', () => {
   });
 
   describe('constructor', () => {
-    it('should initialize with client and options', () => {
-      expect(orchestrator.client).toBe(mockClient);
+    it('should initialize with sourceClient, targetClient and options', () => {
+      expect(orchestrator.sourceClient).toBe(mockSourceClient);
+      expect(orchestrator.targetClient).toBe(mockTargetClient);
       expect(orchestrator.options).toBe(mockOptions);
     });
 
@@ -371,7 +378,7 @@ describe('SchemaSyncOrchestrator', () => {
 
     it('should handle connection errors', async () => {
       const error = new Error('Connection failed');
-      mockClient.connect = () => Promise.reject(error);
+      mockSourceClient.connect = () => Promise.reject(error);
 
       await expect(orchestrator.execute()).rejects.toThrow('Connection failed');
       // Connection closure verification would require more complex mocking
@@ -415,7 +422,7 @@ describe('SchemaSyncOrchestrator', () => {
 
     it('should handle client.end errors gracefully', async () => {
       const endError = new Error('Connection close failed');
-      mockClient.end = () => Promise.reject(endError);
+      mockSourceClient.end = () => Promise.reject(endError);
 
       // Currently, the execute method will throw the end error because it's not caught
       // This is an application bug - the finally block should catch end errors
@@ -427,18 +434,30 @@ describe('SchemaSyncOrchestrator', () => {
 
   describe('Edge cases and error handling', () => {
     it('should handle null options', () => {
-      expect(() => new SchemaSyncOrchestrator(mockClient, null)).not.toThrow();
+      expect(
+        () =>
+          new SchemaSyncOrchestrator(mockSourceClient, mockTargetClient, null)
+      ).not.toThrow();
     });
 
     it('should handle undefined options', () => {
       expect(
-        () => new SchemaSyncOrchestrator(mockClient, undefined)
+        () =>
+          new SchemaSyncOrchestrator(
+            mockSourceClient,
+            mockTargetClient,
+            undefined
+          )
       ).not.toThrow();
     });
 
     it('should handle empty options object', () => {
       const emptyOptions = {};
-      const orchestrator = new SchemaSyncOrchestrator(mockClient, emptyOptions);
+      const orchestrator = new SchemaSyncOrchestrator(
+        mockSourceClient,
+        mockTargetClient,
+        emptyOptions
+      );
 
       expect(orchestrator.options).toBe(emptyOptions);
     });
@@ -451,7 +470,12 @@ describe('SchemaSyncOrchestrator', () => {
 
       // For now, we'll test that the constructor works normally
       expect(
-        () => new SchemaSyncOrchestrator(mockClient, mockOptions)
+        () =>
+          new SchemaSyncOrchestrator(
+            mockSourceClient,
+            mockTargetClient,
+            mockOptions
+          )
       ).not.toThrow();
 
       // In a real Jest environment, this would test:
@@ -464,7 +488,14 @@ describe('SchemaSyncOrchestrator', () => {
         .join('\n');
       orchestrator.generateSyncScript = () => Promise.resolve([longScript]);
 
+      // Mock console.log to prevent extremely long output
+      const originalConsoleLog = console.log;
+      console.log = jest.fn();
+
       await expect(orchestrator.execute()).resolves.not.toThrow();
+
+      // Restore console.log
+      console.log = originalConsoleLog;
     });
 
     it('should handle special characters in schema names', async () => {

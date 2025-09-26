@@ -20,6 +20,13 @@ import type {
 // Mock IntrospectionService
 const mockIntrospectionService = createMockIntrospectionService();
 
+// Mock the IntrospectionService class
+jest.mock('@/database/introspection', () => ({
+  IntrospectionService: jest
+    .fn()
+    .mockImplementation(() => mockIntrospectionService),
+}));
+
 describe('Schema Generator', () => {
   let mockClient: ReturnType<typeof createMockClient>;
   let mockConnection: ReturnType<typeof createMockConnection>;
@@ -108,7 +115,8 @@ describe('Schema Generator', () => {
 
   describe('validateData', () => {
     it('should throw error when no tables found', async () => {
-      // Mock empty tables response
+      // Mock schema exists and empty tables response
+      mockIntrospectionService.checkSchemaExists = () => Promise.resolve(true);
       mockIntrospectionService.getTables = () => Promise.resolve([]);
 
       const generator = new SchemaGenerator(
@@ -118,15 +126,15 @@ describe('Schema Generator', () => {
       );
 
       await expect((generator as any).validateData()).rejects.toThrow(
-        "No tables found in schema 'public'"
+        "Schema 'public' exists but contains no tables. Nothing to generate."
       );
     });
 
     it('should not throw when tables are found', async () => {
-      // Mock the client query to return table data
-      mockClient.query.mockResolvedValue({
-        rows: [{ table_name: 'test_table' }],
-      });
+      // Mock schema exists and tables response
+      mockIntrospectionService.checkSchemaExists = () => Promise.resolve(true);
+      mockIntrospectionService.getTables = () =>
+        Promise.resolve([{ table_name: 'test_table' }]);
 
       const generator = new SchemaGenerator(
         mockClient,
@@ -144,13 +152,12 @@ describe('Schema Generator', () => {
 
   describe('generate', () => {
     it('should generate schema.sql file with tables', async () => {
-      // Mock the client query to return table data for both getTables and getAllTablesComplete
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [{ table_name: 'users' }] }) // for getTables (validateData)
-        .mockResolvedValueOnce({ rows: [{ table_name: 'users' }] }) // for getTables (getAllTablesComplete)
-        .mockResolvedValueOnce({ rows: createMockTableData().columns }) // for getTableColumns
-        .mockResolvedValueOnce({ rows: createMockTableData().constraints }) // for getTableConstraints
-        .mockResolvedValueOnce({ rows: createMockTableData().indexes }); // for getTableIndexes
+      // Mock schema exists and table data
+      mockIntrospectionService.checkSchemaExists = () => Promise.resolve(true);
+      mockIntrospectionService.getTables = () =>
+        Promise.resolve([{ table_name: 'users' }]);
+      mockIntrospectionService.getAllTablesComplete = () =>
+        Promise.resolve([createMockTableData()]);
 
       const generator = new SchemaGenerator(
         mockClient,
@@ -161,35 +168,40 @@ describe('Schema Generator', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe('schema.sql');
-      expect(result[0].content).toContain('CREATE TABLE undefined.users');
+      expect(result[0].content).toContain('CREATE TABLE public.users');
       expect(result[0].content).toContain('id INTEGER NOT NULL');
       expect(result[0].content).toContain('name CHARACTER VARYING NOT NULL');
       expect(result[0].content).toContain('PRIMARY KEY ()');
     });
 
     it('should handle tables without constraints and indexes', async () => {
-      // Mock the client query to return table data for both getTables and getAllTablesComplete
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [{ table_name: 'simple_table' }] }) // for getTables (validateData)
-        .mockResolvedValueOnce({ rows: [{ table_name: 'simple_table' }] }) // for getTables (getAllTablesComplete)
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              column_name: 'id',
-              data_type: 'integer',
-              is_nullable: 'YES',
-              column_default: null,
-              character_maximum_length: null,
-              numeric_precision: 32,
-              numeric_scale: 0,
-              is_identity: 'NO',
-              identity_generation: null,
-              is_generated: 'NEVER',
-            },
-          ],
-        }) // for getTableColumns
-        .mockResolvedValueOnce({ rows: [] }) // for getTableConstraints
-        .mockResolvedValueOnce({ rows: [] }); // for getTableIndexes
+      // Mock schema exists and table data
+      mockIntrospectionService.checkSchemaExists = () => Promise.resolve(true);
+      mockIntrospectionService.getTables = () =>
+        Promise.resolve([{ table_name: 'simple_table' }]);
+      mockIntrospectionService.getAllTablesComplete = () =>
+        Promise.resolve([
+          {
+            table: { table_name: 'simple_table', table_schema: 'public' },
+            columns: [
+              {
+                column_name: 'id',
+                data_type: 'integer',
+                is_nullable: 'YES',
+                column_default: null,
+                character_maximum_length: null,
+                numeric_precision: 32,
+                numeric_scale: 0,
+                is_identity: 'NO',
+                identity_generation: null,
+                is_generated: 'NEVER',
+              },
+            ],
+            constraints: [],
+            indexes: [],
+            sequences: [],
+          },
+        ]);
 
       const generator = new SchemaGenerator(
         mockClient,
@@ -200,9 +212,7 @@ describe('Schema Generator', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe('schema.sql');
-      expect(result[0].content).toContain(
-        'CREATE TABLE undefined.simple_table'
-      );
+      expect(result[0].content).toContain('CREATE TABLE public.simple_table');
       expect(result[0].content).toContain('id INTEGER');
     });
   });
@@ -225,6 +235,7 @@ describe('Schema Generator', () => {
           columns: [],
           constraints: [],
           indexes: [],
+          sequences: [],
         };
 
         const result = (
@@ -343,10 +354,15 @@ describe('Schema Generator', () => {
         const indexData = {
           indexname: 'test_index',
           tablename: 'test_table',
-          column_names: 'id, name',
-          is_unique: 'YES',
-          partial_condition: null,
-          index_method: 'btree',
+          schemaname: 'public',
+          indexdef:
+            'CREATE UNIQUE INDEX test_index ON public.test_table USING btree (id, name)',
+          index_type: 'btree',
+          estimated_rows: 100,
+          index_size: '8kB',
+          index_pages: 1,
+          is_unique: true,
+          is_primary: false,
         };
 
         const result = (
@@ -357,10 +373,12 @@ describe('Schema Generator', () => {
 
         expect(result.name).toBe('test_index');
         expect(result.table).toBe('test_table');
-        expect(result.columns).toEqual(['id', ' name']);
+        expect(result.schema).toBe('public');
+        expect(result.columns).toEqual(['id', 'name']);
         expect(result.unique).toBe(true);
         expect(result.partial).toBeUndefined();
         expect(result.method).toBe('btree');
+        expect(result.is_primary).toBe(false);
       });
     });
   });
@@ -381,6 +399,7 @@ describe('Schema Generator', () => {
             columns: [],
             constraints: [],
             indexes: [],
+            sequences: [],
             comment: 'Users table',
           },
         ];
@@ -478,7 +497,7 @@ describe('Schema Generator', () => {
         expect(result).toContain(
           'ALTER TABLE public.test_table ADD CONSTRAINT fk_test FOREIGN KEY (user_id)'
         );
-        expect(result).toContain('REFERENCES users (id)');
+        expect(result).toContain('REFERENCES public.users (id)');
         expect(result).toContain('ON DELETE CASCADE');
         expect(result).toContain('ON UPDATE RESTRICT');
       });

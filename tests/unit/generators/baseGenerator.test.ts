@@ -122,11 +122,7 @@ describe('Base Generator', () => {
         mockOptions
       );
 
-      const result = await generator.execute();
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Generation failed');
-      expect(result.files).toBeUndefined();
+      await expect(generator.execute()).rejects.toThrow('Generation failed');
     });
 
     it('should skip generation when shouldSkip returns true', async () => {
@@ -161,10 +157,7 @@ describe('Base Generator', () => {
         mockOptions
       );
 
-      const result = await generator.execute();
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Validation failed');
+      await expect(generator.execute()).rejects.toThrow('Validation failed');
     });
   });
 

@@ -3,6 +3,13 @@
  * Generates comprehensive schema.sql files for tables, columns, constraints, and indexes
  */
 
+import type {
+  IColumnInfo,
+  IConstraintInfo,
+  IIndexInfo,
+  ISequenceInfo,
+  ITableInfo,
+} from '@/database/introspection';
 import { IntrospectionService } from '@/database/introspection';
 import type {
   IColumnDefinition,
@@ -11,9 +18,13 @@ import type {
   IGeneratedFile,
   IGeneratorOptions,
   IIndexDefinition,
+  ISequenceDefinition,
   ITableDefinition,
-  TUnknownOrAny,
+  TArray,
 } from '@/types';
+import { ValidationError } from '@/types/errors';
+import { logDebug, logError, logInfo } from '@/utils/logger';
+import { validateSchemaName, validateTableName } from '@/utils/validation';
 import type { Client } from 'pg';
 import { BaseGenerator } from './baseGenerator';
 
@@ -29,124 +40,257 @@ export class SchemaGenerator extends BaseGenerator {
     this.introspection = new IntrospectionService(client, this.schema);
   }
 
-  protected getGeneratorName(): string {
+  protected getGeneratorName() {
     return 'Schema Generator';
   }
 
-  protected override shouldSkip(): boolean {
+  protected override shouldSkip() {
     return (
       (this.options.procsOnly ?? false) || (this.options.triggersOnly ?? false)
     );
   }
 
-  protected override async validateData(): Promise<void> {
-    const tables = await this.introspection.getTables();
+  protected override async validateData() {
+    try {
+      logDebug('Validating schema data', { schema: this.schema });
 
-    if (tables.length === 0) {
-      throw new Error(`No tables found in schema '${this.schema}'`);
+      // Validate schema name
+      validateSchemaName(this.schema);
+
+      // First check if schema exists
+      const schemaExists = await this.introspection.checkSchemaExists();
+
+      if (!schemaExists) {
+        throw new ValidationError(
+          `Schema '${this.schema}' does not exist in the database. Please create the schema first or specify a different schema name.`,
+          'schema',
+          {
+            schema: this.schema,
+            suggestion: 'Use CREATE SCHEMA command to create the schema first',
+            availableSchemas: await this.introspection.getAvailableSchemas(),
+          }
+        );
+      }
+
+      const tables = await this.introspection.getTables();
+
+      if (tables.length === 0) {
+        throw new ValidationError(
+          `Schema '${this.schema}' exists but contains no tables. Nothing to generate.`,
+          'schema',
+          { schema: this.schema, tableCount: 0 }
+        );
+      }
+
+      logInfo(`Found ${tables.length} tables in schema`, {
+        schema: this.schema,
+        tableCount: tables.length,
+      });
+
+      // Validate table names
+      for (const table of tables) {
+        validateTableName(table.table_name);
+      }
+    } catch (error) {
+      logError('Schema validation failed', error as Error, {
+        schema: this.schema,
+      });
+      throw error;
     }
   }
 
   async generate(): Promise<IGeneratedFile[]> {
-    if (this.shouldSkip()) {
-      return [];
+    try {
+      if (this.shouldSkip()) {
+        logInfo('Schema generation skipped due to options', {
+          options: this.options,
+        });
+
+        return [];
+      }
+
+      await this.validateData();
+
+      logInfo('Discovering tables and their metadata', { schema: this.schema });
+      const tablesData = await this.introspection.getAllTablesComplete();
+
+      logInfo(`Found ${tablesData.length} tables with complete metadata`, {
+        schema: this.schema,
+        tableCount: tablesData.length,
+      });
+
+      // Convert introspection data to generator types
+      const tables = tablesData.map(this.convertToTableDefinition.bind(this));
+
+      logDebug('Generating schema SQL', { tableCount: tables.length });
+      const content = await this.generateSchemaSQL(tables);
+
+      logInfo('Schema generation completed successfully', {
+        schema: this.schema,
+        contentLength: content.length,
+      });
+
+      return [
+        {
+          name: 'schema.sql',
+          content: content,
+        },
+      ];
+    } catch (error) {
+      logError('Schema generation failed', error as Error, {
+        schema: this.schema,
+      });
+      throw error;
     }
-
-    await this.validateData();
-
-    console.log('📋 Discovering tables and their metadata...');
-    const tablesData = await this.introspection.getAllTablesComplete();
-
-    console.log(`   Found ${tablesData.length} tables with complete metadata`);
-
-    // Convert introspection data to generator types
-    const tables = tablesData.map(this.convertToTableDefinition.bind(this));
-
-    const content = await this.generateSchemaSQL(tables);
-
-    return [
-      {
-        name: 'schema.sql',
-        content: content,
-      },
-    ];
   }
 
-  private async generateSchemaSQL(tables: ITableDefinition[]): Promise<string> {
+  private async generateSchemaSQL(tables: ITableDefinition[]) {
     let sql = this.generateHeader(
       'SCHEMA DEFINITION',
       'Complete database schema including tables, columns, constraints, and indexes'
     );
 
-    // Generate tables in alphabetical order (as per DDP specification)
-    const sortedTables = this.sortTablesAlphabetically(tables);
+    // Generate schema creation if not using public schema
+    sql += this.generateSchemaCreationSQL();
+
+    // Generate sequences first (before tables)
+    const allSequences = this.extractAllSequences(tables);
+
+    if (allSequences.length > 0) {
+      sql += this.generateComment('Sequences') + '\n';
+
+      for (const sequence of allSequences) {
+        sql += this.generateSequenceSQL(sequence) + '\n';
+      }
+
+      sql += '\n';
+    }
+
+    // Generate tables in dependency order (parent tables before child tables)
+    const sortedTables = this.sortTablesByDependencies(tables);
 
     for (const table of sortedTables) {
       sql += this.generateTableSQL(table);
     }
 
-    sql += this.generateFooter();
-    return sql;
-  }
+    // Generate self-referencing constraints after all tables are created
+    const selfReferencingConstraints =
+      this.extractSelfReferencingConstraints(tables);
 
-  private generateTableSQL(table: ITableDefinition): string {
-    let sql = this.generateSectionHeader(
-      `TABLE: ${table.schema}.${table.name}`
-    );
+    if (selfReferencingConstraints.length > 0) {
+      sql += this.generateComment('Self-referencing constraints') + '\n';
 
-    // Table comment
-    if (table.comment) {
-      sql += this.generateComment(`Table: ${table.comment}`) + '\n';
-    }
-
-    // CREATE TABLE statement
-    sql += `CREATE TABLE ${this.escapeIdentifier(table.schema)}.${this.escapeIdentifier(table.name)} (\n`;
-
-    // Columns (ensure ordinal order as per CID specification)
-    const sortedColumns = [...table.columns].sort(
-      (a, b) => a.ordinalPosition - b.ordinalPosition
-    );
-    const columnDefinitions = sortedColumns.map(col =>
-      this.generateColumnDefinition(col)
-    );
-
-    sql += this.formatSQL(columnDefinitions.join(',\n'), 1) + '\n';
-
-    sql += ');\n\n';
-
-    // Table constraints (excluding column-level constraints)
-    const tableConstraints = table.constraints.filter(
-      constraint =>
-        constraint.type !== 'NOT NULL' && constraint.type !== 'CHECK'
-    );
-
-    if (tableConstraints.length > 0) {
-      sql += this.generateComment('Table constraints') + '\n';
-
-      for (const constraint of tableConstraints) {
+      for (const constraint of selfReferencingConstraints) {
         sql +=
-          this.generateConstraintSQL(constraint, table.schema, table.name) +
-          '\n';
+          this.generateConstraintSQL(
+            constraint.constraint,
+            constraint.schema,
+            constraint.tableName
+          ) + '\n';
       }
 
       sql += '\n';
     }
 
-    // Indexes
-    if (table.indexes.length > 0) {
-      sql += this.generateComment('Indexes') + '\n';
-
-      for (const index of table.indexes) {
-        sql += this.generateIndexSQL(index, table.schema) + '\n';
-      }
-
-      sql += '\n';
-    }
+    sql += this.generateFooter();
 
     return sql;
   }
 
-  private generateColumnDefinition(column: IColumnDefinition): string {
+  private generateTableSQL(table: ITableDefinition) {
+    try {
+      // Validate table definition
+      validateTableName(table.name);
+      validateSchemaName(table.schema);
+
+      let sql = this.generateSectionHeader(
+        `TABLE: ${table.schema}.${table.name}`
+      );
+
+      // Table comment
+      if (table.comment) {
+        sql += this.generateComment(`Table: ${table.comment}`) + '\n';
+      }
+
+      // CREATE TABLE statement
+      sql += `CREATE TABLE ${this.escapeIdentifier(table.schema)}.${this.escapeIdentifier(table.name)} (\n`;
+
+      // Columns (ensure ordinal order as per CID specification)
+      const sortedColumns = [...table.columns].sort(
+        (a, b) => a.ordinalPosition - b.ordinalPosition
+      );
+
+      const columnDefinitions = sortedColumns.map(col =>
+        this.generateColumnDefinition(col)
+      );
+
+      sql += this.formatSQL(columnDefinitions.join(',\n'), 1) + '\n';
+
+      sql += ');\n\n';
+
+      // Table constraints (excluding column-level constraints and self-references)
+      const tableConstraints = table.constraints.filter(
+        constraint =>
+          constraint.type !== 'NOT NULL' &&
+          !(
+            constraint.type === 'FOREIGN KEY' &&
+            constraint.references?.table === table.name
+          )
+      );
+
+      if (tableConstraints.length > 0) {
+        sql += this.generateComment('Table constraints') + '\n';
+
+        for (const constraint of tableConstraints) {
+          sql +=
+            this.generateConstraintSQL(constraint, table.schema, table.name) +
+            '\n';
+        }
+
+        sql += '\n';
+      }
+
+      // Indexes (exclude primary key indexes and unique indexes that correspond to unique constraints)
+      const uniqueConstraintNames = new Set(
+        table.constraints
+          .filter(constraint => constraint.type === 'UNIQUE')
+          .map(constraint => constraint.name)
+      );
+
+      const nonPrimaryIndexes = table.indexes.filter(
+        index => !index.is_primary && !uniqueConstraintNames.has(index.name)
+      );
+
+      if (nonPrimaryIndexes.length > 0) {
+        sql += this.generateComment('Indexes') + '\n';
+
+        // Deduplicate indexes by name
+        const seenIndexes = new Set<string>();
+
+        for (const index of nonPrimaryIndexes) {
+          const indexKey = `${index.schema ?? table.schema}.${index.name}`;
+
+          if (!seenIndexes.has(indexKey)) {
+            sql += this.generateIndexSQL(index, table.schema) + '\n';
+
+            seenIndexes.add(indexKey);
+          }
+        }
+
+        sql += '\n';
+      }
+
+      return sql;
+    } catch (error) {
+      logError('Failed to generate table SQL', error as Error, {
+        table: table.name,
+        schema: table.schema,
+      });
+      throw error;
+    }
+  }
+
+  private generateColumnDefinition(column: IColumnDefinition) {
     let definition = `${this.escapeIdentifier(column.name)} ${this.generateDataType(column)}`;
 
     // NOT NULL constraint (only if not nullable - default is nullable)
@@ -184,7 +328,7 @@ export class SchemaGenerator extends BaseGenerator {
    * @param defaultValue - The default value to check
    * @returns true if this is a default default value that should be omitted
    */
-  private isDefaultDefaultValue(defaultValue: string): boolean {
+  private isDefaultDefaultValue(defaultValue: string) {
     const defaultDefaults = [
       'NULL',
       'null',
@@ -208,7 +352,7 @@ export class SchemaGenerator extends BaseGenerator {
     );
   }
 
-  private generateDataType(column: IColumnDefinition): string {
+  private generateDataType(column: IColumnDefinition) {
     let type = column.type.toUpperCase();
 
     // Add length/precision for character types (only if not default)
@@ -245,7 +389,7 @@ export class SchemaGenerator extends BaseGenerator {
    * @param length - The length value
    * @returns true if this is a default length that should be omitted
    */
-  private isDefaultLength(type: string, length: number): boolean {
+  private isDefaultLength(type: string, length: number) {
     // Common default lengths that should be omitted
     const defaultLengths: { [key: string]: number } = {
       VARCHAR: 255,
@@ -269,7 +413,7 @@ export class SchemaGenerator extends BaseGenerator {
     type: string,
     precision: number,
     scale: number
-  ): boolean {
+  ) {
     // Common default precisions that should be omitted
     const defaultPrecisions: {
       [key: string]: { precision: number; scale: number };
@@ -282,6 +426,7 @@ export class SchemaGenerator extends BaseGenerator {
     };
 
     const defaultPrecision = defaultPrecisions[type];
+
     return !!(
       defaultPrecision &&
       defaultPrecision.precision === precision &&
@@ -290,10 +435,11 @@ export class SchemaGenerator extends BaseGenerator {
   }
 
   private convertToTableDefinition(data: {
-    table: TUnknownOrAny;
-    columns: TUnknownOrAny[];
-    constraints: TUnknownOrAny[];
-    indexes: TUnknownOrAny[];
+    table: ITableInfo;
+    columns: IColumnInfo[];
+    constraints: IConstraintInfo[];
+    indexes: IIndexInfo[];
+    sequences: ISequenceInfo[];
   }): ITableDefinition {
     return {
       name: data.table.table_name,
@@ -302,20 +448,27 @@ export class SchemaGenerator extends BaseGenerator {
       constraints: data.constraints.map(
         this.convertToConstraintDefinition.bind(this)
       ),
+
       indexes: data.indexes.map(this.convertToIndexDefinition.bind(this)),
-      comment: data.table.table_comment ?? undefined,
+      sequences: data.sequences.map(
+        this.convertToSequenceDefinition.bind(this)
+      ),
+
+      comment: data.table.table_comment || undefined,
     };
   }
 
-  private convertToColumnDefinition(column: TUnknownOrAny): IColumnDefinition {
+  private convertToColumnDefinition(column: IColumnInfo): IColumnDefinition {
     return {
       name: column.column_name,
       type: column.data_type,
       nullable: column.is_nullable === 'YES',
-      defaultValue: column.column_default ?? undefined,
-      length: column.character_maximum_length ?? undefined,
-      precision: column.numeric_precision ?? undefined,
-      scale: column.numeric_scale ?? undefined,
+      ...(column.column_default && { defaultValue: column.column_default }),
+      ...(column.character_maximum_length && {
+        length: column.character_maximum_length,
+      }),
+      ...(column.numeric_precision && { precision: column.numeric_precision }),
+      ...(column.numeric_scale && { scale: column.numeric_scale }),
       isIdentity: column.is_identity === 'YES',
       identityGeneration: column.identity_generation as
         | 'ALWAYS'
@@ -326,16 +479,21 @@ export class SchemaGenerator extends BaseGenerator {
         | 'BY DEFAULT'
         | 'NEVER'
         | undefined,
-      ordinalPosition: column.ordinal_position ?? 0,
+      ordinalPosition: column.ordinal_position || 0,
     };
   }
 
   private convertToConstraintDefinition(
-    constraint: TUnknownOrAny
+    constraint: IConstraintInfo
   ): IConstraintDefinition {
     return {
       name: constraint.constraint_name,
-      type: constraint.constraint_type,
+      type: constraint.constraint_type as
+        | 'PRIMARY KEY'
+        | 'FOREIGN KEY'
+        | 'UNIQUE'
+        | 'CHECK'
+        | 'NOT NULL',
       columns: constraint.column_names
         ? constraint.column_names.split(',')
         : [],
@@ -345,22 +503,74 @@ export class SchemaGenerator extends BaseGenerator {
             column: constraint.foreign_column_name ?? 'id',
           }
         : undefined,
-      checkClause: constraint.check_clause ?? undefined,
+      ...(constraint.check_clause && { checkClause: constraint.check_clause }),
       deferrable: constraint.is_deferrable === 'YES',
       initiallyDeferred: constraint.initially_deferred === 'YES',
-      onDelete: constraint.delete_rule,
-      onUpdate: constraint.update_rule,
+      onDelete: constraint.delete_rule as
+        | 'CASCADE'
+        | 'SET NULL'
+        | 'SET DEFAULT'
+        | 'RESTRICT'
+        | 'NO ACTION',
+      onUpdate: constraint.update_rule as
+        | 'CASCADE'
+        | 'SET NULL'
+        | 'SET DEFAULT'
+        | 'RESTRICT'
+        | 'NO ACTION',
     };
   }
 
-  private convertToIndexDefinition(index: TUnknownOrAny): IIndexDefinition {
+  private convertToIndexDefinition(index: IIndexInfo): IIndexDefinition {
+    // Extract columns from indexdef
+    const columns = this.extractColumnsFromIndexDef(index.indexdef);
+    const whereClause = this.extractWhereClause(index.indexdef);
+
     return {
       name: index.indexname,
       table: index.tablename,
-      columns: index.column_names ? index.column_names.split(',') : [],
-      unique: index.is_unique === 'YES',
-      partial: index.partial_condition ?? undefined,
-      method: index.index_method ?? 'btree',
+      schema: index.schemaname,
+      columns,
+      unique: index.is_unique,
+      ...(whereClause && { partial: whereClause }),
+      method: 'btree', // Default method since index_method is not available
+      is_primary: index.is_primary,
+    };
+  }
+
+  private extractColumnsFromIndexDef(indexdef: string) {
+    // Extract column names from index definition
+    // Example: "CREATE UNIQUE INDEX idx_users_email ON dev.users USING btree (email)"
+    const match = indexdef.match(/\(([^)]+)\)/);
+
+    if (match?.[1]) {
+      return match[1].split(',').map(col => col.trim().replace(/"/g, ''));
+    }
+
+    return [];
+  }
+
+  private extractWhereClause(indexdef: string) {
+    // Extract WHERE clause from index definition
+    // Example: "CREATE INDEX ... WHERE is_active = true"
+    const whereMatch = indexdef.match(/WHERE\s+(.+)$/i);
+
+    return whereMatch?.[1]?.trim();
+  }
+
+  private convertToSequenceDefinition(
+    sequence: ISequenceInfo
+  ): ISequenceDefinition {
+    return {
+      name: sequence.sequence_name,
+      schema: sequence.sequence_schema,
+      dataType: sequence.data_type,
+      startValue: sequence.start_value,
+      minimumValue: sequence.minimum_value,
+      maximumValue: sequence.maximum_value,
+      increment: sequence.increment,
+      cycleOption: sequence.cycle_option,
+      comment: sequence.sequence_comment || undefined,
     };
   }
 
@@ -368,9 +578,10 @@ export class SchemaGenerator extends BaseGenerator {
     constraint: IConstraintDefinition,
     schema: string,
     tableName: string
-  ): string {
+  ) {
     const constraintName = this.escapeIdentifier(constraint.name);
     const tableRef = `${this.escapeIdentifier(schema)}.${this.escapeIdentifier(tableName)}`;
+
     const columns = constraint.columns
       .map(col => this.escapeIdentifier(col))
       .join(', ');
@@ -388,29 +599,39 @@ export class SchemaGenerator extends BaseGenerator {
         if (!constraint.references) {
           return `-- TODO: Foreign key constraint ${constraintName} - missing reference information`;
         }
+
         const refTable = this.escapeIdentifier(constraint.references.table);
         const refColumn = this.escapeIdentifier(constraint.references.column);
-        let fkSQL = `ALTER TABLE ${tableRef} ADD CONSTRAINT ${constraintName} FOREIGN KEY (${columns}) REFERENCES ${refTable} (${refColumn})`;
+
+        // Add schema qualification to the referenced table
+        const refTableWithSchema = `${this.escapeIdentifier(schema)}.${refTable}`;
+
+        let fkSQL = `ALTER TABLE ${tableRef} ADD CONSTRAINT ${constraintName} FOREIGN KEY (${columns}) REFERENCES ${refTableWithSchema} (${refColumn})`;
 
         if (constraint.onDelete) {
           fkSQL += ` ON DELETE ${constraint.onDelete}`;
         }
+
         if (constraint.onUpdate) {
           fkSQL += ` ON UPDATE ${constraint.onUpdate}`;
         }
+
         if (constraint.deferrable) {
           fkSQL += ' DEFERRABLE';
           if (constraint.initiallyDeferred) {
             fkSQL += ' INITIALLY DEFERRED';
           }
         }
+
         fkSQL += ';';
+
         return fkSQL;
       }
 
       case 'CHECK': {
         const checkClause =
           constraint.checkClause ?? '/* TODO: Add check condition */';
+
         return `ALTER TABLE ${tableRef} ADD CONSTRAINT ${constraintName} CHECK (${checkClause});`;
       }
 
@@ -420,9 +641,10 @@ export class SchemaGenerator extends BaseGenerator {
     }
   }
 
-  private generateIndexSQL(index: IIndexDefinition, schema: string): string {
+  private generateIndexSQL(index: IIndexDefinition, schema: string) {
     const indexName = this.escapeIdentifier(index.name);
     const tableName = this.escapeIdentifier(index.table);
+
     const columns = index.columns
       .map(col => this.escapeIdentifier(col))
       .join(', ');
@@ -501,5 +723,96 @@ export class SchemaGenerator extends BaseGenerator {
     }
 
     return sorted;
+  }
+
+  private extractAllSequences(
+    tables: ITableDefinition[]
+  ): ISequenceDefinition[] {
+    const allSequences: ISequenceDefinition[] = [];
+    const seen = new Set<string>();
+
+    for (const table of tables) {
+      for (const sequence of table.sequences) {
+        const key = `${sequence.schema}.${sequence.name}`;
+
+        if (!seen.has(key)) {
+          allSequences.push(sequence);
+          seen.add(key);
+        }
+      }
+    }
+
+    return allSequences.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  private extractSelfReferencingConstraints(
+    tables: ITableDefinition[]
+  ): TArray<{
+    constraint: IConstraintDefinition;
+    schema: string;
+    tableName: string;
+  }> {
+    const selfReferencingConstraints: TArray<{
+      constraint: IConstraintDefinition;
+      schema: string;
+      tableName: string;
+    }> = [];
+
+    for (const table of tables) {
+      for (const constraint of table.constraints) {
+        if (
+          constraint.type === 'FOREIGN KEY' &&
+          constraint.references?.table === table.name
+        ) {
+          selfReferencingConstraints.push({
+            constraint,
+            schema: table.schema,
+            tableName: table.name,
+          });
+        }
+      }
+    }
+
+    return selfReferencingConstraints;
+  }
+
+  private generateSequenceSQL(sequence: ISequenceDefinition) {
+    let sql = `CREATE SEQUENCE ${this.escapeIdentifier(sequence.schema)}.${this.escapeIdentifier(sequence.name)}`;
+
+    // Add data type if not default
+    if (sequence.dataType && sequence.dataType !== 'bigint') {
+      sql += ` AS ${sequence.dataType}`;
+    }
+
+    // Add start value if not default
+    if (sequence.startValue && sequence.startValue !== '1') {
+      sql += ` START WITH ${sequence.startValue}`;
+    }
+
+    // Add increment if not default
+    if (sequence.increment && sequence.increment !== '1') {
+      sql += ` INCREMENT BY ${sequence.increment}`;
+    }
+
+    // Add min/max values if not defaults
+    if (sequence.minimumValue && sequence.minimumValue !== '1') {
+      sql += ` MINVALUE ${sequence.minimumValue}`;
+    }
+
+    if (
+      sequence.maximumValue &&
+      sequence.maximumValue !== '9223372036854775807'
+    ) {
+      sql += ` MAXVALUE ${sequence.maximumValue}`;
+    }
+
+    // Add cycle option if not default
+    if (sequence.cycleOption === 'YES') {
+      sql += ` CYCLE`;
+    }
+
+    sql += ';';
+
+    return sql;
   }
 }

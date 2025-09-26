@@ -144,6 +144,7 @@ export const createMockResponses = (sourceData, targetData) => {
     functions: sourceFunctions = [],
     constraints: sourceConstraints = [],
     triggers: sourceTriggers = [],
+    sequences: sourceSequences = [],
   } = sourceData;
   const {
     tables: targetTables = [],
@@ -151,9 +152,12 @@ export const createMockResponses = (sourceData, targetData) => {
     functions: targetFunctions = [],
     constraints: targetConstraints = [],
     triggers: targetTriggers = [],
+    sequences: targetSequences = [],
   } = targetData;
 
   return [
+    { rows: sourceSequences }, // source sequences
+    { rows: targetSequences }, // target sequences
     { rows: sourceTables }, // source tables
     { rows: targetTables }, // target tables
     { rows: sourceColumns }, // source columns
@@ -162,10 +166,10 @@ export const createMockResponses = (sourceData, targetData) => {
     { rows: targetFunctions }, // target functions
     { rows: sourceConstraints }, // source constraints
     { rows: targetConstraints }, // target constraints
-    { rows: sourceTriggers }, // source triggers
-    { rows: targetTriggers }, // target triggers
     { rows: [] }, // source indexes
     { rows: [] }, // target indexes
+    { rows: sourceTriggers }, // source triggers
+    { rows: targetTriggers }, // target triggers
   ];
 };
 
@@ -194,6 +198,7 @@ export const missingTableScenario = {
     functions: [],
     constraints: [],
     triggers: [],
+    sequences: [],
   },
   target: {
     tables: singleTable,
@@ -201,6 +206,7 @@ export const missingTableScenario = {
     functions: [],
     constraints: [],
     triggers: [],
+    sequences: [],
   },
 };
 
@@ -219,6 +225,7 @@ export const functionDifferencesScenario = {
     ],
     constraints: [],
     triggers: [],
+    sequences: [],
   },
   target: {
     tables: [],
@@ -234,6 +241,7 @@ export const functionDifferencesScenario = {
     ],
     constraints: [],
     triggers: [],
+    sequences: [],
   },
 };
 

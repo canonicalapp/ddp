@@ -6,6 +6,12 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
+// Read version from package.json
+const packageJson = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
+);
+const expectedVersion = packageJson.version;
+
 describe('CLI Interface', () => {
   const scriptPath = path.join(process.cwd(), 'src/cli.ts');
 
@@ -32,7 +38,7 @@ describe('CLI Interface', () => {
     it('should show version when --version is provided', async () => {
       const result = await runCLI(['--version']);
 
-      expect(result.stdout).toContain('1.0.0');
+      expect(result.stdout).toContain(expectedVersion);
     });
 
     it('should show help for gen command', async () => {

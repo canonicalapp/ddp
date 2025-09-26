@@ -3,9 +3,9 @@
  * Handles column comparison, addition, modification, and dropping logic
  */
 
-import type { Client } from 'pg';
+import type { ILegacySyncOptions, TArray, TRecord } from '@/types';
 import { Utils } from '@/utils/formatting';
-import type { TRecord, ILegacySyncOptions } from '@/types';
+import type { Client } from 'pg';
 
 interface ColumnInfo {
   table_name: string;
@@ -18,18 +18,24 @@ interface ColumnInfo {
 }
 
 export class ColumnOperations {
-  private client: Client;
+  private sourceClient: Client;
+  private targetClient: Client;
   private options: ILegacySyncOptions;
 
-  constructor(client: Client, options: ILegacySyncOptions) {
-    this.client = client;
+  constructor(
+    sourceClient: Client,
+    targetClient: Client,
+    options: ILegacySyncOptions
+  ) {
+    this.sourceClient = sourceClient;
+    this.targetClient = targetClient;
     this.options = options;
   }
 
   /**
    * Get all columns from a schema
    */
-  async getColumns(schemaName: string): Promise<ColumnInfo[]> {
+  async getColumns(schemaName: string): Promise<TArray<ColumnInfo>> {
     const columnsQuery = `
       SELECT 
         table_name, 
@@ -44,15 +50,24 @@ export class ColumnOperations {
       ORDER BY table_name, ordinal_position
     `;
 
-    const result = await this.client.query(columnsQuery, [schemaName]);
-    return result.rows as ColumnInfo[];
+    // Use the appropriate client based on schema
+    const client =
+      schemaName === this.options.source
+        ? this.sourceClient
+        : this.targetClient;
+
+    const result = await client.query(columnsQuery, [schemaName]);
+
+    return result.rows;
   }
 
   /**
    * Group columns by table name
    */
-  groupColumnsByTable(columns: ColumnInfo[]): Record<string, ColumnInfo[]> {
-    const grouped: TRecord<string, ColumnInfo[]> = {};
+  groupColumnsByTable(
+    columns: TArray<ColumnInfo>
+  ): Record<string, TArray<ColumnInfo>> {
+    const grouped: TRecord<string, TArray<ColumnInfo>> = {};
 
     columns.forEach(col => {
       grouped[col.table_name] ??= [];
@@ -65,7 +80,7 @@ export class ColumnOperations {
   /**
    * Generate column definition string
    */
-  generateColumnDefinition(column: ColumnInfo): string {
+  generateColumnDefinition(column: ColumnInfo) {
     return Utils.formatColumnDefinition(column);
   }
 
@@ -76,7 +91,7 @@ export class ColumnOperations {
     tableName: string,
     sourceCol: ColumnInfo,
     targetCol: ColumnInfo
-  ): string {
+  ) {
     const sourceType = sourceCol.character_maximum_length
       ? `${sourceCol.data_type}(${sourceCol.character_maximum_length})`
       : sourceCol.data_type;
@@ -103,7 +118,17 @@ export class ColumnOperations {
     // Handle default value change
     if (sourceCol.column_default !== targetCol.column_default) {
       if (sourceCol.column_default) {
-        alterColumn += ` SET DEFAULT ${sourceCol.column_default}`;
+        let defaultValue = sourceCol.column_default;
+
+        // Replace schema references in sequence defaults
+        if (defaultValue.includes('nextval(')) {
+          defaultValue = defaultValue.replace(
+            /nextval\('([^.]+)\.([^']+)'::regclass\)/g,
+            `nextval('${this.options.target}.$2'::regclass)`
+          );
+        }
+
+        alterColumn += ` SET DEFAULT ${defaultValue}`;
       } else {
         alterColumn += ' DROP DEFAULT';
       }
@@ -117,9 +142,9 @@ export class ColumnOperations {
    */
   handleColumnsToDrop(
     tableName: string,
-    columnsToDrop: ColumnInfo[],
-    alterStatements: string[]
-  ): void {
+    columnsToDrop: TArray<ColumnInfo>,
+    alterStatements: TArray<string>
+  ) {
     for (const colToDrop of columnsToDrop) {
       const backupName = Utils.generateBackupName(colToDrop.column_name);
 
@@ -145,8 +170,8 @@ export class ColumnOperations {
     tableName: string,
     sourceCol: ColumnInfo,
     targetCol: ColumnInfo,
-    alterStatements: string[]
-  ): void {
+    alterStatements: TArray<string>
+  ) {
     const sourceType = Utils.formatDataType(sourceCol);
     const targetType = Utils.formatDataType(targetCol);
 
@@ -177,10 +202,10 @@ export class ColumnOperations {
    */
   handleColumnsToAddOrModify(
     tableName: string,
-    sourceTableCols: ColumnInfo[],
-    targetTableCols: ColumnInfo[],
-    alterStatements: string[]
-  ): void {
+    sourceTableCols: TArray<ColumnInfo>,
+    targetTableCols: TArray<ColumnInfo>,
+    alterStatements: TArray<string>
+  ) {
     for (const sourceCol of sourceTableCols) {
       const targetCol = targetTableCols.find(
         t => t.column_name === sourceCol.column_name
@@ -189,9 +214,34 @@ export class ColumnOperations {
       if (!targetCol) {
         // Column exists in source but not in target - add it
         const columnDef = this.generateColumnDefinition(sourceCol);
-        alterStatements.push(
-          `ALTER TABLE ${this.options.target}.${tableName} ADD COLUMN ${columnDef};`
-        );
+
+        // If column is NOT NULL and has no default, add it as nullable first, then update
+        if (sourceCol.is_nullable === 'NO' && !sourceCol.column_default) {
+          // Add column as nullable first
+          const nullableDef = this.generateColumnDefinition({
+            ...sourceCol,
+            is_nullable: 'YES',
+          });
+          alterStatements.push(
+            `ALTER TABLE ${this.options.target}.${tableName} ADD COLUMN ${nullableDef};`
+          );
+
+          // Update existing rows with a default value
+          const defaultValue = this.getDefaultValueForType(sourceCol.data_type);
+          alterStatements.push(
+            `UPDATE ${this.options.target}.${tableName} SET "${sourceCol.column_name}" = ${defaultValue} WHERE "${sourceCol.column_name}" IS NULL;`
+          );
+
+          // Now make it NOT NULL
+          alterStatements.push(
+            `ALTER TABLE ${this.options.target}.${tableName} ALTER COLUMN "${sourceCol.column_name}" SET NOT NULL;`
+          );
+        } else {
+          // Add column with original definition
+          alterStatements.push(
+            `ALTER TABLE ${this.options.target}.${tableName} ADD COLUMN ${columnDef};`
+          );
+        }
       } else {
         // Column exists in both, check for differences
         const sourceType = Utils.formatDataType(sourceCol);
@@ -214,10 +264,50 @@ export class ColumnOperations {
   }
 
   /**
+   * Get default value for a data type
+   */
+  private getDefaultValueForType(dataType: string) {
+    const type = dataType.toLowerCase();
+
+    if (type.includes('json') || type.includes('jsonb')) {
+      return "'{}'::jsonb";
+    } else if (
+      type.includes('text') ||
+      type.includes('varchar') ||
+      type.includes('character')
+    ) {
+      return "''";
+    } else if (
+      type.includes('integer') ||
+      type.includes('bigint') ||
+      type.includes('smallint')
+    ) {
+      return '0';
+    } else if (
+      type.includes('numeric') ||
+      type.includes('decimal') ||
+      type.includes('real') ||
+      type.includes('double')
+    ) {
+      return '0.0';
+    } else if (type.includes('boolean')) {
+      return 'false';
+    } else if (type.includes('timestamp')) {
+      return 'CURRENT_TIMESTAMP';
+    } else if (type.includes('date')) {
+      return 'CURRENT_DATE';
+    } else if (type.includes('time')) {
+      return 'CURRENT_TIME';
+    } else {
+      return 'NULL';
+    }
+  }
+
+  /**
    * Generate column operations for schema sync
    */
-  async generateColumnOperations(): Promise<string[]> {
-    const alterStatements: string[] = [];
+  async generateColumnOperations() {
+    const alterStatements: TArray<string> = [];
 
     const sourceColumns = await this.getColumns(this.options.source);
     const targetColumns = await this.getColumns(this.options.target);

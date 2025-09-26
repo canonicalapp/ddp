@@ -2,7 +2,7 @@
  * Unit tests for TriggerOperations module
  */
 
-import { TriggerOperations } from '@/sync/operations/triggers.ts';
+import { TriggerOperations } from '../../../../src/sync/operations/triggers';
 import {
   createMockClient,
   createMockOptions,
@@ -19,21 +19,28 @@ import {
 
 describe('TriggerOperations', () => {
   let triggerOps;
-  let mockClient;
+  let mockSourceClient;
+  let mockTargetClient;
   let mockOptions;
 
   beforeEach(() => {
-    mockClient = createMockClient();
+    mockSourceClient = createMockClient();
+    mockTargetClient = createMockClient();
     mockOptions = createMockOptions();
-    triggerOps = new TriggerOperations(mockClient, mockOptions);
+    triggerOps = new TriggerOperations(
+      mockSourceClient,
+      mockTargetClient,
+      mockOptions
+    );
 
     // Reset mocks
     // Note: jest functions are available within test functions, not in global scope
   });
 
   describe('constructor', () => {
-    it('should initialize with client and options', () => {
-      expect(triggerOps.client).toBe(mockClient);
+    it('should initialize with source client, target client and options', () => {
+      expect(triggerOps.sourceClient).toBe(mockSourceClient);
+      expect(triggerOps.targetClient).toBe(mockTargetClient);
       expect(triggerOps.options).toBe(mockOptions);
     });
   });
@@ -43,42 +50,54 @@ describe('TriggerOperations', () => {
       const mockTriggers = [updateTrigger, insertTrigger];
 
       let queryCalled = false;
-      let queryArgs = null;
-      mockClient.query = (...args) => {
+      let queryArgs: any[] | null = null;
+      mockSourceClient.query = (...args) => {
         queryCalled = true;
         queryArgs = args;
         return Promise.resolve({ rows: mockTriggers });
       };
 
-      const result = await triggerOps.getTriggers('test_schema');
+      const result = await triggerOps.getTriggers('dev_schema');
 
       // Verify the query was called with correct parameters
       expect(queryCalled).toBe(true);
-      expect(queryArgs[0]).toContain('information_schema.triggers');
-      expect(queryArgs[1]).toEqual(['test_schema']);
+      expect(queryArgs).not.toBeNull();
+      expect(queryArgs![0]).toContain('information_schema.triggers');
+      expect(queryArgs![1]).toEqual(['dev_schema']);
       expect(result).toEqual(mockTriggers);
     });
 
     it('should order triggers by event object table and trigger name', async () => {
-      await triggerOps.getTriggers('test_schema');
+      let queryCalled = false;
+      let queryArgs: any[] | null = null;
+      mockSourceClient.query = (...args) => {
+        queryCalled = true;
+        queryArgs = args;
+        return Promise.resolve({ rows: [] });
+      };
 
-      const query = mockClient.query.mock.calls[0][0];
-      expect(query).toContain('ORDER BY event_object_table, trigger_name');
+      await triggerOps.getTriggers('dev_schema');
+
+      expect(queryCalled).toBe(true);
+      expect(queryArgs).not.toBeNull();
+      expect(queryArgs![0]).toContain(
+        'ORDER BY event_object_table, trigger_name'
+      );
     });
 
     it('should handle empty results', async () => {
-      mockClient.query.mockResolvedValue({ rows: [] });
+      mockSourceClient.query.mockResolvedValue({ rows: [] });
 
-      const result = await triggerOps.getTriggers('empty_schema');
+      const result = await triggerOps.getTriggers('dev_schema');
 
       expect(result).toEqual([]);
     });
 
     it('should handle database errors', async () => {
       const error = new Error('Database connection failed');
-      mockClient.query.mockRejectedValue(error);
+      mockSourceClient.query.mockRejectedValue(error);
 
-      await expect(triggerOps.getTriggers('test_schema')).rejects.toThrow(
+      await expect(triggerOps.getTriggers('dev_schema')).rejects.toThrow(
         'Database connection failed'
       );
     });
@@ -86,9 +105,9 @@ describe('TriggerOperations', () => {
     it('should handle triggers with special characters in names', async () => {
       const mockTriggers = sourceTriggersWithSpecialChars;
 
-      mockClient.query.mockResolvedValue({ rows: mockTriggers });
+      mockSourceClient.query.mockResolvedValue({ rows: mockTriggers });
 
-      const result = await triggerOps.getTriggers('test_schema');
+      const result = await triggerOps.getTriggers('dev_schema');
 
       expect(result).toEqual(mockTriggers);
     });
@@ -99,9 +118,9 @@ describe('TriggerOperations', () => {
       const sourceTriggers = sourceTriggersForDropTest;
       const targetTriggers = targetTriggersForDropTest;
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceTriggers })
-        .mockResolvedValueOnce({ rows: targetTriggers });
+      // Mock getTriggers calls - source client for dev_schema, target client for prod_schema
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTriggers });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTriggers });
 
       const result = await triggerOps.generateTriggerOperations();
 
@@ -117,29 +136,9 @@ describe('TriggerOperations', () => {
       const sourceTriggers = sourceTriggersForAddTest;
       const targetTriggers = targetTriggersForAddTest;
 
-      const mockTriggerDefinition = {
-        trigger_name: 'new_trigger',
-        event_manipulation: 'INSERT',
-        event_object_table: 'orders',
-        action_timing: 'AFTER',
-        action_statement: 'EXECUTE FUNCTION log_order_creation()',
-        action_orientation: 'ROW',
-        action_condition: null,
-      };
-
-      // Mock the query to return different results for source and target calls
-      let callCount = 0;
-      mockClient.query = () => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve({ rows: sourceTriggers });
-        } else if (callCount === 2) {
-          return Promise.resolve({ rows: targetTriggers });
-        } else {
-          // This is the call to get trigger definition
-          return Promise.resolve({ rows: [mockTriggerDefinition] });
-        }
-      };
+      // Mock getTriggers calls - source client for dev_schema, target client for prod_schema
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTriggers });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTriggers });
 
       const result = await triggerOps.generateTriggerOperations();
 
@@ -147,7 +146,9 @@ describe('TriggerOperations', () => {
         '-- Creating trigger new_trigger in prod_schema'
       );
       expect(
-        result.some(line => line.includes('CREATE TRIGGER new_trigger'))
+        result.some(line =>
+          line.includes('CREATE OR REPLACE TRIGGER new_trigger')
+        )
       ).toBe(true);
       expect(result.some(line => line.includes('AFTER INSERT'))).toBe(true);
       expect(result.some(line => line.includes('ON prod_schema.orders'))).toBe(
@@ -186,52 +187,9 @@ describe('TriggerOperations', () => {
       ];
       const targetTriggers = [];
 
-      const mockTriggerDefinitions = [
-        {
-          trigger_name: 'insert_trigger',
-          event_manipulation: 'INSERT',
-          event_object_table: 'users',
-          action_timing: 'BEFORE',
-          action_statement: 'EXECUTE FUNCTION validate_user()',
-          action_orientation: 'ROW',
-          action_condition: null,
-        },
-        {
-          trigger_name: 'update_trigger',
-          event_manipulation: 'UPDATE',
-          event_object_table: 'users',
-          action_timing: 'AFTER',
-          action_statement: 'EXECUTE FUNCTION log_user_changes()',
-          action_orientation: 'ROW',
-          action_condition: null,
-        },
-        {
-          trigger_name: 'delete_trigger',
-          event_manipulation: 'DELETE',
-          event_object_table: 'users',
-          action_timing: 'BEFORE',
-          action_statement: 'EXECUTE FUNCTION check_user_deletion()',
-          action_orientation: 'ROW',
-          action_condition: null,
-        },
-      ];
-
-      // Mock the query to return different results for source and target calls
-      let callCount = 0;
-      mockClient.query = () => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve({ rows: sourceTriggers });
-        } else if (callCount === 2) {
-          return Promise.resolve({ rows: targetTriggers });
-        } else {
-          // This is the call to get trigger definition
-          const triggerIndex = (callCount - 3) % 3;
-          return Promise.resolve({
-            rows: [mockTriggerDefinitions[triggerIndex]],
-          });
-        }
-      };
+      // Mock getTriggers calls - source client for dev_schema, target client for prod_schema
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTriggers });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTriggers });
 
       const result = await triggerOps.generateTriggerOperations();
 
@@ -265,43 +223,9 @@ describe('TriggerOperations', () => {
       ];
       const targetTriggers = [];
 
-      const mockTriggerDefinitions = [
-        {
-          trigger_name: 'before_trigger',
-          event_manipulation: 'INSERT',
-          event_object_table: 'users',
-          action_timing: 'BEFORE',
-          action_statement: 'EXECUTE FUNCTION validate_user()',
-          action_orientation: 'ROW',
-          action_condition: null,
-        },
-        {
-          trigger_name: 'after_trigger',
-          event_manipulation: 'INSERT',
-          event_object_table: 'users',
-          action_timing: 'AFTER',
-          action_statement: 'EXECUTE FUNCTION log_user_creation()',
-          action_orientation: 'ROW',
-          action_condition: null,
-        },
-      ];
-
-      // Mock the query to return different results for source and target calls
-      let callCount = 0;
-      mockClient.query = () => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve({ rows: sourceTriggers });
-        } else if (callCount === 2) {
-          return Promise.resolve({ rows: targetTriggers });
-        } else {
-          // This is the call to get trigger definition
-          const triggerIndex = (callCount - 3) % 2;
-          return Promise.resolve({
-            rows: [mockTriggerDefinitions[triggerIndex]],
-          });
-        }
-      };
+      // Mock getTriggers calls - source client for dev_schema, target client for prod_schema
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTriggers });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTriggers });
 
       const result = await triggerOps.generateTriggerOperations();
 
@@ -333,9 +257,9 @@ describe('TriggerOperations', () => {
         },
       ];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceTriggers })
-        .mockResolvedValueOnce({ rows: targetTriggers });
+      // Mock getTriggers calls - source client for dev_schema, target client for prod_schema
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTriggers });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTriggers });
 
       const result = await triggerOps.generateTriggerOperations();
 
@@ -344,9 +268,9 @@ describe('TriggerOperations', () => {
     });
 
     it('should handle empty schemas', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [] });
+      // Mock getTriggers calls - source client for dev_schema, target client for prod_schema
+      mockSourceClient.query.mockResolvedValue({ rows: [] });
+      mockTargetClient.query.mockResolvedValue({ rows: [] });
 
       const result = await triggerOps.generateTriggerOperations();
 
@@ -387,9 +311,9 @@ describe('TriggerOperations', () => {
         },
       ];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceTriggers })
-        .mockResolvedValueOnce({ rows: targetTriggers });
+      // Mock getTriggers calls - source client for dev_schema, target client for prod_schema
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTriggers });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTriggers });
 
       const result = await triggerOps.generateTriggerOperations();
 
@@ -441,43 +365,9 @@ describe('TriggerOperations', () => {
         },
       ];
 
-      const mockTriggerDefinitions = [
-        {
-          trigger_name: 'new_trigger1',
-          event_manipulation: 'INSERT',
-          event_object_table: 'users',
-          action_timing: 'AFTER',
-          action_statement: 'EXECUTE FUNCTION log_user_creation()',
-          action_orientation: 'ROW',
-          action_condition: null,
-        },
-        {
-          trigger_name: 'new_trigger2',
-          event_manipulation: 'DELETE',
-          event_object_table: 'users',
-          action_timing: 'BEFORE',
-          action_statement: 'EXECUTE FUNCTION validate_user_deletion()',
-          action_orientation: 'ROW',
-          action_condition: null,
-        },
-      ];
-
-      // Mock the query to return different results for source and target calls
-      let callCount = 0;
-      mockClient.query = () => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve({ rows: sourceTriggers });
-        } else if (callCount === 2) {
-          return Promise.resolve({ rows: targetTriggers });
-        } else {
-          // This is the call to get trigger definition
-          const triggerIndex = (callCount - 3) % 2;
-          return Promise.resolve({
-            rows: [mockTriggerDefinitions[triggerIndex]],
-          });
-        }
-      };
+      // Mock getTriggers calls - source client for dev_schema, target client for prod_schema
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTriggers });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTriggers });
 
       const result = await triggerOps.generateTriggerOperations();
 
@@ -520,29 +410,9 @@ describe('TriggerOperations', () => {
         },
       ];
 
-      const mockTriggerDefinition = {
-        trigger_name: 'new_trigger',
-        event_manipulation: 'INSERT',
-        event_object_table: 'orders',
-        action_timing: 'AFTER',
-        action_statement: 'EXECUTE FUNCTION log_order_creation()',
-        action_orientation: 'ROW',
-        action_condition: null,
-      };
-
-      // Mock the query to return different results for source and target calls
-      let callCount = 0;
-      mockClient.query = () => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve({ rows: sourceTriggers });
-        } else if (callCount === 2) {
-          return Promise.resolve({ rows: targetTriggers });
-        } else {
-          // This is the call to get trigger definition
-          return Promise.resolve({ rows: [mockTriggerDefinition] });
-        }
-      };
+      // Mock getTriggers calls - source client for dev_schema, target client for prod_schema
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTriggers });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTriggers });
 
       const result = await triggerOps.generateTriggerOperations();
 
@@ -574,43 +444,9 @@ describe('TriggerOperations', () => {
       ];
       const targetTriggers = [];
 
-      const mockTriggerDefinitions = [
-        {
-          trigger_name: 'user_trigger',
-          event_manipulation: 'INSERT',
-          event_object_table: 'users',
-          action_timing: 'AFTER',
-          action_statement: 'EXECUTE FUNCTION log_user_creation()',
-          action_orientation: 'ROW',
-          action_condition: null,
-        },
-        {
-          trigger_name: 'order_trigger',
-          event_manipulation: 'INSERT',
-          event_object_table: 'orders',
-          action_timing: 'AFTER',
-          action_statement: 'EXECUTE FUNCTION log_order_creation()',
-          action_orientation: 'ROW',
-          action_condition: null,
-        },
-      ];
-
-      // Mock the query to return different results for source and target calls
-      let callCount = 0;
-      mockClient.query = () => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve({ rows: sourceTriggers });
-        } else if (callCount === 2) {
-          return Promise.resolve({ rows: targetTriggers });
-        } else {
-          // This is the call to get trigger definition
-          const triggerIndex = (callCount - 3) % 2;
-          return Promise.resolve({
-            rows: [mockTriggerDefinitions[triggerIndex]],
-          });
-        }
-      };
+      // Mock getTriggers calls - source client for dev_schema, target client for prod_schema
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTriggers });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTriggers });
 
       const result = await triggerOps.generateTriggerOperations();
 
@@ -624,7 +460,7 @@ describe('TriggerOperations', () => {
 
     it('should handle database errors', async () => {
       const error = new Error('Database connection failed');
-      mockClient.query.mockRejectedValue(error);
+      mockSourceClient.query.mockRejectedValue(error);
 
       await expect(triggerOps.generateTriggerOperations()).rejects.toThrow(
         'Database connection failed'
@@ -800,8 +636,6 @@ describe('TriggerOperations', () => {
           event_object_table: 'test_table',
           action_timing: 'AFTER',
           action_statement: 'EXECUTE FUNCTION new_function()',
-          action_orientation: 'ROW',
-          action_condition: null,
         },
       ];
 
@@ -812,8 +646,6 @@ describe('TriggerOperations', () => {
           event_object_table: 'test_table',
           action_timing: 'AFTER',
           action_statement: 'EXECUTE FUNCTION old_function()',
-          action_orientation: 'ROW',
-          action_condition: null,
         },
       ];
 
@@ -838,12 +670,15 @@ describe('TriggerOperations', () => {
         action_condition: null,
       };
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [sourceTriggerDefinition] })
-        .mockResolvedValueOnce({ rows: [targetTriggerDefinition] })
-        .mockResolvedValueOnce({ rows: [sourceTriggerDefinition] }); // For CREATE statement generation
+      // Mock getTriggerDefinition calls - source first, then target
+      mockSourceClient.query.mockResolvedValue({
+        rows: [sourceTriggerDefinition],
+      });
+      mockTargetClient.query.mockResolvedValue({
+        rows: [targetTriggerDefinition],
+      });
 
-      const alterStatements = [];
+      const alterStatements: string[] = [];
       await triggerOps.handleTriggersToUpdate(
         sourceTriggers,
         targetTriggers,
@@ -867,7 +702,7 @@ describe('TriggerOperations', () => {
       ).toBe(true);
       expect(
         alterStatements.some(line =>
-          line.includes('CREATE TRIGGER test_trigger')
+          line.includes('CREATE OR REPLACE TRIGGER test_trigger')
         )
       ).toBe(true);
     });
@@ -877,10 +712,9 @@ describe('TriggerOperations', () => {
         {
           trigger_name: 'test_trigger',
           event_manipulation: 'INSERT',
+          event_object_table: 'test_table',
           action_timing: 'AFTER',
           action_statement: 'EXECUTE FUNCTION test_function()',
-          action_orientation: 'ROW',
-          action_condition: null,
         },
       ];
 
@@ -888,10 +722,9 @@ describe('TriggerOperations', () => {
         {
           trigger_name: 'test_trigger',
           event_manipulation: 'INSERT',
+          event_object_table: 'test_table',
           action_timing: 'AFTER',
           action_statement: 'EXECUTE FUNCTION test_function()',
-          action_orientation: 'ROW',
-          action_condition: null,
         },
       ];
 
@@ -906,11 +739,15 @@ describe('TriggerOperations', () => {
         action_condition: null,
       };
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [identicalTriggerDefinition] })
-        .mockResolvedValueOnce({ rows: [identicalTriggerDefinition] });
+      // Mock getTriggerDefinition calls - source first, then target
+      mockSourceClient.query.mockResolvedValue({
+        rows: [identicalTriggerDefinition],
+      });
+      mockTargetClient.query.mockResolvedValue({
+        rows: [identicalTriggerDefinition],
+      });
 
-      const alterStatements = [];
+      const alterStatements: string[] = [];
       await triggerOps.handleTriggersToUpdate(
         sourceTriggers,
         targetTriggers,
@@ -928,8 +765,6 @@ describe('TriggerOperations', () => {
           event_object_table: 'table1',
           action_timing: 'AFTER',
           action_statement: 'EXECUTE FUNCTION new_function1()',
-          action_orientation: 'ROW',
-          action_condition: null,
         },
         {
           trigger_name: 'trigger2',
@@ -937,8 +772,6 @@ describe('TriggerOperations', () => {
           event_object_table: 'table2',
           action_timing: 'BEFORE',
           action_statement: 'EXECUTE FUNCTION new_function2()',
-          action_orientation: 'ROW',
-          action_condition: null,
         },
       ];
 
@@ -949,8 +782,6 @@ describe('TriggerOperations', () => {
           event_object_table: 'table1',
           action_timing: 'AFTER',
           action_statement: 'EXECUTE FUNCTION old_function1()',
-          action_orientation: 'ROW',
-          action_condition: null,
         },
         {
           trigger_name: 'trigger2',
@@ -958,8 +789,6 @@ describe('TriggerOperations', () => {
           event_object_table: 'table2',
           action_timing: 'BEFORE',
           action_statement: 'EXECUTE FUNCTION old_function2()',
-          action_orientation: 'ROW',
-          action_condition: null,
         },
       ];
 
@@ -983,16 +812,29 @@ describe('TriggerOperations', () => {
         action_condition: null,
       };
 
-      // Mock the getTriggerDefinition calls - 4 calls total (2 for comparison + 2 for CREATE)
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [mockTriggerDefinition1] }) // source trigger1
-        .mockResolvedValueOnce({ rows: [mockTriggerDefinition2] }) // target trigger1 (different)
-        .mockResolvedValueOnce({ rows: [mockTriggerDefinition1] }) // source trigger2
-        .mockResolvedValueOnce({ rows: [mockTriggerDefinition2] }) // target trigger2 (different)
-        .mockResolvedValueOnce({ rows: [mockTriggerDefinition1] }) // CREATE trigger1
-        .mockResolvedValueOnce({ rows: [mockTriggerDefinition2] }); // CREATE trigger2
+      // Mock the getTriggerDefinition calls - need to handle multiple calls
+      let sourceCallCount = 0;
+      let targetCallCount = 0;
 
-      const alterStatements = [];
+      mockSourceClient.query = (..._args) => {
+        sourceCallCount++;
+        if (sourceCallCount === 1) {
+          return Promise.resolve({ rows: [mockTriggerDefinition1] }); // source trigger1
+        } else {
+          return Promise.resolve({ rows: [mockTriggerDefinition1] }); // source trigger2
+        }
+      };
+
+      mockTargetClient.query = (..._args) => {
+        targetCallCount++;
+        if (targetCallCount === 1) {
+          return Promise.resolve({ rows: [mockTriggerDefinition2] }); // target trigger1
+        } else {
+          return Promise.resolve({ rows: [mockTriggerDefinition2] }); // target trigger2
+        }
+      };
+
+      const alterStatements: string[] = [];
       await triggerOps.handleTriggersToUpdate(
         sourceTriggers,
         targetTriggers,
@@ -1010,7 +852,9 @@ describe('TriggerOperations', () => {
         ).length
       ).toBe(2);
       expect(
-        alterStatements.filter(line => line.includes('CREATE TRIGGER')).length
+        alterStatements.filter(line =>
+          line.includes('CREATE OR REPLACE TRIGGER')
+        ).length
       ).toBe(2);
     });
   });
@@ -1028,7 +872,7 @@ describe('TriggerOperations', () => {
       ];
       const targetTriggers = [];
 
-      mockClient.query
+      mockSourceClient.query
         .mockResolvedValueOnce({ rows: sourceTriggers })
         .mockResolvedValueOnce({ rows: targetTriggers });
 
@@ -1049,7 +893,7 @@ describe('TriggerOperations', () => {
       ];
       const targetTriggers = [];
 
-      mockClient.query
+      mockSourceClient.query
         .mockResolvedValueOnce({ rows: sourceTriggers })
         .mockResolvedValueOnce({ rows: targetTriggers });
 
@@ -1069,7 +913,7 @@ describe('TriggerOperations', () => {
       ];
       const targetTriggers = [];
 
-      mockClient.query
+      mockSourceClient.query
         .mockResolvedValueOnce({ rows: sourceTriggers })
         .mockResolvedValueOnce({ rows: targetTriggers });
 
@@ -1090,7 +934,7 @@ describe('TriggerOperations', () => {
       ];
       const targetTriggers = [];
 
-      mockClient.query
+      mockSourceClient.query
         .mockResolvedValueOnce({ rows: sourceTriggers })
         .mockResolvedValueOnce({ rows: targetTriggers });
 
@@ -1113,7 +957,7 @@ describe('TriggerOperations', () => {
       ];
       const targetTriggers = [];
 
-      mockClient.query
+      mockSourceClient.query
         .mockResolvedValueOnce({ rows: sourceTriggers })
         .mockResolvedValueOnce({ rows: targetTriggers });
 
@@ -1136,7 +980,7 @@ describe('TriggerOperations', () => {
       ];
       const targetTriggers = [];
 
-      mockClient.query
+      mockSourceClient.query
         .mockResolvedValueOnce({ rows: sourceTriggers })
         .mockResolvedValueOnce({ rows: targetTriggers });
 
@@ -1159,7 +1003,7 @@ describe('TriggerOperations', () => {
       ];
       const targetTriggers = [];
 
-      mockClient.query
+      mockSourceClient.query
         .mockResolvedValueOnce({ rows: sourceTriggers })
         .mockResolvedValueOnce({ rows: targetTriggers });
 
@@ -1182,7 +1026,7 @@ describe('TriggerOperations', () => {
       ];
       const targetTriggers = [];
 
-      mockClient.query
+      mockSourceClient.query
         .mockResolvedValueOnce({ rows: sourceTriggers })
         .mockResolvedValueOnce({ rows: targetTriggers });
 

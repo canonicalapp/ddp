@@ -10,13 +10,19 @@ import {
 
 describe('ConstraintOperations - Edge Cases and Error Handling', () => {
   let constraintOps;
-  let mockClient;
+  let mockSourceClient;
+  let mockTargetClient;
   let mockOptions;
 
   beforeEach(() => {
-    mockClient = createMockClient();
+    mockSourceClient = createMockClient();
+    mockTargetClient = createMockClient();
     mockOptions = createMockOptions();
-    constraintOps = new ConstraintOperations(mockClient, mockOptions);
+    constraintOps = new ConstraintOperations(
+      mockSourceClient,
+      mockTargetClient,
+      mockOptions
+    );
   });
 
   describe('Edge cases and error handling', () => {
@@ -33,9 +39,10 @@ describe('ConstraintOperations - Edge Cases and Error Handling', () => {
       ];
       const targetConstraints = [];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceConstraints })
-        .mockResolvedValueOnce({ rows: targetConstraints });
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: sourceConstraints });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
       expect(result).toBeDefined();
@@ -55,9 +62,10 @@ describe('ConstraintOperations - Edge Cases and Error Handling', () => {
       ];
       const targetConstraints = [];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceConstraints })
-        .mockResolvedValueOnce({ rows: targetConstraints });
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: sourceConstraints });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
@@ -76,9 +84,10 @@ describe('ConstraintOperations - Edge Cases and Error Handling', () => {
       ];
       const targetConstraints = [];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceConstraints })
-        .mockResolvedValueOnce({ rows: targetConstraints });
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: sourceConstraints });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: targetConstraints });
 
       // Should not throw, but may produce unexpected results
       const result = await constraintOps.generateConstraintOperations();
@@ -98,9 +107,10 @@ describe('ConstraintOperations - Edge Cases and Error Handling', () => {
       ];
       const targetConstraints = [];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceConstraints })
-        .mockResolvedValueOnce({ rows: targetConstraints });
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: sourceConstraints });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
@@ -122,9 +132,10 @@ describe('ConstraintOperations - Edge Cases and Error Handling', () => {
       ];
       const targetConstraints = [];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceConstraints })
-        .mockResolvedValueOnce({ rows: targetConstraints });
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: sourceConstraints });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 
@@ -146,9 +157,10 @@ describe('ConstraintOperations - Edge Cases and Error Handling', () => {
       ];
       const targetConstraints = [];
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: sourceConstraints })
-        .mockResolvedValueOnce({ rows: targetConstraints });
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: sourceConstraints });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: targetConstraints });
 
       const result = await constraintOps.generateConstraintOperations();
 

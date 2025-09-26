@@ -1,39 +1,8 @@
-import { readFileSync } from 'fs';
-import { findUp } from 'find-up';
-import { Client } from 'pg';
 import { SchemaSyncOrchestrator } from '@/sync/orchestrator';
 import { RepoIntegration } from '@/sync/repoIntegration';
-import type {
-  ISyncCommandOptions,
-  IDatabaseConnection,
-  TRecord,
-} from '@/types';
-
-// Load environment variables from .env file
-const loadEnvFile = async (): Promise<void> => {
-  try {
-    const envPath = await findUp('.env', { cwd: process.cwd() });
-    if (envPath) {
-      const envContent = readFileSync(envPath, 'utf8');
-      const envVars: TRecord<string, string> = {};
-
-      envContent.split('\n').forEach((line: string) => {
-        const [key, ...valueParts] = line.split('=');
-        if (key && valueParts.length > 0) {
-          const value = valueParts.join('=').trim();
-          envVars[key.trim()] = value;
-        }
-      });
-
-      // Set environment variables
-      Object.entries(envVars).forEach(([key, value]) => {
-        process.env[key] ??= value;
-      });
-    }
-  } catch {
-    // .env file not found or couldn't be read, continue without it
-  }
-};
+import type { IDatabaseConnection, ISyncCommandOptions } from '@/types';
+import { loadEnvFile } from '@/utils/envLoader';
+import { Client } from 'pg';
 
 // Helper function to build connection details
 const buildConnectionDetails = (
@@ -63,10 +32,7 @@ const buildConnectionDetails = (
 };
 
 // Helper function to validate credentials
-const validateCredentials = (
-  details: IDatabaseConnection,
-  type: string
-): void => {
+const validateCredentials = (details: IDatabaseConnection, type: string) => {
   if (!details.database || !details.username || !details.password) {
     console.error(`Error: ${type} database credentials are required.`);
     process.exit(1);
@@ -74,15 +40,13 @@ const validateCredentials = (
 };
 
 // Helper function to build connection string
-const buildConnectionString = (details: IDatabaseConnection): string => {
+const buildConnectionString = (details: IDatabaseConnection) => {
   return `postgresql://${details.username}:${details.password}@${details.host}:${details.port}/${details.database}`;
 };
 
-export const syncCommand = async (
-  options: ISyncCommandOptions
-): Promise<void> => {
+export const syncCommand = async (options: ISyncCommandOptions) => {
   try {
-    await loadEnvFile();
+    await loadEnvFile(false); // Don't skip in any environment for sync
 
     // Check sync mode
     if (options.sourceRepo && options.targetRepo) {
@@ -103,7 +67,7 @@ export const syncCommand = async (
 /**
  * Execute repository sync
  */
-async function executeRepoSync(options: ISyncCommandOptions): Promise<void> {
+async function executeRepoSync(options: ISyncCommandOptions) {
   if (!options.sourceRepo || !options.targetRepo) {
     console.error(
       'Error: Both --source-repo and --target-repo are required for repository sync'
@@ -127,9 +91,7 @@ async function executeRepoSync(options: ISyncCommandOptions): Promise<void> {
 /**
  * Execute database sync (existing functionality)
  */
-async function executeDatabaseSync(
-  options: ISyncCommandOptions
-): Promise<void> {
+async function executeDatabaseSync(options: ISyncCommandOptions) {
   // Build connection details
   const sourceDetails = buildConnectionDetails(options, 'source');
   const targetDetails = buildConnectionDetails(options, 'target');
@@ -147,9 +109,13 @@ async function executeDatabaseSync(
   console.log(`Target: ${targetDetails.database}.${targetDetails.schema}`);
   console.log(`Output: ${options.output}`);
 
-  // Use existing sync functionality
-  const client = new Client({
+  // Create separate clients for source and target
+  const sourceClient = new Client({
     connectionString: sourceConnectionString,
+  });
+
+  const targetClient = new Client({
+    connectionString: targetConnectionString,
   });
 
   const syncOptions = {
@@ -161,6 +127,11 @@ async function executeDatabaseSync(
     dryRun: options.dryRun ?? false,
   };
 
-  const orchestrator = new SchemaSyncOrchestrator(client, syncOptions);
+  const orchestrator = new SchemaSyncOrchestrator(
+    sourceClient,
+    targetClient,
+    syncOptions
+  );
+
   await orchestrator.execute();
 }
