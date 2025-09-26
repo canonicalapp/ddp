@@ -4,7 +4,6 @@
  */
 
 import type { ILegacySyncOptions, TNullable } from '@/types';
-import { Utils } from '@/utils/formatting';
 import type { Client } from 'pg';
 
 interface IFunctionRow {
@@ -320,12 +319,9 @@ export class FunctionOperations {
         } has changed, updating in ${this.options.target}`
       );
 
-      const oldFunctionName = `${sourceFunction.routine_name}_old_${Utils.generateTimestamp()}`;
+      // Drop the existing function first
       alterStatements.push(
-        `-- Renaming old ${sourceFunction.routine_type.toLowerCase() || 'function'} to ${oldFunctionName} for manual review`
-      );
-      alterStatements.push(
-        `ALTER ${sourceFunction.routine_type.toLowerCase() === 'procedure' ? 'PROCEDURE' : 'FUNCTION'} ${this.options.target}.${sourceFunction.routine_name} RENAME TO ${oldFunctionName};`
+        `DROP ${sourceFunction.routine_type.toLowerCase() === 'procedure' ? 'PROCEDURE' : 'FUNCTION'} IF EXISTS ${this.options.target}.${sourceFunction.routine_name};`
       );
 
       const definition = await this.getFunctionDefinition(
@@ -392,21 +388,11 @@ export class FunctionOperations {
     );
 
     for (const func of functionsToDrop) {
-      const backupName = Utils.generateBackupName(func.routine_name);
-
       alterStatements.push(
         `-- ${func.routine_type} ${func.routine_name} exists in ${this.options.target} but not in ${this.options.source}`
       );
       alterStatements.push(
-        `-- Renaming ${func.routine_type.toLowerCase() || 'function'} to preserve before manual drop`
-      );
-      alterStatements.push(
-        `ALTER ${func.routine_type.toLowerCase() === 'procedure' ? 'PROCEDURE' : 'FUNCTION'} ${this.options.target}.${func.routine_name} RENAME TO ${backupName};`
-      );
-      alterStatements.push(
-        `-- TODO: Manually drop ${func.routine_type.toLowerCase() || 'function'} ${
-          this.options.target
-        }.${backupName} after confirming it's no longer needed`
+        `DROP ${func.routine_type.toLowerCase() === 'procedure' ? 'PROCEDURE' : 'FUNCTION'} IF EXISTS ${this.options.target}.${func.routine_name};`
       );
     }
   }

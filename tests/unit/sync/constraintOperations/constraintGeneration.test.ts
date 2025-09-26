@@ -335,13 +335,8 @@ describe('ConstraintOperations - Constraint Generation', () => {
       );
       expect(
         alterStatements.some(line =>
-          line.includes('-- Renaming old constraint to test_constraint_old_')
-        )
-      ).toBe(true);
-      expect(
-        alterStatements.some(line =>
           line.includes(
-            'ALTER TABLE prod_schema.test_table RENAME CONSTRAINT test_constraint TO test_constraint_old_'
+            'ALTER TABLE prod_schema.test_table DROP CONSTRAINT IF EXISTS test_constraint;'
           )
         )
       ).toBe(true);
@@ -482,7 +477,8 @@ describe('ConstraintOperations - Constraint Generation', () => {
       expect(
         alterStatements.filter(
           line =>
-            line.includes('ALTER TABLE') && line.includes('RENAME CONSTRAINT')
+            line.includes('ALTER TABLE') &&
+            line.includes('DROP CONSTRAINT IF EXISTS')
         ).length
       ).toBe(2);
       expect(

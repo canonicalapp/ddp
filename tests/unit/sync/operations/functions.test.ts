@@ -152,21 +152,7 @@ describe('FunctionOperations', () => {
       ).toBe(true);
       expect(
         result.some(line =>
-          line.includes('-- Renaming function to preserve before manual drop')
-        )
-      ).toBe(true);
-      expect(
-        result.some(line =>
-          line.includes(
-            'ALTER FUNCTION prod_schema.old_function RENAME TO old_function_backup_2024-01-01T00-00-00-000Z;'
-          )
-        )
-      ).toBe(true);
-      expect(
-        result.some(line =>
-          line.includes(
-            "-- TODO: Manually drop function prod_schema.old_function_backup_2024-01-01T00-00-00-000Z after confirming it's no longer needed"
-          )
+          line.includes('DROP FUNCTION IF EXISTS prod_schema.old_function;')
         )
       ).toBe(true);
     });
@@ -207,21 +193,7 @@ describe('FunctionOperations', () => {
       ).toBe(true);
       expect(
         result.some(line =>
-          line.includes('-- Renaming procedure to preserve before manual drop')
-        )
-      ).toBe(true);
-      expect(
-        result.some(line =>
-          line.includes(
-            'ALTER PROCEDURE prod_schema.old_procedure RENAME TO old_procedure_backup_2024-01-01T00-00-00-000Z;'
-          )
-        )
-      ).toBe(true);
-      expect(
-        result.some(line =>
-          line.includes(
-            "-- TODO: Manually drop procedure prod_schema.old_procedure_backup_2024-01-01T00-00-00-000Z after confirming it's no longer needed"
-          )
+          line.includes('DROP PROCEDURE IF EXISTS prod_schema.old_procedure;')
         )
       ).toBe(true);
     });
@@ -476,7 +448,7 @@ describe('FunctionOperations', () => {
         ).length
       ).toBe(2);
       expect(
-        result.filter(line => line.includes('ALTER FUNCTION')).length
+        result.filter(line => line.includes('DROP FUNCTION IF EXISTS')).length
       ).toBe(2);
     });
 
@@ -704,14 +676,7 @@ describe('FunctionOperations', () => {
       );
       expect(
         alterStatements.some(line =>
-          line.includes('-- Renaming old function to test_function_old_')
-        )
-      ).toBe(true);
-      expect(
-        alterStatements.some(line =>
-          line.includes(
-            'ALTER FUNCTION prod_schema.test_function RENAME TO test_function_old_'
-          )
+          line.includes('DROP FUNCTION IF EXISTS prod_schema.test_function;')
         )
       ).toBe(true);
       expect(
@@ -824,13 +789,12 @@ describe('FunctionOperations', () => {
         ).length
       ).toBe(1);
       expect(
-        alterStatements.filter(
-          line => line.includes('ALTER FUNCTION') && line.includes('RENAME TO')
-        ).length
+        alterStatements.filter(line => line.includes('DROP FUNCTION IF EXISTS'))
+          .length
       ).toBe(1);
       expect(
-        alterStatements.filter(
-          line => line.includes('ALTER PROCEDURE') && line.includes('RENAME TO')
+        alterStatements.filter(line =>
+          line.includes('DROP PROCEDURE IF EXISTS')
         ).length
       ).toBe(1);
       expect(

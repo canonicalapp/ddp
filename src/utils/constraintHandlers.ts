@@ -66,13 +66,17 @@ export class ConstraintHandlers {
         `-- Constraint ${sourceConstraint.constraint_name} has changed, updating in ${this.options.target}`
       );
 
-      const oldConstraintName = `${sourceConstraint.constraint_name}_old_${Utils.generateTimestamp()}`;
-      alterStatements.push(
-        `-- Renaming old constraint to ${oldConstraintName} for manual review`
+      // Generate proper constraint name for dropping
+      const properConstraintName = this.generateProperConstraintName(
+        sourceConstraint.constraint_name,
+        sourceConstraint.constraint_type,
+        sourceConstraint.table_name,
+        sourceConstraint.column_name ?? ''
       );
 
+      // Drop the existing constraint first
       alterStatements.push(
-        `ALTER TABLE ${this.options.target}.${sourceConstraint.table_name} RENAME CONSTRAINT ${sourceConstraint.constraint_name} TO ${oldConstraintName};`
+        `ALTER TABLE ${this.options.target}.${sourceConstraint.table_name} DROP CONSTRAINT IF EXISTS ${properConstraintName};`
       );
 
       const constraintDefinition =
