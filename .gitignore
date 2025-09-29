@@ -75,6 +75,7 @@ build/
 .env
 .env.*
 !.env.template
+!.env.testing
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -147,7 +148,7 @@ vite.config.ts.timestamp-*
 # Project-specific ignores
 # Generated SQL files (but allow test-database-setup.sql)
 *.sql
-!test-database-setup.sql
+!test-database-*.sql
 alter.sql
 test-script.sql
 

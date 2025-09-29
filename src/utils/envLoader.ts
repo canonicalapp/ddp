@@ -5,9 +5,11 @@ import type { TRecord } from '@/types';
 /**
  * Load environment variables from .env file
  * @param skipInTest - Whether to skip loading in test environment (default: true)
+ * @param customPath - Custom path to .env file (optional)
  */
 export const loadEnvFile = async (
-  skipInTest: boolean = true
+  skipInTest: boolean = true,
+  customPath?: string
 ): Promise<void> => {
   // Skip loading .env file in test environment if requested
   if (
@@ -18,14 +20,21 @@ export const loadEnvFile = async (
   }
 
   try {
-    const envPath = await findUp('.env', { cwd: process.cwd() });
+    let envPath: string | undefined;
+
+    if (customPath) {
+      envPath = customPath;
+    } else {
+      envPath = await findUp('.env', { cwd: process.cwd() });
+    }
+
     if (envPath) {
       const envContent = readFileSync(envPath, 'utf8');
       const envVars: TRecord<string, string> = {};
 
       envContent.split('\n').forEach((line: string) => {
         const [key, ...valueParts] = line.split('=');
-        if (key && valueParts.length > 0) {
+        if (key && valueParts.length > 0 && !key.startsWith('#')) {
           const value = valueParts.join('=').trim();
           envVars[key.trim()] = value;
         }
