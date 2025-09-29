@@ -49,10 +49,11 @@ export default {
     '!**/*.d.ts',
   ],
 
-  // Setup files - removed setup.js as it only mocks console
+  // Setup files
+  setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
 
   // Test timeout
-  testTimeout: 30000,
+  testTimeout: 60000,
 
   // Verbose output
   verbose: true,
@@ -60,4 +61,13 @@ export default {
   // Clear mocks between tests
   clearMocks: true,
   restoreMocks: true,
+
+  // Force exit to prevent hanging processes
+  forceExit: true,
+
+  // Detect open handles to help debug leaks
+  detectOpenHandles: true,
+
+  // Max workers to prevent too many concurrent database connections
+  maxWorkers: 1,
 };

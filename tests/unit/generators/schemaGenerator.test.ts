@@ -10,12 +10,7 @@ import {
 } from '@/fixtures/generatorTestUtils';
 import { createMockClient } from '@/fixtures/testUtils';
 import { SchemaGenerator } from '@/generators/schemaGenerator';
-import type {
-  IColumnDefinition,
-  IConstraintDefinition,
-  IIndexDefinition,
-  ITableDefinition,
-} from '@/types';
+import type { ITableDefinition } from '@/types';
 
 // Mock IntrospectionService
 const mockIntrospectionService = createMockIntrospectionService();
@@ -168,9 +163,9 @@ describe('Schema Generator', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe('schema.sql');
-      expect(result[0].content).toContain('CREATE TABLE public.users');
-      expect(result[0].content).toContain('id INTEGER NOT NULL');
-      expect(result[0].content).toContain('name CHARACTER VARYING NOT NULL');
+      expect(result[0].content).toContain('CREATE TABLE "public"."users"');
+      expect(result[0].content).toContain('"id" INTEGER NOT NULL');
+      expect(result[0].content).toContain('"name" CHARACTER VARYING NOT NULL');
       expect(result[0].content).toContain('PRIMARY KEY ()');
     });
 
@@ -212,8 +207,10 @@ describe('Schema Generator', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe('schema.sql');
-      expect(result[0].content).toContain('CREATE TABLE public.simple_table');
-      expect(result[0].content).toContain('id INTEGER');
+      expect(result[0].content).toContain(
+        'CREATE TABLE "public"."simple_table"'
+      );
+      expect(result[0].content).toContain('"id" INTEGER');
     });
   });
 
@@ -239,10 +236,8 @@ describe('Schema Generator', () => {
         };
 
         const result = (
-          generator as unknown as {
-            convertToTableDefinition: (data: any) => ITableDefinition;
-          }
-        ).convertToTableDefinition(tableData);
+          generator as any
+        ).tableConverter.convertToTableDefinition(tableData);
 
         expect(result.name).toBe('test_table');
         expect(result.schema).toBe('public');
@@ -269,10 +264,8 @@ describe('Schema Generator', () => {
         };
 
         const result = (
-          generator as unknown as {
-            convertToColumnDefinition: (data: any) => IColumnDefinition;
-          }
-        ).convertToColumnDefinition(columnData);
+          generator as any
+        ).tableBuilder.columnBuilder.convertToColumnDefinition(columnData);
 
         expect(result.name).toBe('test_column');
         expect(result.type).toBe('varchar');
@@ -301,10 +294,8 @@ describe('Schema Generator', () => {
         };
 
         const result = (
-          generator as unknown as {
-            convertToConstraintDefinition: (data: any) => IConstraintDefinition;
-          }
-        ).convertToConstraintDefinition(constraintData);
+          generator as any
+        ).constraintBuilder.convertToConstraintDefinition(constraintData);
 
         expect(result.name).toBe('test_constraint');
         expect(result.type).toBe('PRIMARY KEY');
@@ -330,10 +321,8 @@ describe('Schema Generator', () => {
         };
 
         const result = (
-          generator as unknown as {
-            convertToConstraintDefinition: (data: any) => IConstraintDefinition;
-          }
-        ).convertToConstraintDefinition(constraintData);
+          generator as any
+        ).constraintBuilder.convertToConstraintDefinition(constraintData);
 
         expect(result.name).toBe('fk_test');
         expect(result.type).toBe('FOREIGN KEY');
@@ -366,10 +355,8 @@ describe('Schema Generator', () => {
         };
 
         const result = (
-          generator as unknown as {
-            convertToIndexDefinition: (data: any) => IIndexDefinition;
-          }
-        ).convertToIndexDefinition(indexData);
+          generator as any
+        ).tableBuilder.indexBuilder.convertToIndexDefinition(indexData);
 
         expect(result.name).toBe('test_index');
         expect(result.table).toBe('test_table');
@@ -412,7 +399,7 @@ describe('Schema Generator', () => {
 
         expect(result).toContain('-- SCHEMA DEFINITION');
         expect(result).toContain('-- Table: Users table');
-        expect(result).toContain('CREATE TABLE public.users');
+        expect(result).toContain('CREATE TABLE "public"."users"');
       });
     });
 
@@ -434,15 +421,11 @@ describe('Schema Generator', () => {
           comment: 'Test table',
         };
 
-        const result = (
-          generator as unknown as {
-            generateTableSQL: (table: ITableDefinition) => string;
-          }
-        ).generateTableSQL(table);
+        const result = (generator as any).tableBuilder.generateTableSQL(table);
 
         expect(result).toContain('-- Table: Test table');
-        expect(result).toContain('CREATE TABLE public.test_table');
-        expect(result).toContain('id INTEGER NOT NULL DEFAULT 1');
+        expect(result).toContain('CREATE TABLE "public"."test_table"');
+        expect(result).toContain('"id" INTEGER NOT NULL DEFAULT 1');
       });
     });
 
@@ -457,17 +440,15 @@ describe('Schema Generator', () => {
         };
 
         const result = (
-          generator as unknown as {
-            generateConstraintSQL: (
-              constraint: IConstraintDefinition,
-              schema: string,
-              table: string
-            ) => string;
-          }
-        ).generateConstraintSQL(constraint, 'public', 'test_table');
+          generator as any
+        ).constraintBuilder.generateConstraintSQL(
+          constraint,
+          'public',
+          'test_table'
+        );
 
         expect(result).toContain(
-          'ALTER TABLE public.test_table ADD CONSTRAINT pk_test PRIMARY KEY (id)'
+          'ALTER TABLE "public"."test_table" ADD CONSTRAINT "pk_test" PRIMARY KEY ("id")'
         );
       });
 
@@ -485,19 +466,17 @@ describe('Schema Generator', () => {
         };
 
         const result = (
-          generator as unknown as {
-            generateConstraintSQL: (
-              constraint: IConstraintDefinition,
-              schema: string,
-              table: string
-            ) => string;
-          }
-        ).generateConstraintSQL(constraint, 'public', 'test_table');
+          generator as any
+        ).constraintBuilder.generateConstraintSQL(
+          constraint,
+          'public',
+          'test_table'
+        );
 
         expect(result).toContain(
-          'ALTER TABLE public.test_table ADD CONSTRAINT fk_test FOREIGN KEY (user_id)'
+          'ALTER TABLE "public"."test_table" ADD CONSTRAINT "fk_test" FOREIGN KEY ("user_id")'
         );
-        expect(result).toContain('REFERENCES public.users (id)');
+        expect(result).toContain('REFERENCES "public"."users" ("id")');
         expect(result).toContain('ON DELETE CASCADE');
         expect(result).toContain('ON UPDATE RESTRICT');
       });
@@ -514,17 +493,12 @@ describe('Schema Generator', () => {
         };
 
         const result = (
-          generator as unknown as {
-            generateIndexSQL: (
-              index: IIndexDefinition,
-              schema: string
-            ) => string;
-          }
-        ).generateIndexSQL(index, 'public');
+          generator as any
+        ).tableBuilder.indexBuilder.generateIndexSQL(index, 'public');
 
-        expect(result).toContain('CREATE UNIQUE INDEX idx_test');
-        expect(result).toContain('ON public.test_table');
-        expect(result).toContain('(id, name)');
+        expect(result).toContain('CREATE UNIQUE INDEX "idx_test"');
+        expect(result).toContain('ON "public"."test_table"');
+        expect(result).toContain('("id", "name")');
       });
     });
   });

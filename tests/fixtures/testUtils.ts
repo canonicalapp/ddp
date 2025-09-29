@@ -2,6 +2,8 @@
  * Test utilities for schema-sync-script tests
  */
 
+import { TestDatabaseConfig } from './testDatabase';
+
 /**
  * Create a mock PostgreSQL client for testing
  */
@@ -118,3 +120,107 @@ export const createJestMockClient = () => {
     query: global.jest.fn().mockResolvedValue({ rows: [] }),
   };
 };
+
+/**
+ * Creates a test database configuration using environment variables
+ * with fallback to default values for local development
+ */
+export function createTestConfig(
+  database: string,
+  schema: string = 'dev'
+): TestDatabaseConfig {
+  return {
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    database,
+    username: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'root',
+    schema,
+  };
+}
+
+/**
+ * Creates a source database configuration for sync testing
+ */
+export function createSourceTestConfig(
+  database: string,
+  schema: string = 'dev'
+): TestDatabaseConfig {
+  return {
+    host: process.env.SOURCE_DB_HOST || 'localhost',
+    port: parseInt(process.env.SOURCE_DB_PORT || '5432'),
+    database,
+    username: process.env.SOURCE_DB_USER || 'postgres',
+    password: process.env.SOURCE_DB_PASSWORD || 'root',
+    schema,
+  };
+}
+
+/**
+ * Creates a target database configuration for sync testing
+ */
+export function createTargetTestConfig(
+  database: string,
+  schema: string = 'prod'
+): TestDatabaseConfig {
+  return {
+    host: process.env.TARGET_DB_HOST || 'localhost',
+    port: parseInt(process.env.TARGET_DB_PORT || '5432'),
+    database,
+    username: process.env.TARGET_DB_USER || 'postgres',
+    password: process.env.TARGET_DB_PASSWORD || 'root',
+    schema,
+  };
+}
+
+/**
+ * Creates a gen command string using environment variables
+ */
+export function createGenCommand(
+  config: TestDatabaseConfig,
+  outputDir: string
+): string {
+  return `npm run dev gen -- --host ${config.host} --port ${config.port} --username ${config.username} --password ${config.password} --database ${config.database} --schema ${config.schema} --output ${outputDir}`;
+}
+
+/**
+ * Creates a sync command string using environment variables
+ */
+export function createSyncCommand(
+  sourceConfig: TestDatabaseConfig,
+  targetConfig: TestDatabaseConfig,
+  outputFile: string
+): string {
+  return `npm run dev sync -- --source-host ${sourceConfig.host} --source-port ${sourceConfig.port} --source-username ${sourceConfig.username} --source-password ${sourceConfig.password} --source-database ${sourceConfig.database} --source-schema ${sourceConfig.schema} --target-host ${targetConfig.host} --target-port ${targetConfig.port} --target-username ${targetConfig.username} --target-password ${targetConfig.password} --target-database ${targetConfig.database} --target-schema ${targetConfig.schema} --output ${outputFile}`;
+}
+
+/**
+ * Environment variables used for testing
+ */
+export const TEST_ENV = {
+  // Gen command database
+  HOST: process.env.DB_HOST || 'localhost',
+  PORT: process.env.DB_PORT || '5432',
+  USER: process.env.DB_USER || 'postgres',
+  PASSWORD: process.env.DB_PASSWORD || 'root',
+  SCHEMA: process.env.DB_SCHEMA || 'dev',
+
+  // Source database for sync
+  SOURCE_HOST: process.env.SOURCE_DB_HOST || 'localhost',
+  SOURCE_PORT: process.env.SOURCE_DB_PORT || '5432',
+  SOURCE_USER: process.env.SOURCE_DB_USER || 'postgres',
+  SOURCE_PASSWORD: process.env.SOURCE_DB_PASSWORD || 'root',
+  SOURCE_SCHEMA: process.env.SOURCE_DB_SCHEMA || 'dev',
+
+  // Target database for sync
+  TARGET_HOST: process.env.TARGET_DB_HOST || 'localhost',
+  TARGET_PORT: process.env.TARGET_DB_PORT || '5432',
+  TARGET_USER: process.env.TARGET_DB_USER || 'postgres',
+  TARGET_PASSWORD: process.env.TARGET_DB_PASSWORD || 'root',
+  TARGET_SCHEMA: process.env.TARGET_DB_SCHEMA || 'prod',
+
+  // Test configuration
+  DATA_SCRIPT: process.env.TEST_DATA_SCRIPT_BASIC || 'test-database-setup.sql',
+  OUTPUT_DIR: process.env.TEST_OUTPUT_DIR || 'output/test-runner',
+  TIMEOUT: parseInt(process.env.TEST_TIMEOUT || '60000'),
+} as const;
