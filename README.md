@@ -408,6 +408,8 @@ npm run clean:all
 7. Push to the branch (`git push origin feature/amazing-feature`)
 8. Open a Pull Request
 
+Publishing and version bumps use [semantic versioning](https://semver.org); see [RELEASING.md](RELEASING.md).
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

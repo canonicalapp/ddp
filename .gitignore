@@ -190,3 +190,6 @@ schema-sync-*.log
 sync-*.log
 .git-*
 .npmrc
+
+# Local DDP project tree (e.g. ddp init / scratch apply testing)
+temp-db/
