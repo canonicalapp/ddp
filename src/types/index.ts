@@ -17,6 +17,9 @@ export type * from './generator';
 // Sync Types
 export type * from './sync';
 
+// Apply Types
+export type * from './apply';
+
 // Validation Types - Removed unused types
 
 // Environment Types - Removed unused types

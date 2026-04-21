@@ -47,3 +47,40 @@ export interface ISyncCommandOptions {
   output?: string;
   dryRun?: boolean;
 }
+
+export interface IInitCommandOptions {
+  path?: string;
+  force?: boolean;
+}
+
+export interface IMigrationCreateCommandOptions {
+  name: string;
+}
+
+/** `ddp migration diff`: optional shadow URL; default same DB + shadow schema */
+export interface IMigrateDiffCommandOptions extends IDatabaseConnectionOptions {
+  /** Separate disposable DB (optional). If omitted, uses target DB + shadow schema. */
+  shadowUrl?: string;
+  /** Schema for materialized state when using same DB as target (default: DDP_SHADOW_SCHEMA or ddp_shadow). */
+  shadowSchema?: string;
+  write?: boolean;
+  /** With `--write`: optional in TTY (prompted); required with `--non-interactive` or non-TTY. */
+  migrationName?: string;
+  /** Create target database if missing (same semantics as `ddp apply`). */
+  createDatabase?: boolean;
+  /** Fail instead of prompting when DB is missing (use with --create-database in CI). */
+  nonInteractive?: boolean;
+}
+
+export type StateArtifactType = 'schema' | 'proc' | 'trigger';
+
+export type SchemaStateKind =
+  | 'table'
+  | 'index'
+  | 'constraint'
+  | 'extension'
+  | 'view'
+  | 'enum';
+
+// Re-export apply command options
+export type { IApplyCommandOptions } from './apply';
