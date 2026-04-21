@@ -2,35 +2,35 @@ name: Schema Sync
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
     paths:
-      - 'schema.sql'
-      - 'procs.sql'
-      - 'triggers.sql'
+      - "schema.sql"
+      - "procs.sql"
+      - "triggers.sql"
   pull_request:
-    branches: [main]
+    branches: [ main ]
     paths:
-      - 'schema.sql'
-      - 'procs.sql'
-      - 'triggers.sql'
+      - "schema.sql"
+      - "procs.sql"
+      - "triggers.sql"
   workflow_dispatch:
     inputs:
       source_repo:
-        description: 'Source repository'
+        description: "Source repository"
         required: true
-        default: ''
+        default: ""
       target_repo:
-        description: 'Target repository'
+        description: "Target repository"
         required: true
-        default: ''
+        default: ""
       source_branch:
-        description: 'Source branch'
+        description: "Source branch"
         required: false
-        default: 'main'
+        default: "main"
       target_branch:
-        description: 'Target branch'
+        description: "Target branch"
         required: false
-        default: 'main'
+        default: "main"
 
 jobs:
   schema-sync:
@@ -56,8 +56,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm'
+          node-version: "18"
+          cache: "npm"
 
       - name: Install DDP
         run: npm install -g ddp
@@ -116,8 +116,9 @@ jobs:
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: 'chore: schema sync changes'
-          title: 'Schema Sync: ${{ github.event.inputs.source_repo || github.repository }} → ${{ github.event.inputs.target_repo || github.repository }}'
+          commit-message: "chore: schema sync changes"
+          title: "Schema Sync: ${{ github.event.inputs.source_repo || github.repository }}
+            → ${{ github.event.inputs.target_repo || github.repository }}"
           body: |
             ## Schema Sync Changes
 
