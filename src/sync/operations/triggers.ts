@@ -4,6 +4,12 @@
  */
 
 import type { ILegacySyncOptions, TArray, TNullable } from '@/types';
+import { isDdpDiffIgnoredTable } from '@/sync/ddpInternalSchema';
+import {
+  type SyncDbSide,
+  clientForSyncSide,
+  schemaNameForSide,
+} from '@/sync/syncClient';
 import type { Client } from 'pg';
 import { Utils } from '@/utils/formatting';
 
@@ -41,9 +47,9 @@ export class TriggerOperations {
   }
 
   /**
-   * Get all triggers from a schema
+   * Get all triggers from a schema on the given database.
    */
-  async getTriggers(schemaName: string): Promise<TArray<ITriggerRow>> {
+  async getTriggers(side: SyncDbSide): Promise<TArray<ITriggerRow>> {
     const triggersQuery = `
       SELECT 
         trigger_name,
@@ -56,21 +62,22 @@ export class TriggerOperations {
       ORDER BY event_object_table, trigger_name
     `;
 
-    // Use the appropriate client based on schema
-    const client =
-      schemaName === this.options.source
-        ? this.sourceClient
-        : this.targetClient;
+    const schemaName = schemaNameForSide(side, this.options);
+    const client = clientForSyncSide(
+      side,
+      this.sourceClient,
+      this.targetClient
+    );
 
     const result = await client.query(triggersQuery, [schemaName]);
     return result.rows;
   }
 
   /**
-   * Get detailed trigger definition from source schema
+   * Get detailed trigger definition from the given database side.
    */
   async getTriggerDefinition(
-    schemaName: string,
+    side: SyncDbSide,
     triggerName: string,
     tableName: string
   ): Promise<TNullable<ITriggerDefinition>> {
@@ -91,11 +98,12 @@ export class TriggerOperations {
         AND t.event_object_table = $3
       `;
 
-      // Use the appropriate client based on schema
-      const client =
-        schemaName === this.options.source
-          ? this.sourceClient
-          : this.targetClient;
+      const schemaName = schemaNameForSide(side, this.options);
+      const client = clientForSyncSide(
+        side,
+        this.sourceClient,
+        this.targetClient
+      );
 
       const result = await client.query(triggerDefQuery, [
         schemaName,
@@ -312,12 +320,12 @@ export class TriggerOperations {
       if (!sourceFirstTrigger || !targetFirstTrigger) continue;
 
       const sourceDefinition = await this.getTriggerDefinition(
-        this.options.source,
+        'source',
         triggerName,
         sourceFirstTrigger.event_object_table
       );
       const targetDefinition = await this.getTriggerDefinition(
-        this.options.target,
+        'target',
         triggerName,
         targetFirstTrigger.event_object_table
       );
@@ -368,8 +376,10 @@ export class TriggerOperations {
   async generateTriggerOperations() {
     const alterStatements: string[] = [];
 
-    const sourceTriggers = await this.getTriggers(this.options.source);
-    const targetTriggers = await this.getTriggers(this.options.target);
+    const keep = (t: ITriggerRow) =>
+      !isDdpDiffIgnoredTable(t.event_object_table);
+    const sourceTriggers = (await this.getTriggers('source')).filter(keep);
+    const targetTriggers = (await this.getTriggers('target')).filter(keep);
 
     await this.handleTriggersToDrop(
       sourceTriggers,

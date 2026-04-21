@@ -226,10 +226,10 @@ describe('Edge Cases and Error Handling', () => {
       const tableOps = new TableOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: 'test_schema', target: 'test_schema' })
       );
 
-      await expect(tableOps.getTables('test_schema')).rejects.toThrow();
+      await expect(tableOps.getTables('source')).rejects.toThrow();
     });
 
     it('should handle query with no rows property', async () => {
@@ -238,10 +238,10 @@ describe('Edge Cases and Error Handling', () => {
       const tableOps = new TableOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: 'test_schema', target: 'test_schema' })
       );
 
-      await expect(tableOps.getTables('test_schema')).rejects.toThrow();
+      await expect(tableOps.getTables('source')).rejects.toThrow();
     });
 
     it('should handle query returning non-array rows', async () => {
@@ -250,10 +250,10 @@ describe('Edge Cases and Error Handling', () => {
       const tableOps = new TableOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: 'test_schema', target: 'test_schema' })
       );
 
-      await expect(tableOps.getTables('test_schema')).rejects.toThrow();
+      await expect(tableOps.getTables('source')).rejects.toThrow();
     });
 
     it('should handle extremely large result sets', async () => {
@@ -263,10 +263,10 @@ describe('Edge Cases and Error Handling', () => {
       const tableOps = new TableOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: 'test_schema', target: 'test_schema' })
       );
 
-      const result = await tableOps.getTables('test_schema');
+      const result = await tableOps.getTables('source');
       expect(result).toHaveLength(100000);
     });
 
@@ -278,11 +278,11 @@ describe('Edge Cases and Error Handling', () => {
       const tableOps = new TableOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: 'test_schema', target: 'test_schema' })
       );
 
       // Should not throw, but may produce unexpected results
-      const result = await tableOps.getTables('test_schema');
+      const result = await tableOps.getTables('source');
       expect(result).toBeDefined();
     });
   });
@@ -306,10 +306,10 @@ describe('Edge Cases and Error Handling', () => {
       const tableOps = new TableOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: maliciousSchema, target: maliciousSchema })
       );
 
-      await tableOps.getTables(maliciousSchema);
+      await tableOps.getTables('source');
 
       // Verify the query was parameterized (not concatenated)
       expect(
@@ -338,10 +338,10 @@ describe('Edge Cases and Error Handling', () => {
       const tableOps = new TableOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: unicodeSchema, target: unicodeSchema })
       );
 
-      await tableOps.getTables(unicodeSchema);
+      await tableOps.getTables('source');
 
       expect(
         mockSourceClient.query.toHaveBeenCalledWith(expect.any(String), [
@@ -368,10 +368,10 @@ describe('Edge Cases and Error Handling', () => {
       const tableOps = new TableOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: longSchema, target: longSchema })
       );
 
-      await tableOps.getTables(longSchema);
+      await tableOps.getTables('source');
 
       expect(
         mockSourceClient.query.toHaveBeenCalledWith(expect.any(String), [
@@ -396,10 +396,10 @@ describe('Edge Cases and Error Handling', () => {
       const tableOps = new TableOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: '', target: '' })
       );
 
-      await tableOps.getTables('');
+      await tableOps.getTables('source');
 
       expect(
         mockSourceClient.query.toHaveBeenCalledWith(expect.any(String), [''])
@@ -425,10 +425,10 @@ describe('Edge Cases and Error Handling', () => {
       const columnOps = new ColumnOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: 'test_schema', target: 'test_schema' })
       );
 
-      const result = await columnOps.getColumns('test_schema');
+      const result = await columnOps.getColumns('source');
       expect(result).toContain(unknownTypeColumn);
     });
 
@@ -449,10 +449,10 @@ describe('Edge Cases and Error Handling', () => {
       const columnOps = new ColumnOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: 'test_schema', target: 'test_schema' })
       );
 
-      const result = await columnOps.getColumns('test_schema');
+      const result = await columnOps.getColumns('source');
       expect(result).toContain(extremeLengthColumn);
     });
 
@@ -473,10 +473,10 @@ describe('Edge Cases and Error Handling', () => {
       const columnOps = new ColumnOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: 'test_schema', target: 'test_schema' })
       );
 
-      const result = await columnOps.getColumns('test_schema');
+      const result = await columnOps.getColumns('source');
       expect(result).toContain(negativeLengthColumn);
     });
   });
@@ -502,10 +502,10 @@ describe('Edge Cases and Error Handling', () => {
       const columnOps = new ColumnOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: 'test_schema', target: 'test_schema' })
       );
 
-      const result = await columnOps.getColumns('test_schema');
+      const result = await columnOps.getColumns('source');
       expect(result).toHaveLength(1000);
     });
 
@@ -515,12 +515,12 @@ describe('Edge Cases and Error Handling', () => {
       const tableOps = new TableOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: 'test_schema', target: 'test_schema' })
       );
 
       // Run multiple operations concurrently
       const promises = Array.from({ length: 100 }, () =>
-        tableOps.getTables('test_schema')
+        tableOps.getTables('source')
       );
 
       const results = await Promise.all(promises);
@@ -543,12 +543,12 @@ describe('Edge Cases and Error Handling', () => {
       const tableOps = new TableOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: 'test_schema', target: 'test_schema' })
       );
 
       // Make rapid successive calls
       for (let i = 0; i < 1000; i++) {
-        await tableOps.getTables('test_schema');
+        await tableOps.getTables('source');
       }
 
       expect(mockSourceClient.query.toHaveBeenCalledTimes(1000)).toBe(true);
@@ -652,10 +652,10 @@ describe('Edge Cases and Error Handling', () => {
       const tableOps = new TableOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: 'test_schema', target: 'test_schema' })
       );
 
-      await expect(tableOps.getTables('test_schema')).rejects.toThrow(
+      await expect(tableOps.getTables('source')).rejects.toThrow(
         'Network is unreachable'
       );
     });
@@ -741,10 +741,10 @@ describe('Edge Cases and Error Handling', () => {
       const tableOps = new TableOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: 'test_schema', target: 'test_schema' })
       );
 
-      const result = await tableOps.getTables('test_schema');
+      const result = await tableOps.getTables('source');
       expect(result).toBeDefined();
       expect(Array.isArray(result)).toBe(true);
     });
@@ -755,10 +755,10 @@ describe('Edge Cases and Error Handling', () => {
       const tableOps = new TableOperations(
         mockSourceClient,
         mockSourceClient,
-        mockOptions
+        createMockOptions({ source: 'test_schema', target: 'test_schema' })
       );
 
-      const result = await tableOps.getTables('test_schema');
+      const result = await tableOps.getTables('source');
       expect(result).toBeDefined();
     });
   });

@@ -4,6 +4,11 @@
  */
 
 import type { ILegacySyncOptions, TNullable } from '@/types';
+import {
+  type SyncDbSide,
+  clientForSyncSide,
+  schemaNameForSide,
+} from '@/sync/syncClient';
 import type { Client } from 'pg';
 import { Utils } from './formatting';
 
@@ -46,10 +51,10 @@ export class ConstraintDefinitions {
   }
 
   /**
-   * Get detailed constraint definition from source schema
+   * Get detailed constraint definition from the given database side.
    */
   async getConstraintDefinition(
-    schemaName: string,
+    side: SyncDbSide,
     constraintName: string,
     tableName: string
   ): Promise<IConstraintRow[] | null> {
@@ -80,11 +85,12 @@ export class ConstraintDefinitions {
         ORDER BY kcu.ordinal_position
       `;
 
-      // Use the appropriate client based on schema
-      const client =
-        schemaName === this.options.source
-          ? this.sourceClient
-          : this.targetClient;
+      const schemaName = schemaNameForSide(side, this.options);
+      const client = clientForSyncSide(
+        side,
+        this.sourceClient,
+        this.targetClient
+      );
 
       const result = await client.query(constraintDefQuery, [
         schemaName,

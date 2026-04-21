@@ -92,7 +92,7 @@ export default [
     },
   },
   {
-    files: ['**/*.js'],
+    files: ['**/*.js', '**/*.cjs'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
@@ -103,6 +103,9 @@ export default [
         __dirname: 'readonly',
         __filename: 'readonly',
         global: 'readonly',
+        require: 'readonly',
+        module: 'readonly',
+        exports: 'readonly',
         jest: 'readonly',
         describe: 'readonly',
         it: 'readonly',

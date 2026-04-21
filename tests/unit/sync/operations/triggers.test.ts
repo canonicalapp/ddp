@@ -57,7 +57,7 @@ describe('TriggerOperations', () => {
         return Promise.resolve({ rows: mockTriggers });
       };
 
-      const result = await triggerOps.getTriggers('dev_schema');
+      const result = await triggerOps.getTriggers('source');
 
       // Verify the query was called with correct parameters
       expect(queryCalled).toBe(true);
@@ -76,7 +76,7 @@ describe('TriggerOperations', () => {
         return Promise.resolve({ rows: [] });
       };
 
-      await triggerOps.getTriggers('dev_schema');
+      await triggerOps.getTriggers('source');
 
       expect(queryCalled).toBe(true);
       expect(queryArgs).not.toBeNull();
@@ -88,7 +88,7 @@ describe('TriggerOperations', () => {
     it('should handle empty results', async () => {
       mockSourceClient.query.mockResolvedValue({ rows: [] });
 
-      const result = await triggerOps.getTriggers('dev_schema');
+      const result = await triggerOps.getTriggers('source');
 
       expect(result).toEqual([]);
     });
@@ -97,7 +97,7 @@ describe('TriggerOperations', () => {
       const error = new Error('Database connection failed');
       mockSourceClient.query.mockRejectedValue(error);
 
-      await expect(triggerOps.getTriggers('dev_schema')).rejects.toThrow(
+      await expect(triggerOps.getTriggers('source')).rejects.toThrow(
         'Database connection failed'
       );
     });
@@ -107,7 +107,7 @@ describe('TriggerOperations', () => {
 
       mockSourceClient.query.mockResolvedValue({ rows: mockTriggers });
 
-      const result = await triggerOps.getTriggers('dev_schema');
+      const result = await triggerOps.getTriggers('source');
 
       expect(result).toEqual(mockTriggers);
     });

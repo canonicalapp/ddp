@@ -94,7 +94,7 @@ describe('ColumnOperations', () => {
 
       mockSourceClient.query.mockResolvedValue({ rows: mockColumns });
 
-      const result = await columnOps.getColumns('dev_schema');
+      const result = await columnOps.getColumns('source');
 
       // Check that query was called with correct parameters
       const calls = mockSourceClient.query.mock.calls;
@@ -105,16 +105,16 @@ describe('ColumnOperations', () => {
     });
 
     it('should order columns by table name and ordinal position', async () => {
-      await columnOps.getColumns('dev_schema');
+      await columnOps.getColumns('source');
 
       const query = mockSourceClient.query.mock.calls[0][0];
       expect(query).toContain('ORDER BY table_name, ordinal_position');
     });
 
     it('should handle empty results', async () => {
-      mockSourceClient.query.mockResolvedValue({ rows: [] });
+      mockTargetClient.query.mockResolvedValue({ rows: [] });
 
-      const result = await columnOps.getColumns('empty_schema');
+      const result = await columnOps.getColumns('target');
 
       expect(result).toEqual([]);
     });
@@ -123,7 +123,7 @@ describe('ColumnOperations', () => {
       const error = new Error('Database connection failed');
       mockSourceClient.query.mockRejectedValue(error);
 
-      await expect(columnOps.getColumns('dev_schema')).rejects.toThrow(
+      await expect(columnOps.getColumns('source')).rejects.toThrow(
         'Database connection failed'
       );
     });

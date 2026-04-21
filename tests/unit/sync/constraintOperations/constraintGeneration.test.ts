@@ -5,6 +5,7 @@
 import { ConstraintOperations } from '../../../../src/sync/operations/constraints.ts';
 import {
   checkConstraint,
+  createConstraint,
   primaryKeyConstraint,
   uniqueConstraint,
 } from '../../../fixtures/constraintOperations/basicConstraints.ts';
@@ -56,8 +57,39 @@ describe('ConstraintOperations - Constraint Generation', () => {
         '-- Constraint old_constraint exists in prod_schema but not in dev_schema'
       );
       expect(result).toContain(
-        'ALTER TABLE prod_schema.users DROP CONSTRAINT IF EXISTS old_constraint;'
+        'ALTER TABLE prod_schema.users DROP CONSTRAINT IF EXISTS "old_constraint";'
       );
+    });
+
+    it('should omit DROP/ADD when NOT NULL CHECK names differ but clause matches', async () => {
+      const sourceRows = [
+        createConstraint(),
+        createConstraint({
+          constraint_name: 'users_col_check_shadow',
+          constraint_type: 'CHECK',
+          column_name: 'phone_number',
+          check_clause: '(phone_number IS NOT NULL)',
+        }),
+      ];
+      const targetRows = [
+        createConstraint(),
+        createConstraint({
+          constraint_name: 'users_col_check_target',
+          constraint_type: 'CHECK',
+          column_name: 'phone_number',
+          check_clause: '(phone_number IS NOT NULL)',
+        }),
+      ];
+      mockSourceClient.query = () => Promise.resolve({ rows: sourceRows });
+      mockTargetClient.query = () => Promise.resolve({ rows: targetRows });
+
+      const result = await constraintOps.generateConstraintOperations();
+
+      expect(result.filter(l => l.includes('DROP CONSTRAINT')).length).toBe(0);
+      expect(
+        result.filter(l => l.includes('ADD CONSTRAINT') && l.includes('CHECK'))
+          .length
+      ).toBe(0);
     });
 
     it('should handle constraints to create in target', async () => {
@@ -336,7 +368,7 @@ describe('ConstraintOperations - Constraint Generation', () => {
       expect(
         alterStatements.some(line =>
           line.includes(
-            'ALTER TABLE prod_schema.test_table DROP CONSTRAINT IF EXISTS test_constraint;'
+            'ALTER TABLE prod_schema.test_table DROP CONSTRAINT IF EXISTS "test_constraint";'
           )
         )
       ).toBe(true);

@@ -4,6 +4,12 @@
  */
 
 import type { ILegacySyncOptions, TArray, TNullable } from '@/types';
+import { isDdpDiffIgnoredSequence } from '@/sync/ddpInternalSchema';
+import {
+  type SyncDbSide,
+  clientForSyncSide,
+  schemaNameForSide,
+} from '@/sync/syncClient';
 import type { Client } from 'pg';
 
 interface ISequenceRow {
@@ -32,9 +38,9 @@ export class SequenceOperations {
   }
 
   /**
-   * Get all sequences from a schema
+   * Get all sequences from a schema on the given database.
    */
-  async getSequences(schemaName: string): Promise<TArray<ISequenceRow>> {
+  async getSequences(side: SyncDbSide): Promise<TArray<ISequenceRow>> {
     const sequencesQuery = `
       SELECT 
         sequence_name,
@@ -49,11 +55,12 @@ export class SequenceOperations {
       ORDER BY sequence_name
     `;
 
-    // Use the appropriate client based on schema
-    const client =
-      schemaName === this.options.source
-        ? this.sourceClient
-        : this.targetClient;
+    const schemaName = schemaNameForSide(side, this.options);
+    const client = clientForSyncSide(
+      side,
+      this.sourceClient,
+      this.targetClient
+    );
     const result = await client.query(sequencesQuery, [schemaName]);
 
     return result.rows;
@@ -106,12 +113,13 @@ export class SequenceOperations {
   async generateSequenceOperations() {
     const alterStatements: string[] = [];
 
-    const sourceSequences = await this.getSequences(this.options.source);
-    const targetSequences = await this.getSequences(this.options.target);
+    const sourceSequences = await this.getSequences('source');
+    const targetSequences = await this.getSequences('target');
 
     // Find missing sequences in target (sequences in source but not in target)
     const missingSequences = sourceSequences.filter(
       sourceSeq =>
+        !isDdpDiffIgnoredSequence(sourceSeq.sequence_name) &&
         !targetSequences.some(
           targetSeq => targetSeq.sequence_name === sourceSeq.sequence_name
         )
@@ -120,6 +128,7 @@ export class SequenceOperations {
     // Find sequences to drop in target (sequences in target but not in source)
     const sequencesToDrop = targetSequences.filter(
       targetSeq =>
+        !isDdpDiffIgnoredSequence(targetSeq.sequence_name) &&
         !sourceSequences.some(
           sourceSeq => sourceSeq.sequence_name === targetSeq.sequence_name
         )

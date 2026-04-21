@@ -6,7 +6,14 @@
 import type { ILegacySyncOptions, TNullable } from '@/types';
 import type { Client } from 'pg';
 import { ConstraintDefinitions } from './constraintDefinitions';
+import {
+  collectNotNullCheckKeys,
+  notNullCheckEquivalenceKey,
+} from './constraintNotNullEquivalence';
 import { Utils } from './formatting';
+
+const quotePgIdent = (ident: string): string =>
+  `"${ident.replace(/"/g, '""')}"`;
 
 interface IConstraintRow {
   table_name: string;
@@ -17,6 +24,19 @@ interface IConstraintRow {
   foreign_column_name: TNullable<string>;
   update_rule: TNullable<string>;
   delete_rule: TNullable<string>;
+  check_clause?: TNullable<string>;
+}
+
+/** Lower sorts earlier. FKs must run after PK/UNIQUE on referenced tables. */
+const CONSTRAINT_CREATE_PHASE: Record<string, number> = {
+  'PRIMARY KEY': 0,
+  UNIQUE: 1,
+  CHECK: 2,
+  'FOREIGN KEY': 3,
+};
+
+function constraintCreateSortKey(row: IConstraintRow): number {
+  return CONSTRAINT_CREATE_PHASE[row.constraint_type] ?? 99;
 }
 
 export class ConstraintHandlers {
@@ -66,22 +86,19 @@ export class ConstraintHandlers {
         `-- Constraint ${sourceConstraint.constraint_name} has changed, updating in ${this.options.target}`
       );
 
-      // Generate proper constraint name for dropping
-      const properConstraintName = this.generateProperConstraintName(
-        sourceConstraint.constraint_name,
-        sourceConstraint.constraint_type,
-        sourceConstraint.table_name,
-        sourceConstraint.column_name ?? ''
+      const targetConstraint = targetConstraints.find(
+        p => p.constraint_name === sourceConstraint.constraint_name
       );
-
-      // Drop the existing constraint first
+      const dropName = quotePgIdent(
+        targetConstraint?.constraint_name ?? sourceConstraint.constraint_name
+      );
       alterStatements.push(
-        `ALTER TABLE ${this.options.target}.${sourceConstraint.table_name} DROP CONSTRAINT IF EXISTS ${properConstraintName};`
+        `ALTER TABLE ${this.options.target}.${sourceConstraint.table_name} DROP CONSTRAINT IF EXISTS ${dropName};`
       );
 
       const constraintDefinition =
         await this.constraintDefinitions.getConstraintDefinition(
-          this.options.source,
+          'source',
           sourceConstraint.constraint_name,
           sourceConstraint.table_name
         );
@@ -105,25 +122,40 @@ export class ConstraintHandlers {
     targetConstraints: IConstraintRow[],
     alterStatements: string[]
   ): Promise<void> {
-    const constraintsToDrop = targetConstraints.filter(
-      p => !sourceConstraints.some(d => d.constraint_name === p.constraint_name)
-    );
+    const sourceNotNullKeys = collectNotNullCheckKeys(sourceConstraints);
+
+    const constraintsToDrop = targetConstraints.filter(p => {
+      if (
+        sourceConstraints.some(d => d.constraint_name === p.constraint_name)
+      ) {
+        return false;
+      }
+      const nnKey = notNullCheckEquivalenceKey(
+        p.table_name,
+        p.constraint_type,
+        p.check_clause ?? null,
+        p.column_name ?? null
+      );
+      if (nnKey && sourceNotNullKeys.has(nnKey)) {
+        return false;
+      }
+      return true;
+    });
+
+    const emittedDropSql = new Set<string>();
 
     for (const constraint of constraintsToDrop) {
-      // Generate proper constraint name for dropping
-      const properConstraintName = this.generateProperConstraintName(
-        constraint.constraint_name,
-        constraint.constraint_type,
-        constraint.table_name,
-        constraint.column_name ?? ''
-      );
+      const dropSql = `ALTER TABLE ${this.options.target}.${constraint.table_name} DROP CONSTRAINT IF EXISTS ${quotePgIdent(constraint.constraint_name)};`;
+
+      if (emittedDropSql.has(dropSql)) {
+        continue;
+      }
+      emittedDropSql.add(dropSql);
 
       alterStatements.push(
         `-- Constraint ${constraint.constraint_name} exists in ${this.options.target} but not in ${this.options.source}`
       );
-      alterStatements.push(
-        `ALTER TABLE ${this.options.target}.${constraint.table_name} DROP CONSTRAINT IF EXISTS ${properConstraintName};`
-      );
+      alterStatements.push(dropSql);
     }
   }
 
@@ -177,9 +209,34 @@ export class ConstraintHandlers {
     targetConstraints: IConstraintRow[],
     alterStatements: string[]
   ): Promise<void> {
-    const constraintsToCreate = sourceConstraints.filter(
-      d => !targetConstraints.some(p => p.constraint_name === d.constraint_name)
-    );
+    const targetNotNullKeys = collectNotNullCheckKeys(targetConstraints);
+
+    const constraintsToCreate = sourceConstraints.filter(d => {
+      if (
+        targetConstraints.some(p => p.constraint_name === d.constraint_name)
+      ) {
+        return false;
+      }
+      const nnKey = notNullCheckEquivalenceKey(
+        d.table_name,
+        d.constraint_type,
+        d.check_clause ?? null,
+        d.column_name ?? null
+      );
+      if (nnKey && targetNotNullKeys.has(nnKey)) {
+        return false;
+      }
+      return true;
+    });
+
+    constraintsToCreate.sort((a, b) => {
+      const pa = constraintCreateSortKey(a);
+      const pb = constraintCreateSortKey(b);
+      if (pa !== pb) return pa - pb;
+      const byTable = a.table_name.localeCompare(b.table_name);
+      if (byTable !== 0) return byTable;
+      return a.constraint_name.localeCompare(b.constraint_name);
+    });
 
     for (const constraint of constraintsToCreate) {
       alterStatements.push(
@@ -188,7 +245,7 @@ export class ConstraintHandlers {
 
       const constraintDefinition =
         await this.constraintDefinitions.getConstraintDefinition(
-          this.options.source,
+          'source',
           constraint.constraint_name,
           constraint.table_name
         );
