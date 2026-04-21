@@ -1,14 +1,15 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
 
 echo "🧪 Running pre-push checks..."
 
-# Run all tests
 echo "Running unit tests..."
 npm run test:unit
 
 echo "Running integration tests..."
 npm run test:integration
+
+echo "Running type check..."
+npm run type-check
 
 echo "Building app..."
 npm run build
