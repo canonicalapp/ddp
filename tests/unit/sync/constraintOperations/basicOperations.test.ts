@@ -50,7 +50,7 @@ describe('ConstraintOperations - Basic Operations', () => {
         return Promise.resolve({ rows: mockConstraints });
       };
 
-      const result = await constraintOps.getConstraints('dev_schema');
+      const result = await constraintOps.getConstraints('source');
 
       // Verify the query was called with correct parameters
       expect(queryCalled).toBe(true);
@@ -60,7 +60,7 @@ describe('ConstraintOperations - Basic Operations', () => {
     });
 
     it('should join with key_column_usage and constraint_column_usage', async () => {
-      await constraintOps.getConstraints('dev_schema');
+      await constraintOps.getConstraints('source');
 
       const query = mockSourceClient.query.mock.calls[0][0];
       expect(query).toContain('information_schema.key_column_usage');
@@ -68,16 +68,16 @@ describe('ConstraintOperations - Basic Operations', () => {
     });
 
     it('should order constraints by table name and constraint name', async () => {
-      await constraintOps.getConstraints('dev_schema');
+      await constraintOps.getConstraints('source');
 
       const query = mockSourceClient.query.mock.calls[0][0];
       expect(query).toContain('ORDER BY tc.table_name, tc.constraint_name');
     });
 
     it('should handle empty results', async () => {
-      mockSourceClient.query.mockResolvedValue({ rows: [] });
+      mockTargetClient.query.mockResolvedValue({ rows: [] });
 
-      const result = await constraintOps.getConstraints('empty_schema');
+      const result = await constraintOps.getConstraints('target');
 
       expect(result).toEqual([]);
     });
@@ -86,7 +86,7 @@ describe('ConstraintOperations - Basic Operations', () => {
       const error = new Error('Database connection failed');
       mockSourceClient.query.mockRejectedValue(error);
 
-      await expect(constraintOps.getConstraints('dev_schema')).rejects.toThrow(
+      await expect(constraintOps.getConstraints('source')).rejects.toThrow(
         'Database connection failed'
       );
     });
@@ -96,7 +96,7 @@ describe('ConstraintOperations - Basic Operations', () => {
 
       mockSourceClient.query.mockResolvedValue({ rows: mockConstraints });
 
-      const result = await constraintOps.getConstraints('dev_schema');
+      const result = await constraintOps.getConstraints('source');
 
       expect(result).toEqual(mockConstraints);
     });
@@ -129,7 +129,7 @@ describe('ConstraintOperations - Basic Operations', () => {
         return Promise.resolve({ rows: mockIndexes });
       };
 
-      const result = await constraintOps.getIndexes('dev_schema');
+      const result = await constraintOps.getIndexes('source');
 
       expect(queryCalled).toBe(true);
       expect(queryArgs[0]).toContain('pg_indexes');
@@ -138,9 +138,9 @@ describe('ConstraintOperations - Basic Operations', () => {
     });
 
     it('should handle empty results', async () => {
-      mockSourceClient.query.mockResolvedValue({ rows: [] });
+      mockTargetClient.query.mockResolvedValue({ rows: [] });
 
-      const result = await constraintOps.getIndexes('empty_schema');
+      const result = await constraintOps.getIndexes('target');
 
       expect(result).toEqual([]);
     });
@@ -149,7 +149,7 @@ describe('ConstraintOperations - Basic Operations', () => {
       const error = new Error('Database connection failed');
       mockSourceClient.query.mockRejectedValue(error);
 
-      await expect(constraintOps.getIndexes('dev_schema')).rejects.toThrow(
+      await expect(constraintOps.getIndexes('source')).rejects.toThrow(
         'Database connection failed'
       );
     });

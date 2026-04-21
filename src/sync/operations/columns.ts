@@ -4,6 +4,11 @@
  */
 
 import type { ILegacySyncOptions, TArray, TRecord } from '@/types';
+import {
+  type SyncDbSide,
+  clientForSyncSide,
+  schemaNameForSide,
+} from '@/sync/syncClient';
 import { Utils } from '@/utils/formatting';
 import type { Client } from 'pg';
 
@@ -33,9 +38,9 @@ export class ColumnOperations {
   }
 
   /**
-   * Get all columns from a schema
+   * Get all columns from a schema on the given database.
    */
-  async getColumns(schemaName: string): Promise<TArray<ColumnInfo>> {
+  async getColumns(side: SyncDbSide): Promise<TArray<ColumnInfo>> {
     const columnsQuery = `
       SELECT 
         table_name, 
@@ -50,11 +55,12 @@ export class ColumnOperations {
       ORDER BY table_name, ordinal_position
     `;
 
-    // Use the appropriate client based on schema
-    const client =
-      schemaName === this.options.source
-        ? this.sourceClient
-        : this.targetClient;
+    const schemaName = schemaNameForSide(side, this.options);
+    const client = clientForSyncSide(
+      side,
+      this.sourceClient,
+      this.targetClient
+    );
 
     const result = await client.query(columnsQuery, [schemaName]);
 
@@ -309,8 +315,8 @@ export class ColumnOperations {
   async generateColumnOperations() {
     const alterStatements: TArray<string> = [];
 
-    const sourceColumns = await this.getColumns(this.options.source);
-    const targetColumns = await this.getColumns(this.options.target);
+    const sourceColumns = await this.getColumns('source');
+    const targetColumns = await this.getColumns('target');
 
     const sourceColumnsByTable = this.groupColumnsByTable(sourceColumns);
     const targetColumnsByTable = this.groupColumnsByTable(targetColumns);

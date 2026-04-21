@@ -2,6 +2,7 @@ import { SchemaSyncOrchestrator } from '@/sync/orchestrator';
 import { RepoIntegration } from '@/sync/repoIntegration';
 import type { IDatabaseConnection, ISyncCommandOptions } from '@/types';
 import { loadEnvFile } from '@/utils/envLoader';
+import { resolvePgSchema } from '@/utils/pgSchema';
 import { Client } from 'pg';
 
 // Helper function to build connection details
@@ -27,7 +28,7 @@ const buildConnectionDetails = (
     database: options[`${prefix}Database`] ?? process.env[databaseKey] ?? '',
     username: options[`${prefix}Username`] ?? process.env[usernameKey] ?? '',
     password: options[`${prefix}Password`] ?? process.env[passwordKey] ?? '',
-    schema: options[`${prefix}Schema`] ?? process.env[schemaKey] ?? 'public',
+    schema: resolvePgSchema(options[`${prefix}Schema`], process.env[schemaKey]),
   };
 };
 

@@ -11,6 +11,7 @@ import type {
 import { ValidationError } from '@/types/errors';
 import { loadEnvFile } from '@/utils/envLoader';
 import { DatabaseConnectionError } from '@/utils/generatorErrors';
+import { resolvePgSchema } from '@/utils/pgSchema';
 import { logDebug, logError, logInfo } from '@/utils/logger';
 import { createProgress } from '@/utils/progress';
 import { Client } from 'pg';
@@ -59,7 +60,7 @@ export const genCommand = async (options: IGenCommandOptions) => {
     const database = options.database ?? process.env.DB_NAME;
     const username = options.username ?? process.env.DB_USER;
     const password = options.password ?? process.env.DB_PASSWORD;
-    const schema = options.schema ?? process.env.DB_SCHEMA ?? 'public';
+    const schema = resolvePgSchema(options.schema, process.env.DB_SCHEMA);
 
     if (!database || !username || !password) {
       // In test environment, continue with placeholder generation
@@ -234,7 +235,9 @@ export const genCommand = async (options: IGenCommandOptions) => {
       await client.end();
     }
   } catch (error) {
-    logError('DDP gen command failed', error as Error, { options });
+    logError('DDP gen command failed', error as Error, {
+      options: { ...options, password: '[REDACTED]' },
+    });
 
     // Handle specific error types with better user guidance
     if (error instanceof ValidationError) {

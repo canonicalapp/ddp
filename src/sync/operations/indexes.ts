@@ -5,6 +5,12 @@
 
 import type { Client } from 'pg';
 import type { ILegacySyncOptions, TNullable } from '@/types';
+import { isDdpDiffIgnoredTable } from '@/sync/ddpInternalSchema';
+import {
+  type SyncDbSide,
+  clientForSyncSide,
+  schemaNameForSide,
+} from '@/sync/syncClient';
 
 export interface IIndexRow {
   schemaname: string;
@@ -36,9 +42,9 @@ export class IndexOperations {
   }
 
   /**
-   * Get all indexes from a schema
+   * Get all indexes from a schema on the given database.
    */
-  async getIndexes(schemaName: string): Promise<IIndexRow[]> {
+  async getIndexes(side: SyncDbSide): Promise<IIndexRow[]> {
     const indexesQuery = `
       SELECT 
         schemaname,
@@ -50,11 +56,12 @@ export class IndexOperations {
       ORDER BY tablename, indexname
     `;
 
-    // Use the appropriate client based on schema
-    const client =
-      schemaName === this.options.source
-        ? this.sourceClient
-        : this.targetClient;
+    const schemaName = schemaNameForSide(side, this.options);
+    const client = clientForSyncSide(
+      side,
+      this.sourceClient,
+      this.targetClient
+    );
 
     const result = await client.query(indexesQuery, [schemaName]);
 
@@ -151,12 +158,14 @@ export class IndexOperations {
   async generateIndexOperations() {
     const alterStatements: string[] = [];
 
-    const sourceIndexes = await this.getIndexes(this.options.source);
-    const targetIndexes = await this.getIndexes(this.options.target);
+    const sourceIndexes = await this.getIndexes('source');
+    const targetIndexes = await this.getIndexes('target');
 
     // Find indexes to drop in target (exist in target but not in source)
     const indexesToDrop = targetIndexes.filter(
-      t => !sourceIndexes.some(s => s.indexname === t.indexname)
+      t =>
+        !isDdpDiffIgnoredTable(t.tablename) &&
+        !sourceIndexes.some(s => s.indexname === t.indexname)
     );
 
     for (const index of indexesToDrop) {
@@ -171,7 +180,9 @@ export class IndexOperations {
 
     // Find indexes to create in target (exist in source but not in target)
     const indexesToCreate = sourceIndexes.filter(
-      s => !targetIndexes.some(t => t.indexname === s.indexname)
+      s =>
+        !isDdpDiffIgnoredTable(s.tablename) &&
+        !targetIndexes.some(t => t.indexname === s.indexname)
     );
 
     for (const index of indexesToCreate) {

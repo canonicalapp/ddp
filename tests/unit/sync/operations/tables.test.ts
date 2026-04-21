@@ -67,7 +67,7 @@ describe('TableOperations', () => {
 
       mockSourceClient.query.mockResolvedValue({ rows: mockTables });
 
-      const result = await tableOps.getTables('dev_schema');
+      const result = await tableOps.getTables('source');
 
       // Check that query was called with correct parameters
       const calls = mockSourceClient.query.mock.calls;
@@ -78,7 +78,7 @@ describe('TableOperations', () => {
     });
 
     it('should filter for BASE TABLE type only', async () => {
-      await tableOps.getTables('dev_schema');
+      await tableOps.getTables('source');
 
       const query = mockSourceClient.query.mock.calls[0][0];
       expect(query).toContain("table_type = 'BASE TABLE'");
@@ -87,7 +87,7 @@ describe('TableOperations', () => {
     it('should handle empty results', async () => {
       mockSourceClient.query.mockResolvedValue({ rows: [] });
 
-      const result = await tableOps.getTables('dev_schema');
+      const result = await tableOps.getTables('source');
 
       expect(result).toEqual([]);
     });
@@ -96,7 +96,7 @@ describe('TableOperations', () => {
       const error = new Error('Database connection failed');
       mockSourceClient.query.mockRejectedValue(error);
 
-      await expect(tableOps.getTables('dev_schema')).rejects.toThrow(
+      await expect(tableOps.getTables('source')).rejects.toThrow(
         'Database connection failed'
       );
     });
@@ -125,7 +125,7 @@ describe('TableOperations', () => {
 
       mockSourceClient.query.mockResolvedValue({ rows: mockColumns });
 
-      const result = await tableOps.getTableDefinition('dev_schema', 'users');
+      const result = await tableOps.getTableDefinition('source', 'users');
 
       // Check that query was called with correct parameters
       const calls = mockSourceClient.query.mock.calls;
@@ -136,7 +136,7 @@ describe('TableOperations', () => {
     });
 
     it('should order columns by ordinal position', async () => {
-      await tableOps.getTableDefinition('dev_schema', 'users');
+      await tableOps.getTableDefinition('source', 'users');
 
       const query = mockSourceClient.query.mock.calls[0][0];
       expect(query).toContain('ORDER BY ordinal_position');
@@ -145,10 +145,7 @@ describe('TableOperations', () => {
     it('should handle table not found', async () => {
       mockSourceClient.query.mockResolvedValue({ rows: [] });
 
-      const result = await tableOps.getTableDefinition(
-        'dev_schema',
-        'nonexistent'
-      );
+      const result = await tableOps.getTableDefinition('source', 'nonexistent');
 
       expect(result).toEqual([]);
     });

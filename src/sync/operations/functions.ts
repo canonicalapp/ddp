@@ -4,6 +4,11 @@
  */
 
 import type { ILegacySyncOptions, TNullable } from '@/types';
+import {
+  type SyncDbSide,
+  clientForSyncSide,
+  schemaNameForSide,
+} from '@/sync/syncClient';
 import type { Client } from 'pg';
 
 interface IFunctionRow {
@@ -37,9 +42,9 @@ export class FunctionOperations {
   }
 
   /**
-   * Get all functions and procedures from a schema
+   * Get all functions and procedures from a schema on the given database.
    */
-  async getFunctions(schemaName: string): Promise<IFunctionRow[]> {
+  async getFunctions(side: SyncDbSide): Promise<IFunctionRow[]> {
     const functionsQuery = `
       SELECT 
         routine_name,
@@ -52,11 +57,12 @@ export class FunctionOperations {
       AND routine_type IN ('FUNCTION', 'PROCEDURE')
     `;
 
-    // Use the appropriate client based on schema
-    const client =
-      schemaName === this.options.source
-        ? this.sourceClient
-        : this.targetClient;
+    const schemaName = schemaNameForSide(side, this.options);
+    const client = clientForSyncSide(
+      side,
+      this.sourceClient,
+      this.targetClient
+    );
 
     const result = await client.query(functionsQuery, [schemaName]);
 
@@ -64,10 +70,10 @@ export class FunctionOperations {
   }
 
   /**
-   * Get function/procedure definition from source schema
+   * Get function/procedure definition from the given database side.
    */
   async getFunctionDefinition(
-    schemaName: string,
+    side: SyncDbSide,
     routineName: string,
     routineType: string
   ): Promise<string | null> {
@@ -81,11 +87,12 @@ export class FunctionOperations {
         LIMIT 1
       `;
 
-      // Use the appropriate client based on schema
-      const client =
-        schemaName === this.options.source
-          ? this.sourceClient
-          : this.targetClient;
+      const schemaName = schemaNameForSide(side, this.options);
+      const client = clientForSyncSide(
+        side,
+        this.sourceClient,
+        this.targetClient
+      );
 
       const result = await client.query(functionDefQuery, [
         schemaName,
@@ -325,7 +332,7 @@ export class FunctionOperations {
       );
 
       const definition = await this.getFunctionDefinition(
-        this.options.source,
+        'source',
         sourceFunction.routine_name,
         sourceFunction.routine_type
       );
@@ -348,8 +355,8 @@ export class FunctionOperations {
   async generateFunctionOperations() {
     const alterStatements: string[] = [];
 
-    const sourceFunctions = await this.getFunctions(this.options.source);
-    const targetFunctions = await this.getFunctions(this.options.target);
+    const sourceFunctions = await this.getFunctions('source');
+    const targetFunctions = await this.getFunctions('target');
 
     this.handleFunctionsToDrop(
       alterStatements,
@@ -423,7 +430,7 @@ export class FunctionOperations {
 
       // Get the definition from source schema
       const definition = await this.getFunctionDefinition(
-        this.options.source,
+        'source',
         func.routine_name,
         func.routine_type
       );

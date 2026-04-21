@@ -52,7 +52,7 @@ describe('FunctionOperations', () => {
 
       mockSourceClient.query = () => Promise.resolve({ rows: mockFunctions });
 
-      const result = await functionOps.getFunctions('dev_schema');
+      const result = await functionOps.getFunctions('source');
 
       // Verify the result is correct
       expect(result).toEqual(mockFunctions);
@@ -71,14 +71,14 @@ describe('FunctionOperations', () => {
 
       mockSourceClient.query = () => Promise.resolve({ rows: mockFunctions });
 
-      const result = await functionOps.getFunctions('dev_schema');
+      const result = await functionOps.getFunctions('source');
       expect(result).toEqual(mockFunctions);
     });
 
     it('should handle empty results', async () => {
-      mockSourceClient.query = () => Promise.resolve({ rows: [] });
+      mockTargetClient.query = () => Promise.resolve({ rows: [] });
 
-      const result = await functionOps.getFunctions('empty_schema');
+      const result = await functionOps.getFunctions('target');
 
       expect(result).toEqual([]);
     });
@@ -87,7 +87,7 @@ describe('FunctionOperations', () => {
       const error = new Error('Database connection failed');
       mockSourceClient.query = () => Promise.reject(error);
 
-      await expect(functionOps.getFunctions('dev_schema')).rejects.toThrow(
+      await expect(functionOps.getFunctions('source')).rejects.toThrow(
         'Database connection failed'
       );
     });
@@ -103,7 +103,7 @@ describe('FunctionOperations', () => {
 
       mockSourceClient.query = () => Promise.resolve({ rows: mockFunctions });
 
-      const result = await functionOps.getFunctions('dev_schema');
+      const result = await functionOps.getFunctions('source');
 
       expect(result).toEqual(mockFunctions);
     });

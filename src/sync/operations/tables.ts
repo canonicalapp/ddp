@@ -4,6 +4,12 @@
  */
 
 import type { ILegacySyncOptions, TArray, TNullable } from '@/types';
+import { isDdpDiffIgnoredTable } from '@/sync/ddpInternalSchema';
+import {
+  type SyncDbSide,
+  clientForSyncSide,
+  schemaNameForSide,
+} from '@/sync/syncClient';
 import { Utils } from '@/utils/formatting';
 import type { Client } from 'pg';
 
@@ -36,9 +42,9 @@ export class TableOperations {
   }
 
   /**
-   * Get all tables from a schema
+   * Get all tables from a schema on the given database (source vs target).
    */
-  async getTables(schemaName: string): Promise<TArray<ITableRow>> {
+  async getTables(side: SyncDbSide): Promise<TArray<ITableRow>> {
     const tablesQuery = `
       SELECT table_name 
       FROM information_schema.tables 
@@ -46,11 +52,12 @@ export class TableOperations {
       AND table_type = 'BASE TABLE'
     `;
 
-    // Use the appropriate client based on schema
-    const client =
-      schemaName === this.options.source
-        ? this.sourceClient
-        : this.targetClient;
+    const schemaName = schemaNameForSide(side, this.options);
+    const client = clientForSyncSide(
+      side,
+      this.sourceClient,
+      this.targetClient
+    );
     const result = await client.query(tablesQuery, [schemaName]);
 
     // Validate query result structure
@@ -70,10 +77,10 @@ export class TableOperations {
   }
 
   /**
-   * Get table definition from schema
+   * Get table definition from schema on the given database.
    */
   async getTableDefinition(
-    schemaName: string,
+    side: SyncDbSide,
     tableName: string
   ): Promise<TArray<IColumnRow>> {
     const tableDefQuery = `
@@ -89,11 +96,12 @@ export class TableOperations {
       ORDER BY ordinal_position
     `;
 
-    // Use the appropriate client based on schema
-    const client =
-      schemaName === this.options.source
-        ? this.sourceClient
-        : this.targetClient;
+    const schemaName = schemaNameForSide(side, this.options);
+    const client = clientForSyncSide(
+      side,
+      this.sourceClient,
+      this.targetClient
+    );
     const result = await client.query(tableDefQuery, [schemaName, tableName]);
 
     return result.rows;
@@ -154,10 +162,7 @@ export class TableOperations {
     for (const table of missingTables) {
       alterStatements.push(`-- Create missing table ${table.table_name}`);
 
-      const columns = await this.getTableDefinition(
-        this.options.source,
-        table.table_name
-      );
+      const columns = await this.getTableDefinition('source', table.table_name);
 
       const createStatement = this.generateCreateTableStatement(
         table.table_name,
@@ -204,17 +209,21 @@ export class TableOperations {
   async generateTableOperations() {
     const alterStatements: string[] = [];
 
-    const sourceTables = await this.getTables(this.options.source);
-    const targetTables = await this.getTables(this.options.target);
+    const sourceTables = await this.getTables('source');
+    const targetTables = await this.getTables('target');
 
     // Find missing tables in target (tables in source but not in target)
     const missingTables = sourceTables.filter(
-      d => !targetTables.some(p => p.table_name === d.table_name)
+      d =>
+        !isDdpDiffIgnoredTable(d.table_name) &&
+        !targetTables.some(p => p.table_name === d.table_name)
     );
 
     // Find tables to drop in target (tables in target but not in source)
     const tablesToDrop = targetTables.filter(
-      p => !sourceTables.some(d => d.table_name === p.table_name)
+      p =>
+        !isDdpDiffIgnoredTable(p.table_name) &&
+        !sourceTables.some(d => d.table_name === p.table_name)
     );
 
     await this.handleMissingTables(missingTables, alterStatements);

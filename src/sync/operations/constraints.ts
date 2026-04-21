@@ -4,6 +4,12 @@
  */
 
 import type { ILegacySyncOptions, TArray, TNullable } from '@/types';
+import { isDdpDiffIgnoredTable } from '@/sync/ddpInternalSchema';
+import {
+  type SyncDbSide,
+  clientForSyncSide,
+  schemaNameForSide,
+} from '@/sync/syncClient';
 import { ConstraintDefinitions } from '@/utils/constraintDefinitions';
 import { ConstraintHandlers } from '@/utils/constraintHandlers';
 import type { Client } from 'pg';
@@ -55,9 +61,9 @@ export class ConstraintOperations {
   }
 
   /**
-   * Get all constraints from a schema
+   * Get all constraints from a schema on the given database.
    */
-  async getConstraints(schemaName: string) {
+  async getConstraints(side: SyncDbSide) {
     const constraintsQuery = `
       SELECT 
         tc.table_name,
@@ -83,21 +89,34 @@ export class ConstraintOperations {
       ORDER BY tc.table_name, tc.constraint_name
     `;
 
-    // Use the appropriate client based on schema
-    const client =
-      schemaName === this.options.source
-        ? this.sourceClient
-        : this.targetClient;
+    const schemaName = schemaNameForSide(side, this.options);
+    const client = clientForSyncSide(
+      side,
+      this.sourceClient,
+      this.targetClient
+    );
 
     const result = await client.query(constraintsQuery, [schemaName]);
 
-    // Deduplicate constraint rows by constraint_name
     const uniqueConstraints = new Map<string, IConstraintRow>();
 
     for (const row of result.rows) {
-      const key = `${row.constraint_name}_${row.table_name}`;
-      if (!uniqueConstraints.has(key)) {
-        uniqueConstraints.set(key, row);
+      const key = `${row.table_name}\0${row.constraint_name}`;
+      const existing = uniqueConstraints.get(key);
+      if (!existing) {
+        uniqueConstraints.set(key, { ...row });
+      } else {
+        uniqueConstraints.set(key, {
+          ...existing,
+          column_name: existing.column_name ?? row.column_name,
+          check_clause: existing.check_clause ?? row.check_clause,
+          foreign_table_name:
+            existing.foreign_table_name ?? row.foreign_table_name,
+          foreign_column_name:
+            existing.foreign_column_name ?? row.foreign_column_name,
+          update_rule: existing.update_rule ?? row.update_rule,
+          delete_rule: existing.delete_rule ?? row.delete_rule,
+        });
       }
     }
 
@@ -105,15 +124,15 @@ export class ConstraintOperations {
   }
 
   /**
-   * Get detailed constraint definition from source schema
+   * Get detailed constraint definition from the given database side.
    */
   async getConstraintDefinition(
-    schemaName: string,
+    side: SyncDbSide,
     constraintName: string,
     tableName: string
   ): Promise<TNullable<TArray<IConstraintRow>>> {
     return this.constraintDefinitions.getConstraintDefinition(
-      schemaName,
+      side,
       constraintName,
       tableName
     );
@@ -161,10 +180,10 @@ export class ConstraintOperations {
   }
 
   /**
-   * Get all indexes from a schema
+   * Get all indexes from a schema on the given database.
    */
-  async getIndexes(schemaName: string): Promise<TArray<IIndexRow>> {
-    return this.indexOperations.getIndexes(schemaName);
+  async getIndexes(side: SyncDbSide): Promise<TArray<IIndexRow>> {
+    return this.indexOperations.getIndexes(side);
   }
 
   /**
@@ -235,8 +254,18 @@ export class ConstraintOperations {
   async generateConstraintOperations() {
     const alterStatements: TArray<string> = [];
 
-    const sourceConstraints = await this.getConstraints(this.options.source);
-    const targetConstraints = await this.getConstraints(this.options.target);
+    const keepConstraint = (row: IConstraintRow) =>
+      !isDdpDiffIgnoredTable(row.table_name) &&
+      !(
+        row.foreign_table_name && isDdpDiffIgnoredTable(row.foreign_table_name)
+      );
+
+    const sourceConstraints = (await this.getConstraints('source')).filter(
+      keepConstraint
+    );
+    const targetConstraints = (await this.getConstraints('target')).filter(
+      keepConstraint
+    );
 
     await this.handleConstraintsToDrop(
       sourceConstraints,

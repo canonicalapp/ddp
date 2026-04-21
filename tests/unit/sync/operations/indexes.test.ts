@@ -39,7 +39,7 @@ describe('IndexOperations', () => {
 
       mockSourceClient.query.mockResolvedValue({ rows: mockIndexes });
 
-      const result = await indexOps.getIndexes('dev_schema');
+      const result = await indexOps.getIndexes('source');
 
       expect(
         mockSourceClient.query.toHaveBeenCalledWith(
@@ -51,9 +51,9 @@ describe('IndexOperations', () => {
     });
 
     it('should handle empty result set', async () => {
-      mockSourceClient.query.mockResolvedValue({ rows: [] });
+      mockTargetClient.query.mockResolvedValue({ rows: [] });
 
-      const result = await indexOps.getIndexes('empty_schema');
+      const result = await indexOps.getIndexes('target');
 
       expect(result).toEqual([]);
     });
@@ -62,7 +62,7 @@ describe('IndexOperations', () => {
       const error = new Error('Database connection failed');
       mockSourceClient.query.mockRejectedValue(error);
 
-      await expect(indexOps.getIndexes('dev_schema')).rejects.toThrow(
+      await expect(indexOps.getIndexes('source')).rejects.toThrow(
         'Database connection failed'
       );
     });
