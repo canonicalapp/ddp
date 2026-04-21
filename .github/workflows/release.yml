@@ -13,6 +13,9 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      # No git hooks during install; semantic-release must not pick up local hook side effects
+      HUSKY: '0'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,7 +30,8 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        # Skip lifecycle scripts (e.g. prepare/husky). Publish still runs prepublishOnly for build.
+        run: npm ci --ignore-scripts
 
       # Intentionally no lint/format/tests here — release must not run npm lifecycle
       # hooks that invoke check:all (see RELEASING.md). Quality gates: local hooks + optional npm run check:all.

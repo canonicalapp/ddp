@@ -39,6 +39,13 @@ CI=true GITHUB_TOKEN=... NPM_TOKEN=... npm run release:dry-run
 
 Config: [`release.config.cjs`](release.config.cjs).
 
+### If you still see tests during the release job
+
+The **Release** workflow does **not** run Jest. If logs show `jest` / `test:ci`, almost always:
+
+1. **`package.json` on `main` still has a `preversion` (or `version`) script** that runs `check:all` or `test`. **`@semantic-release/npm` runs `npm version`**, which triggers those scripts. **Remove `preversion`** (and anything that runs tests on version bump) from `main`.
+2. A **different workflow** on the same push (e.g. a general CI job) is running in parallel—check the **job name** in GitHub Actions.
+
 ---
 
 ## Husky (optional, local dev only)
