@@ -23,11 +23,12 @@ You can enforce this later (e.g. PR titles, CI, or hooks); it is **not** require
 
 1. Workflow: [`.github/workflows/release.yml`](.github/workflows/release.yml) on push to **`main`** (skips with `[skip ci]` on the release bot commit). Uses **Node 22** ([semantic-release v25](https://github.com/semantic-release/semantic-release/blob/master/docs/support/node-version.md)).
 2. Secret **`NPM_TOKEN`**: npm automation or publish token ([npm access tokens](https://docs.npmjs.com/about-access-tokens)). `GITHUB_TOKEN` is provided by Actions.
-3. **Git tags vs npm**: align the latest **`v*`** tag with npm before the first automated release if needed:
+3. **Git tags must match npm** (critical): semantic-release picks the **next** version from **git tags** on `main`, not from the npm registry. If there is **no** `v*` tag on the branch, it will try to publish **`1.0.0`** (first release). If npm already has **`1.0.4`**, **`prepublishOnly`** will refuse with “behind npm”. **Fix:** tag every version that exists on npm, at least the latest:
    ```bash
    git tag v1.0.4 <commit-sha-that-shipped-1.0.4>
    git push origin v1.0.4
    ```
+   The release workflow fails fast if npm has a version but the matching **`v`** + that version tag is missing.
 
 ### Local dry run
 

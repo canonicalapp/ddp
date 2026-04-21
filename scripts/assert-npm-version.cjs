@@ -64,7 +64,9 @@ if (semver.eq(local, registry)) {
 if (semver.lt(local, registry)) {
   console.error(
     `Refusing publish: package.json (${local}) is behind npm (${registry}).\n` +
-      `Pull the latest tag or set version > ${registry}.`
+      `Pull the latest tag or set version > ${registry}.\n` +
+      `If this is semantic-release: add missing git tag v${registry} on main ` +
+      `(SR uses tags for the baseline, not the registry).`
   );
   process.exit(1);
 }
