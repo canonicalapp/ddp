@@ -5,6 +5,7 @@ coverage/
 *.min.js
 *.bundle.js
 package-lock.json
+CHANGELOG.md
 yarn.lock
 pnpm-lock.yaml
 .git/

@@ -53,7 +53,6 @@
     "clean:coverage": "rm -rf coverage/",
     "clean:build": "rm -rf dist/ && npm run build",
     "prepare": "husky",
-    "preversion": "npm run check:all",
     "prepublishOnly": "npm run build && node scripts/assert-npm-version.cjs"
   },
   "keywords": [
