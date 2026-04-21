@@ -408,7 +408,7 @@ npm run clean:all
 7. Push to the branch (`git push origin feature/amazing-feature`)
 8. Open a Pull Request
 
-Publishing and version bumps use [semantic versioning](https://semver.org); see [RELEASING.md](RELEASING.md).
+Versioning and releases are documented in [RELEASING.md](RELEASING.md) (including **semantic-release** on `main` and [semver](https://semver.org)).
 
 ## License
 
