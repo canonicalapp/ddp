@@ -37,22 +37,8 @@ jobs:
       # Intentionally no lint/format/tests here — release must not run npm lifecycle
       # hooks that invoke check:all (see RELEASING.md). Quality gates: local hooks + optional npm run check:all.
 
-      - name: Require git tag matching npm (semantic-release baseline)
-        run: |
-          set -euo pipefail
-          REGISTRY_VERSION="$(npm view @advcomm/ddp version 2>/dev/null || true)"
-          if [ -z "${REGISTRY_VERSION}" ]; then
-            echo "Package not found on npm (or npm view failed); semantic-release may use first release 1.0.0."
-            exit 0
-          fi
-          if git rev-parse "v${REGISTRY_VERSION}" >/dev/null 2>&1; then
-            echo "OK: tag v${REGISTRY_VERSION} exists (npm latest ${REGISTRY_VERSION})."
-            exit 0
-          fi
-          echo "::error::semantic-release will assume release 1.0.0 when no prior tag exists on this branch."
-          echo "::error::npm already has ${REGISTRY_VERSION}. Create the missing tag on the commit that matches that publish:"
-          echo "::error::  git tag v${REGISTRY_VERSION} <commit-sha> && git push origin v${REGISTRY_VERSION}"
-          exit 1
+      - name: Verify git tag baseline vs npm (semantic-release)
+        run: node scripts/verify-release-baseline.cjs
 
       - name: Semantic release
         env:

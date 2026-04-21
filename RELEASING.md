@@ -23,12 +23,22 @@ You can enforce this later (e.g. PR titles, CI, or hooks); it is **not** require
 
 1. Workflow: [`.github/workflows/release.yml`](.github/workflows/release.yml) on push to **`main`** (skips with `[skip ci]` on the release bot commit). Uses **Node 22** ([semantic-release v25](https://github.com/semantic-release/semantic-release/blob/master/docs/support/node-version.md)).
 2. Secret **`NPM_TOKEN`**: npm automation or publish token ([npm access tokens](https://docs.npmjs.com/about-access-tokens)). `GITHUB_TOKEN` is provided by Actions.
-3. **Git tags must match npm** (critical): semantic-release picks the **next** version from **git tags** on `main`, not from the npm registry. If there is **no** `v*` tag on the branch, it will try to publish **`1.0.0`** (first release). If npm already has **`1.0.4`**, **`prepublishOnly`** will refuse with “behind npm”. **Fix:** tag every version that exists on npm, at least the latest:
+3. **Git tags are the version baseline** (critical): semantic-release uses **`v*.*.*` tags** on `main`, not npm, to decide the last release. With **no** such tags it tries **`1.0.0`**, which will fail **`prepublishOnly`** if npm is already higher.
+
+   **Option A — continue 1.x:** tag what npm already has (e.g. **`v1.0.4`**) on the commit that matches that publish.
+
+   **Option B — reset baseline at 2.x (new line):** npm only accepts **non‑decreasing** versions, so you cannot “restart” at `1.0.0`. Bump **`package.json`** to **`2.0.0`**, then create **one** tag on current `main`:
+
    ```bash
-   git tag v1.0.4 <commit-sha-that-shipped-1.0.4>
-   git push origin v1.0.4
+   git tag v2.0.0 HEAD
+   git push origin v2.0.0
    ```
-   The release workflow fails fast if npm has a version but the matching **`v`** + that version tag is missing.
+
+   The next releasable **`fix:`** on `main` becomes **`2.0.1`** (first publish from automation on the new line). Older **`1.x`** releases stay on npm for existing consumers.
+
+   Tags must look like **`v1.2.3`** — not a bare **`v1`** (invalid semver for the tool).
+
+   CI runs **`scripts/verify-release-baseline.cjs`**: it passes if **`v{npm latest}`** exists **or** the highest git tag is **strictly greater** than npm latest (Option B).
 
 ### Local dry run
 
