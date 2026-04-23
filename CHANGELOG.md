@@ -1,3 +1,10 @@
+## [2.0.4](https://github.com/canonicalapp/ddp/compare/v2.0.3...v2.0.4) (2026-04-23)
+
+
+### Bug Fixes
+
+* readme updated ([98ce3f3](https://github.com/canonicalapp/ddp/commit/98ce3f3b0117d5bede631e492bc77c842e131158))
+
 ## [2.0.3](https://github.com/canonicalapp/ddp/compare/v2.0.2...v2.0.3) (2026-04-23)
 
 
