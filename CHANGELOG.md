@@ -1,3 +1,10 @@
+## [2.0.1](https://github.com/canonicalapp/ddp/compare/v2.0.0...v2.0.1) (2026-04-23)
+
+
+### Bug Fixes
+
+* format ([06d988d](https://github.com/canonicalapp/ddp/commit/06d988dfe3e2ecb826a25d871cc8baff5c9b69b0))
+
 # 1.0.0 (2026-04-21)
 
 
