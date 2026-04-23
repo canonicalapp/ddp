@@ -1,3 +1,13 @@
+## [2.0.3](https://github.com/canonicalapp/ddp/compare/v2.0.2...v2.0.3) (2026-04-23)
+
+
+### Bug Fixes
+
+* ci fix for npm token ([d6e2caf](https://github.com/canonicalapp/ddp/commit/d6e2caf5ca7d7a62243455f24b37e9fae81eb8ce))
+* ci packagelog regen ([bccf423](https://github.com/canonicalapp/ddp/commit/bccf42310626a62b007610acfba63e1211811799))
+* node version ([2057824](https://github.com/canonicalapp/ddp/commit/205782467efe285d9eb128f225e5e832147c8803))
+* packagelock ([52b97c1](https://github.com/canonicalapp/ddp/commit/52b97c144f533649b1fd425f756d4e7bce87797e))
+
 ## [2.0.2](https://github.com/canonicalapp/ddp/compare/v2.0.1...v2.0.2) (2026-04-23)
 
 
