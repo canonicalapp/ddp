@@ -5,6 +5,8 @@ on:
     branches:
       - main
 
+# GITHUB_TOKEN cannot push tags/commits that touch .github/workflows/* (GitHub blocks that).
+# Set repo secret RELEASE_GIT_TOKEN to a PAT with repo + workflow scopes; workflow passes it below.
 permissions:
   contents: write
   issues: write
@@ -39,11 +41,11 @@ jobs:
 
       - name: Ensure semver baseline tag for semantic-release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_GIT_TOKEN || secrets.GITHUB_TOKEN }}
         run: node scripts/ensure-release-baseline.cjs
 
       - name: Semantic release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_GIT_TOKEN || secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx semantic-release
