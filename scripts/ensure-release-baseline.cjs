@@ -179,11 +179,9 @@ if (
   console.log(
     `Creating baseline ${tag} at ${preferredRef.slice(0, 7)}… (package.json ${pkgVersion} > npm ${registry})`
   );
-  execFileSync(
-    'git',
-    ['tag', '-a', tag, '-m', tagMessage, preferredRef],
-    { stdio: 'inherit' }
-  );
+  execFileSync('git', ['tag', '-a', tag, '-m', tagMessage, preferredRef], {
+    stdio: 'inherit',
+  });
 
   try {
     pushTag(tag);
@@ -206,11 +204,9 @@ if (
     console.log(
       `Retry ${tag} at ${safeRef.slice(0, 7)}… (ancestor without .github/workflows; GITHUB_TOKEN cannot tag workflow commits).`
     );
-    execFileSync(
-      'git',
-      ['tag', '-a', tag, '-m', tagMessage, safeRef],
-      { stdio: 'inherit' }
-    );
+    execFileSync('git', ['tag', '-a', tag, '-m', tagMessage, safeRef], {
+      stdio: 'inherit',
+    });
     pushTag(tag);
   }
 
