@@ -8,9 +8,8 @@ on:
 # GITHUB_TOKEN cannot push tags/commits that touch .github/workflows/* (GitHub blocks that).
 # Set repo secret RELEASE_GIT_TOKEN to a PAT with repo + workflow scopes; workflow passes it below.
 #
-# npm: if the package uses "Trusted publishing" + "disallow tokens", whoami works but npm publish
-# returns 403 for NPM_TOKEN. Then OIDC must work: id-token write, npm >= 11.5.1, trusted publisher
-# on npmjs.com for this repo + release.yml (see https://docs.npmjs.org/trusted-publishers ).
+# npm: trusted publishing needs npm CLI >= 11.5.1 (use Node 24+; avoid `npm i -g npm` on runners — can break).
+# If the package "disallows tokens", OIDC still needs: id-token write + trusted publisher on npmjs.com.
 permissions:
   contents: write
   issues: write
@@ -33,13 +32,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          # semantic-release v25+ requires ^22.14.0 or >=24.10.0
-          node-version: 22
+          # semantic-release v25+: ^22.14.0 or >=24.10.0; Node 24 ships npm 11.x (OIDC / trusted publishing).
+          node-version: 24
           cache: npm
-
-      # Trusted publishing / OIDC token exchange requires npm CLI >= 11.5.1 (bundled npm on Node 22 is older).
-      - name: Upgrade npm for OIDC trusted publishing
-        run: npm install -g npm@^11.5.1
 
       - name: Install dependencies
         # Skip lifecycle scripts (e.g. prepare/husky). Publish still runs prepublishOnly for build.
