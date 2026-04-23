@@ -1,3 +1,10 @@
+## [2.0.2](https://github.com/canonicalapp/ddp/compare/v2.0.1...v2.0.2) (2026-04-23)
+
+
+### Bug Fixes
+
+* ci fix for npm token ([fa2c360](https://github.com/canonicalapp/ddp/commit/fa2c36099920d86e6da6f9ca0373801669e479ec))
+
 ## [2.0.1](https://github.com/canonicalapp/ddp/compare/v2.0.0...v2.0.1) (2026-04-23)
 
 
