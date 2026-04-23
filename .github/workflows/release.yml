@@ -44,6 +44,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.RELEASE_GIT_TOKEN || secrets.GITHUB_TOKEN }}
         run: node scripts/ensure-release-baseline.cjs
 
+      # Local npm whoami can be dev2t while CI still 403s if NPM_TOKEN secret ≠ that account’s publish token.
+      - name: Verify npm token (whoami only)
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NPM_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN is empty. Add the same publish token you use locally (npm profile), or an Automation token for this account."
+            exit 1
+          fi
+          printf '%s\n' "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"
+          echo "npm whoami (registry identity for this run):"
+          npm whoami --registry https://registry.npmjs.org
+
       - name: Semantic release
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_GIT_TOKEN || secrets.GITHUB_TOKEN }}
