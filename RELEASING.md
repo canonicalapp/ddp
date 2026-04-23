@@ -38,7 +38,7 @@ You can enforce this later (e.g. PR titles, CI, or hooks); it is **not** require
 
    Tags must look like **`v1.2.3`** — not a bare **`v1`** (invalid semver for the tool).
 
-   CI runs **`scripts/verify-release-baseline.cjs`**: it passes if **`v{npm latest}`** exists **or** the highest git tag is **strictly greater** than npm latest (Option B).
+   On **GitHub Actions**, **`scripts/ensure-release-baseline.cjs`** creates and pushes **`v{package.json version}`** when that version is **greater than** npm latest and the tag is missing (no manual `git tag` needed). It prefers tagging **`HEAD^`** so the current commit can still count as the first releasable change after the baseline.
 
 ### Local dry run
 

@@ -37,8 +37,10 @@ jobs:
       # Intentionally no lint/format/tests here — release must not run npm lifecycle
       # hooks that invoke check:all (see RELEASING.md). Quality gates: local hooks + optional npm run check:all.
 
-      - name: Verify git tag baseline vs npm (semantic-release)
-        run: node scripts/verify-release-baseline.cjs
+      - name: Ensure semver baseline tag for semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/ensure-release-baseline.cjs
 
       - name: Semantic release
         env:
