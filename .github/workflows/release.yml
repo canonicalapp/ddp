@@ -37,6 +37,8 @@ jobs:
           cache: npm
 
       - name: Install dependencies
+        # package-lock.json must be generated with the same npm as Node 24 bundles (~11.13+), e.g. `npx npm@latest install`.
+        # Older npm (e.g. 11.5.x) writes a lockfile that fails `npm ci` on Actions with "Missing: … from lock file".
         # Skip lifecycle scripts (e.g. prepare/husky). Publish still runs prepublishOnly for build.
         run: npm ci --ignore-scripts
 
