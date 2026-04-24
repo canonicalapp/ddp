@@ -1,3 +1,10 @@
+## [2.1.1](https://github.com/canonicalapp/ddp/compare/v2.1.0...v2.1.1) (2026-04-24)
+
+
+### Bug Fixes
+
+* implemented idempotent template stubs ([dfb3252](https://github.com/canonicalapp/ddp/commit/dfb3252f71aadc50de8d5883d3ab5fc10cf91a30))
+
 # [2.1.0](https://github.com/canonicalapp/ddp/compare/v2.0.4...v2.1.0) (2026-04-24)
 
 
