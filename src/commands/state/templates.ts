@@ -11,7 +11,7 @@ export const buildTemplate = (
       case 'table':
         return (
           header +
-          `CREATE TABLE ${logicalName} (\n` +
+          `CREATE TABLE IF NOT EXISTS ${logicalName} (\n` +
           `  id   BIGSERIAL PRIMARY KEY,\n` +
           `  name TEXT NOT NULL\n` +
           `);\n`
@@ -19,22 +19,27 @@ export const buildTemplate = (
       case 'index':
         return (
           header +
-          '-- Replace table_name / column list as needed.\n' +
-          `CREATE INDEX new_${logicalName}_index ON ${logicalName} (column_name);\n`
+          '-- Replace table / column list as needed.\n' +
+          `CREATE INDEX IF NOT EXISTS new_${logicalName}_index ON ${logicalName} (column_name);\n`
         );
       case 'constraint':
         return (
           header +
-          '-- Replace table_name / columns / references as needed.\n' +
-          `ALTER TABLE ${logicalName}\n` +
-          `  ADD CONSTRAINT ${logicalName} FOREIGN KEY (child_id) REFERENCES parent_table (id);\n`
+          '-- Replace table / columns / references as needed.\n' +
+          '-- Idempotent: duplicate constraint name is ignored.\n' +
+          `DO $$\n` +
+          `BEGIN\n` +
+          `  ALTER TABLE ${logicalName}\n` +
+          `    ADD CONSTRAINT ${logicalName}_fk FOREIGN KEY (child_id) REFERENCES parent_table (id);\n` +
+          `EXCEPTION\n` +
+          `  WHEN duplicate_object THEN NULL;\n` +
+          `END $$;\n`
         );
       case 'extension':
         return (
           header +
-          '-- Enable an extension here.\n' +
-          '-- Example:\n' +
-          '-- CREATE EXTENSION IF NOT EXISTS pgcrypto;\n'
+          '-- Adjust extension name as needed.\n' +
+          `CREATE EXTENSION IF NOT EXISTS pgcrypto;\n`
         );
       case 'view':
         return (
@@ -45,7 +50,13 @@ export const buildTemplate = (
       case 'enum':
         return (
           header +
-          `CREATE TYPE ${logicalName} AS ENUM ('active', 'inactive');\n`
+          '-- Idempotent: type name collision is ignored (safe to re-run in shadow / dev).\n' +
+          `DO $$\n` +
+          `BEGIN\n` +
+          `  CREATE TYPE ${logicalName} AS ENUM ('active', 'inactive');\n` +
+          `EXCEPTION\n` +
+          `  WHEN duplicate_object THEN NULL;\n` +
+          `END $$;\n`
         );
       default:
         return header;
@@ -69,7 +80,8 @@ export const buildTemplate = (
   const header = `-- DDP state: trigger - ${logicalName}\n\n`;
   return (
     header +
-    '-- Replace table_name / timing / function as needed.\n' +
+    '-- Replace table / timing / function as needed.\n' +
+    `DROP TRIGGER IF EXISTS new_${logicalName}_trigger ON ${logicalName};\n` +
     `CREATE TRIGGER new_${logicalName}_trigger\n` +
     `  AFTER INSERT ON ${logicalName}\n` +
     `  FOR EACH ROW\n` +
