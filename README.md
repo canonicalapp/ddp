@@ -6,12 +6,13 @@ A PostgreSQL-focused CLI for **declarative schema state**, **versioned migration
 
 DDP helps teams manage PostgreSQL schemas in Git:
 
-1. **`init`** — Scaffold `ddp.config.json` and the standard `state/` + `migrations/` layout  
-2. **`state`** — Create and validate declarative SQL artifacts (schema / procs / triggers) under policy  
-3. **`migration`** — Hand-written migration folders; **`migration diff`** can generate SQL from state vs a target DB (shadow catalog)  
-4. **`apply`** — Run pending migrations with transactions, history, locks, and destructive guards  
-5. **`gen`** — Generate `schema.sql` / `procs.sql` / `triggers.sql` from a live database  
-6. **`sync`** — Compare two databases and emit `alter.sql` (with data-preserving renames)
+1. **`init`** — Scaffold `ddp.config.json` and the standard `state/` + `migrations/` layout
+2. **`state`** — Create and validate declarative SQL artifacts (schema / procs / triggers) under policy
+3. **`migration`** — **`migration diff`** can generate SQL from state vs a target DB (shadow catalog)
+4. **`apply`** — Run pending migrations with transactions, history, locks, and destructive guards
+5. **`seed`** — Run every top-level `*.sql` in `paths.seeds` (no history; fails if none found)
+6. **`gen`** — Generate `schema.sql` / `procs.sql` / `triggers.sql` from a live database
+7. **`sync`** — Compare two databases and emit `alter.sql` (with data-preserving renames)
 
 Run `ddp` with no arguments to print built-in help.
 
@@ -29,16 +30,17 @@ The published package ships the compiled **`dist/`** tree. Installing from a **g
 
 ## Command summary
 
-| Command | Purpose |
-|--------|---------|
-| `ddp init` | Create `ddp.config.json` (default root `db/`) and folder layout |
-| `ddp state create …` | Scaffold a new state SQL file (schema / proc / trigger) |
-| `ddp state validate` | Validate layout + manifest against policy |
-| `ddp migration create <name>` | New timestamped migration folder under `paths.migrations` |
-| `ddp migration diff` | Materialize state to shadow, diff vs target; optional `--write` migration |
-| `ddp apply` | Apply pending migrations from config (or `--folder`) |
-| `ddp gen` | Introspect a DB → SQL files or stdout |
-| `ddp sync` | Diff source vs target DB → `alter.sql` |
+| Command                       | Purpose                                                                    |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `ddp init`                    | Create `ddp.config.json` (default root `db/`) and folder layout            |
+| `ddp state create …`          | Scaffold a new state SQL file (schema / proc / trigger)                    |
+| `ddp state validate`          | Validate layout + manifest against policy                                  |
+| `ddp migration create <name>` | New timestamped migration folder under `paths.migrations`                  |
+| `ddp migration diff`          | Materialize state to shadow, diff vs target; optional `--write` migration  |
+| `ddp apply`                   | Apply pending migrations from config (or `--folder`)                       |
+| `ddp seed`                    | Execute all `*.sql` in `paths.seeds` (sorted); no tracking; error if empty |
+| `ddp gen`                     | Introspect a DB → SQL files or stdout                                      |
+| `ddp sync`                    | Diff source vs target DB → `alter.sql`                                     |
 
 ## Quick start (declarative workflow)
 
@@ -61,19 +63,22 @@ ddp migration diff --env .env --write
 
 # 5. Apply migrations
 ddp apply --env .env
+
+# 6. Optional: repeatable seed SQL (db/seeds/*.sql — idempotent SQL recommended)
+ddp seed --env .env
 ```
 
 ## `ddp init`
 
 Creates **`ddp.config.json`** at the repo root and directories:
 
-- `paths.root` (default `db`) — `state/` and `migrations/`  
+- `paths.root` (default `db`) — `state/` and `migrations/`
 - `state/schema`, `state/procs`, `state/triggers`
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--path <path>` | Root folder for DDP content | `db` |
-| `--force` | Overwrite existing `ddp.config.json` | off |
+| Option          | Description                          | Default |
+| --------------- | ------------------------------------ | ------- |
+| `--path <path>` | Root folder for DDP content          | `db`    |
+| `--force`       | Overwrite existing `ddp.config.json` | off     |
 
 ## `ddp state`
 
@@ -81,8 +86,8 @@ Creates **`ddp.config.json`** at the repo root and directories:
 
 Creates a numbered state SQL file. Shapes:
 
-- **Schema:** `ddp state create schema <kind> <name>` — kinds include `table`, `index`, `constraint`, `extension`, `view`, `enum` (aliases: `sch`, `tbl`, `idx`, …)  
-- **Proc:** `ddp state create proc <name>` or `ddp state create proc <domain> <name>`  
+- **Schema:** `ddp state create schema <kind> <name>` — kinds include `table`, `index`, `constraint`, `extension`, `view`, `enum` (aliases: `sch`, `tbl`, `idx`, …)
+- **Proc:** `ddp state create proc <name>` or `ddp state create proc <domain> <name>`
 - **Trigger:** `ddp state create trigger <name>`
 
 Examples:
@@ -109,18 +114,18 @@ Scaffolds an empty folder `YYYYMMDDHHMMSS_<name>/` under **`paths.migrations`** 
 
 Applies declarative **state** to a **shadow** catalog, diffs against the **target** database, then prints SQL or writes a new migration (`--write`).
 
-- Default: same database as target, shadow schema `ddp_shadow` (override with `--shadow-schema` or `DDP_SHADOW_SCHEMA`).  
+- Default: same database as target, shadow schema `ddp_shadow` (override with `--shadow-schema` or `DDP_SHADOW_SCHEMA`).
 - Optional separate DB: `--shadow-url` or `DDP_SHADOW_DATABASE_URL`.
 
 Useful options:
 
-| Option | Description |
-|--------|-------------|
-| `--write` | Emit SQL into a new migration under `paths.migrations` |
+| Option                    | Description                                                   |
+| ------------------------- | ------------------------------------------------------------- |
+| `--write`                 | Emit SQL into a new migration under `paths.migrations`        |
 | `--migration-name <slug>` | With `--write`: name slug (required with `--non-interactive`) |
-| `--non-interactive` | Fail instead of prompting (CI) |
-| `--create-database` | Create target DB if missing |
-| `--env <path>` | `.env` file (default: auto-discover) |
+| `--non-interactive`       | Fail instead of prompting (CI)                                |
+| `--create-database`       | Create target DB if missing                                   |
+| `--env <path>`            | `.env` file (default: auto-discover)                          |
 
 Connection flags match other commands (`--host`, `--port`, `--database`, `--username`, `--password`, `--schema`).
 
@@ -128,19 +133,37 @@ Connection flags match other commands (`--host`, `--port`, `--database`, `--user
 
 Runs versioned migrations from **`paths.migrations`** in `ddp.config.json`, or **`--folder`**.
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--folder <path>` | Override migrations root | from config |
-| `--transaction-mode <mode>` | `per-file` \| `all-or-nothing` \| `none` | `per-file` |
-| `--dry-run` | List pending migrations only (no DB execute) | off |
-| `--continue-on-error` | Continue after a failed file | off |
-| `--skip-history` | Do not record history (not recommended) | off |
-| `--accept-destructive` | Allow migrations flagged as destructive | off |
-| `--non-interactive` | No prompts (use with `--accept-destructive` / `--create-database` in CI) | off |
-| `--create-database` | Create database if it does not exist | off |
-| `--skip-lock` | Skip PostgreSQL advisory lock (testing only) | off |
+| Option                      | Description                                                              | Default     |
+| --------------------------- | ------------------------------------------------------------------------ | ----------- |
+| `--folder <path>`           | Override migrations root                                                 | from config |
+| `--transaction-mode <mode>` | `per-file` \| `all-or-nothing` \| `none`                                 | `per-file`  |
+| `--dry-run`                 | List pending migrations only (no DB execute)                             | off         |
+| `--continue-on-error`       | Continue after a failed file                                             | off         |
+| `--skip-history`            | Do not record history (not recommended)                                  | off         |
+| `--accept-destructive`      | Allow migrations flagged as destructive                                  | off         |
+| `--non-interactive`         | No prompts (use with `--accept-destructive` / `--create-database` in CI) | off         |
+| `--create-database`         | Create database if it does not exist                                     | off         |
+| `--skip-lock`               | Skip PostgreSQL advisory lock (testing only)                             | off         |
 
 Destructive heuristics (e.g. `DROP`, `TRUNCATE`) require explicit **`--accept-destructive`** in non-interactive runs.
+
+## `ddp seed`
+
+Runs **every** top-level **`*.sql`** file in **`paths.seeds`** (default `{root}/seeds`), in **lexicographic** order. **No migration history** — each run executes all files again (design for idempotent scripts or dev resets).
+
+**Exits with an error** if the directory has **no** `.sql` files (so empty seed folders are not silent no-ops).
+
+| Option                      | Description                                        | Default                |
+| --------------------------- | -------------------------------------------------- | ---------------------- |
+| `--folder <path>`           | Override seeds directory                           | from `ddp.config.json` |
+| `--transaction-mode <mode>` | `per-file` \| `all-or-nothing` \| `none`           | `per-file`             |
+| `--continue-on-error`       | Continue after a failed file                       | off                    |
+| `--accept-destructive`      | Allow TRUNCATE/DROP-style SQL (same as apply)      | off                    |
+| `--non-interactive`         | No prompts (use with `--accept-destructive` in CI) | off                    |
+| `--create-database`         | Create database if missing                         | off                    |
+| `--skip-lock`               | Skip advisory lock (testing)                       | off                    |
+
+Connection options match **`apply`** (`--env`, `--host`, …).
 
 ## `ddp gen`
 
@@ -152,12 +175,12 @@ ddp gen --env .env --schema-only
 ddp gen --procs-only --stdout
 ```
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--env <path>` | `.env` path | auto-discover |
-| `--output <dir>` | Output directory | `./output` |
-| `--stdout` | Print files to stdout | off |
-| `--schema-only` / `--procs-only` / `--triggers-only` | Partial output | off |
+| Option                                               | Description           | Default       |
+| ---------------------------------------------------- | --------------------- | ------------- |
+| `--env <path>`                                       | `.env` path           | auto-discover |
+| `--output <dir>`                                     | Output directory      | `./output`    |
+| `--stdout`                                           | Print files to stdout | off           |
+| `--schema-only` / `--procs-only` / `--triggers-only` | Partial output        | off           |
 
 ## `ddp sync`
 
@@ -174,9 +197,9 @@ ddp sync --env .env --dry-run --output migration.sql
 
 ### `ddp.config.json` (after `ddp init`)
 
-- **`paths`** — `root`, `state`, `migrations`  
-- **`stateLayout`** — schema / procs / triggers directories, `splitMode`  
-- **`migrations`** — naming, immutability, optional metadata/down-SQL rules  
+- **`paths`** — `root`, `state`, `migrations`, `seeds` (optional; `ddp init` adds `seeds`)
+- **`stateLayout`** — schema / procs / triggers directories, `splitMode`
+- **`migrations`** — naming, immutability, optional metadata/down-SQL rules
 - **`statePolicy`** — `strictMode`, `namePattern`, `allowedSchemaKinds`
 
 ### Environment variables
@@ -244,9 +267,9 @@ Use `npm run dev` / `tsx src/cli.ts <command>` for local CLI runs without a glob
 
 ## Contributing
 
-1. Fork and branch  
-2. Run tests and `npm run check` (or `check:all`)  
-3. Open a PR  
+1. Fork and branch
+2. Run tests and `npm run check` (or `check:all`)
+3. Open a PR
 
 Releases on **`main`** use **semantic-release** (see [RELEASING.md](RELEASING.md)).
 

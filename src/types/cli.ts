@@ -84,3 +84,14 @@ export type SchemaStateKind =
 
 // Re-export apply command options
 export type { IApplyCommandOptions } from './apply';
+
+/** `ddp seed` — run flat `*.sql` files with no migration history. */
+export interface ISeedCommandOptions extends IDatabaseConnectionOptions {
+  folder?: string;
+  transactionMode?: 'per-file' | 'all-or-nothing' | 'none';
+  continueOnError?: boolean;
+  acceptDestructive?: boolean;
+  nonInteractive?: boolean;
+  createDatabase?: boolean;
+  skipLock?: boolean;
+}

@@ -8,6 +8,8 @@ export interface IDdpConfig {
     root?: string;
     state?: string;
     migrations?: string;
+    /** SQL seed files directory (flat `*.sql`, no history tracking). */
+    seeds?: string;
   };
   stateLayout?: {
     schemaDir?: string;
@@ -78,6 +80,20 @@ export const resolveDdpMigrationsDir = async (): Promise<string> => {
 
   const relative =
     resolved.config.paths?.migrations ?? `${resolved.rootPath}/migrations`;
+
+  return join(resolved.projectRoot, relative);
+};
+
+/** Absolute path to the seeds directory (`paths.seeds` or `{root}/seeds`). */
+export const resolveDdpSeedsDir = async (): Promise<string> => {
+  const resolved = await resolveDdpConfig();
+  if (!resolved) {
+    throw new Error(
+      'ddp.config.json not found. Run `ddp init` or pass --folder to seed.'
+    );
+  }
+
+  const relative = resolved.config.paths?.seeds ?? `${resolved.rootPath}/seeds`;
 
   return join(resolved.projectRoot, relative);
 };

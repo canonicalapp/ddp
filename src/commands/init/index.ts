@@ -13,6 +13,7 @@ const buildDefaultConfig = (rootPath: string): IDdpConfig => {
       root: rootPath,
       state: `${rootPath}/state`,
       migrations: `${rootPath}/migrations`,
+      seeds: `${rootPath}/seeds`,
     },
     stateLayout: {
       schemaDir: `${rootPath}/state/schema`,
@@ -71,6 +72,7 @@ export const initCommand = async (options: IInitCommandOptions) => {
     await ensureDirectory(join(rootPath, 'state', 'procs'));
     await ensureDirectory(join(rootPath, 'state', 'triggers'));
     await ensureDirectory(join(rootPath, 'migrations'));
+    await ensureDirectory(join(rootPath, 'seeds'));
 
     const shouldOverwriteConfig = options.force ?? false;
     const configAlreadyExists = await fileExists(configPath);
@@ -95,6 +97,7 @@ export const initCommand = async (options: IInitCommandOptions) => {
     console.log(`- ${join(rootPath, 'state', 'procs')}`);
     console.log(`- ${join(rootPath, 'state', 'triggers')}`);
     console.log(`- ${join(rootPath, 'migrations')}`);
+    console.log(`- ${join(rootPath, 'seeds')}`);
     console.log('');
     console.log('DDP init complete.');
   } catch (error) {

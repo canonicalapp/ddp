@@ -4,6 +4,7 @@ import type { Command } from 'commander';
 import { genCommand } from '@/commands/gen/index';
 import { syncCommand } from '@/commands/sync/index';
 import { applyCommand } from '@/commands/apply/index';
+import { seedCommand } from '@/commands/seed/index';
 import { initCommand } from '@/commands/init/index';
 import {
   migrationCreateCommand,
@@ -18,6 +19,7 @@ import type {
   IGenCommandOptions,
   ISyncCommandOptions,
   IApplyCommandOptions,
+  ISeedCommandOptions,
   IInitCommandOptions,
   IMigrationCreateCommandOptions,
 } from '@/types/index';
@@ -36,6 +38,44 @@ program
   .action(async (options: IInitCommandOptions) => {
     try {
       await initCommand(options);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : 'Unknown error');
+      process.exit(1);
+    }
+  });
+
+program
+  .command('seed')
+  .description(
+    'Run every .sql file in paths.seeds (sorted). No history table — executes each time. Fails if no .sql files exist.'
+  )
+  .option('--env <path>', 'Path to .env file (default: auto-discover)')
+  .option('--host <host>', 'Database host')
+  .option('--port <port>', 'Database port', '5432')
+  .option('--database <name>', 'Database name')
+  .option('--username <user>', 'Database username')
+  .option('--password <pass>', 'Database password')
+  .option('--schema <name>', 'Target schema (default: DB_SCHEMA or public)')
+  .option(
+    '--folder <path>',
+    'Override seeds directory (default: ddp.config.json paths.seeds)'
+  )
+  .option(
+    '--transaction-mode <mode>',
+    'Transaction mode: per-file, all-or-nothing, or none',
+    'per-file'
+  )
+  .option('--continue-on-error', 'Continue after a failed file')
+  .option(
+    '--accept-destructive',
+    'Allow TRUNCATE/DROP-style SQL (same heuristics as apply)'
+  )
+  .option('--non-interactive', 'Fail instead of prompting for destructive SQL')
+  .option('--create-database', 'Create target database if it does not exist')
+  .option('--skip-lock', 'Skip PostgreSQL advisory lock (testing only)')
+  .action(async (options: ISeedCommandOptions) => {
+    try {
+      await seedCommand(options);
     } catch (error) {
       console.error(error instanceof Error ? error.message : 'Unknown error');
       process.exit(1);
