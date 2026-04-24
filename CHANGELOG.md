@@ -1,3 +1,10 @@
+# [2.1.0](https://github.com/canonicalapp/ddp/compare/v2.0.4...v2.1.0) (2026-04-24)
+
+
+### Features
+
+* ddp seed command implemented ([45cdb3b](https://github.com/canonicalapp/ddp/commit/45cdb3bbe7c792e20a38e4ee8c02b7cce78ff86f))
+
 ## [2.0.4](https://github.com/canonicalapp/ddp/compare/v2.0.3...v2.0.4) (2026-04-23)
 
 
