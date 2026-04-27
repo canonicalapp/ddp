@@ -110,6 +110,20 @@ describe('Utils', () => {
   });
 
   describe('formatColumnDefinition', () => {
+    it('should prefer resolved types for user-defined columns', () => {
+      const column = {
+        column_name: 'status',
+        data_type: 'USER-DEFINED',
+        resolved_type: 'dev_schema.invoice_status',
+        character_maximum_length: null,
+        is_nullable: 'NO',
+        column_default: null,
+      };
+
+      const result = Utils.formatColumnDefinition(column);
+      expect(result).toBe('"status" dev_schema.invoice_status NOT NULL');
+    });
+
     it('should format basic column definition', () => {
       const column = {
         column_name: 'id',
@@ -181,6 +195,17 @@ describe('Utils', () => {
   });
 
   describe('formatDataType', () => {
+    it('should return resolved type when present', () => {
+      const column = {
+        data_type: 'USER-DEFINED',
+        resolved_type: 'dev_schema.payment_provider',
+        character_maximum_length: null,
+      };
+
+      const result = Utils.formatDataType(column);
+      expect(result).toBe('dev_schema.payment_provider');
+    });
+
     it('should format data type without length', () => {
       const column = {
         data_type: 'integer',

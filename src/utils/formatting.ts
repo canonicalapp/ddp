@@ -5,6 +5,7 @@
 interface ColumnInfo {
   column_name: string;
   data_type: string;
+  resolved_type?: string;
   character_maximum_length?: number;
   is_nullable: 'YES' | 'NO';
   column_default?: string;
@@ -59,9 +60,9 @@ export class Utils {
     column: ColumnInfo,
     targetSchema?: string
   ): string {
-    let def = `"${column.column_name}" ${column.data_type}`;
+    let def = `"${column.column_name}" ${column.resolved_type ?? column.data_type}`;
 
-    if (column.character_maximum_length) {
+    if (!column.resolved_type && column.character_maximum_length) {
       def += `(${column.character_maximum_length})`;
     }
 
@@ -93,9 +94,14 @@ export class Utils {
    * @returns {string} Formatted data type
    */
   static formatDataType(column: ColumnInfo): string {
+    if (column.resolved_type) {
+      return column.resolved_type;
+    }
+
     if (column.character_maximum_length) {
       return `${column.data_type}(${column.character_maximum_length})`;
     }
+
     return column.data_type;
   }
 

@@ -1,5 +1,6 @@
 import { findUp } from 'find-up';
 import { readFileSync } from 'fs';
+import { parse } from 'dotenv';
 import type { TRecord } from '@/types';
 
 /**
@@ -30,15 +31,8 @@ export const loadEnvFile = async (
 
     if (envPath) {
       const envContent = readFileSync(envPath, 'utf8');
-      const envVars: TRecord<string, string> = {};
-
-      envContent.split('\n').forEach((line: string) => {
-        const [key, ...valueParts] = line.split('=');
-        if (key && valueParts.length > 0 && !key.startsWith('#')) {
-          const value = valueParts.join('=').trim();
-          envVars[key.trim()] = value;
-        }
-      });
+      // Use dotenv parser to support quoted values, inline comments, and escapes.
+      const envVars: TRecord<string, string> = parse(envContent);
 
       // Set environment variables
       Object.entries(envVars).forEach(([key, value]) => {

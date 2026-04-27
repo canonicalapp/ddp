@@ -1,5 +1,6 @@
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
+import { Client } from 'pg';
 import { getManifestPath, readManifest, writeManifest } from './manifest';
 import { getNextNumericPrefix, getTargetDirectory } from './paths';
 import { parseStateCreateArgs } from './parseArgs';
@@ -7,6 +8,14 @@ import { enforcePolicy, getStatePolicy } from './policy';
 import { sanitizeName } from '@/utils/sanitize';
 import { buildTemplate } from './templates';
 import type { IStateManifestEntry } from '@/types/state';
+import { buildConnectionString } from '@/database/connection';
+import { loadEnvFile } from '@/utils/envLoader';
+import { resolvePgSchema } from '@/utils/pgSchema';
+import { assembleStateApplyPlan } from '@/migrate/assembleStateApplyPlan';
+import {
+  applyStateFilesToShadowWithAggregateErrors,
+  resetShadowSchema,
+} from '@/migrate/shadowApply';
 import { resolveDdpRootPath } from '@/utils/ddpConfig';
 import { logError, logInfo } from '@/utils/logger';
 
@@ -80,7 +89,68 @@ export const stateCreateCommand = async (input: {
   }
 };
 
-export const stateValidateCommand = async () => {
+export interface IStateValidateCommandOptions {
+  deep?: boolean;
+}
+
+const runDeepStateValidation = async (): Promise<void> => {
+  await loadEnvFile(true);
+
+  const database = process.env.DB_NAME;
+  const username = process.env.DB_USER;
+  const password = process.env.DB_PASSWORD;
+  const schema = resolvePgSchema(undefined, process.env.DB_SCHEMA);
+
+  if (!database || !username || !password) {
+    throw new Error(
+      'Deep validation requires DB_NAME, DB_USER, and DB_PASSWORD in environment.'
+    );
+  }
+
+  const shadowSchema = process.env.DDP_SHADOW_SCHEMA?.trim() || 'ddp_shadow';
+  if (shadowSchema === 'public') {
+    throw new Error(
+      'DDP_SHADOW_SCHEMA must be non-public for deep validation.'
+    );
+  }
+
+  const client = new Client({
+    connectionString: buildConnectionString({
+      host: process.env.DB_HOST ?? 'localhost',
+      port: parseInt(process.env.DB_PORT ?? '5432'),
+      database,
+      username,
+      password,
+      schema,
+    }),
+  });
+
+  await client.connect();
+  try {
+    await resetShadowSchema(client, shadowSchema);
+    const files = await assembleStateApplyPlan();
+    const result = await applyStateFilesToShadowWithAggregateErrors(
+      client,
+      files,
+      {
+        schema: shadowSchema,
+      }
+    );
+
+    if (!result.success) {
+      const details = result.errors
+        .map(err => `${err.file}: ${err.message}`)
+        .join('\n');
+      throw new Error(`Deep state validation failed:\n${details}`);
+    }
+  } finally {
+    await client.end().catch(() => undefined);
+  }
+};
+
+export const stateValidateCommand = async (
+  options: IStateValidateCommandOptions = {}
+) => {
   try {
     const rootPath = await resolveDdpRootPath();
     const policy = await getStatePolicy();
@@ -120,6 +190,12 @@ export const stateValidateCommand = async () => {
     console.log(`- Manifest entries: ${manifest.entries.length}`);
     console.log(`- Strict mode: ${policy.strictMode}`);
     console.log(`- Legacy mode: ${policy.legacyMode}`);
+
+    // Deep validation is mandatory to catch executable SQL errors early.
+    if (options.deep ?? true) {
+      await runDeepStateValidation();
+      console.log('- Deep validation: passed');
+    }
   } catch (error) {
     logError('DDP state validate command failed', error as Error);
     const message = error instanceof Error ? error.message : 'Unknown error';

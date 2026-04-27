@@ -20,6 +20,7 @@ interface ITableRow {
 interface IColumnRow {
   column_name: string;
   data_type: string;
+  resolved_type?: string;
   character_maximum_length: TNullable<number>;
   is_nullable: 'YES' | 'NO';
   column_default: TNullable<string>;
@@ -87,12 +88,16 @@ export class TableOperations {
       SELECT 
         column_name,
         data_type,
+        pg_catalog.format_type(a.atttypid, a.atttypmod) AS resolved_type,
         character_maximum_length,
         is_nullable,
         column_default,
         ordinal_position
-      FROM information_schema.columns 
-      WHERE table_schema = $1 AND table_name = $2
+      FROM information_schema.columns c
+      JOIN pg_catalog.pg_namespace n ON n.nspname = c.table_schema
+      JOIN pg_catalog.pg_class cls ON cls.relname = c.table_name AND cls.relnamespace = n.oid
+      JOIN pg_catalog.pg_attribute a ON a.attrelid = cls.oid AND a.attname = c.column_name
+      WHERE c.table_schema = $1 AND c.table_name = $2
       ORDER BY ordinal_position
     `;
 
@@ -120,6 +125,7 @@ export class TableOperations {
     } = {
       column_name: column.column_name,
       data_type: column.data_type,
+      ...(column.resolved_type && { resolved_type: column.resolved_type }),
       is_nullable: column.is_nullable,
     };
 

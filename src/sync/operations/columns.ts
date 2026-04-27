@@ -16,6 +16,9 @@ interface ColumnInfo {
   table_name: string;
   column_name: string;
   data_type: string;
+  resolved_type?: string;
+  udt_schema?: string;
+  udt_name?: string;
   character_maximum_length?: number;
   is_nullable: 'YES' | 'NO';
   column_default?: string;
@@ -43,15 +46,21 @@ export class ColumnOperations {
   async getColumns(side: SyncDbSide): Promise<TArray<ColumnInfo>> {
     const columnsQuery = `
       SELECT 
-        table_name, 
-        column_name, 
-        data_type, 
-        character_maximum_length,
-        is_nullable, 
-        column_default,
-        ordinal_position
-      FROM information_schema.columns 
-      WHERE table_schema = $1 
+        c.table_name, 
+        c.column_name, 
+        c.data_type,
+        pg_catalog.format_type(a.atttypid, a.atttypmod) AS resolved_type,
+        c.udt_schema,
+        c.udt_name,
+        c.character_maximum_length,
+        c.is_nullable, 
+        c.column_default,
+        c.ordinal_position
+      FROM information_schema.columns c
+      JOIN pg_catalog.pg_namespace n ON n.nspname = c.table_schema
+      JOIN pg_catalog.pg_class cls ON cls.relname = c.table_name AND cls.relnamespace = n.oid
+      JOIN pg_catalog.pg_attribute a ON a.attrelid = cls.oid AND a.attname = c.column_name
+      WHERE c.table_schema = $1 
       ORDER BY table_name, ordinal_position
     `;
 
@@ -98,12 +107,8 @@ export class ColumnOperations {
     sourceCol: ColumnInfo,
     targetCol: ColumnInfo
   ) {
-    const sourceType = sourceCol.character_maximum_length
-      ? `${sourceCol.data_type}(${sourceCol.character_maximum_length})`
-      : sourceCol.data_type;
-    const targetType = targetCol.character_maximum_length
-      ? `${targetCol.data_type}(${targetCol.character_maximum_length})`
-      : targetCol.data_type;
+    const sourceType = Utils.formatDataType(sourceCol);
+    const targetType = Utils.formatDataType(targetCol);
 
     let alterColumn = `ALTER TABLE ${this.options.target}.${tableName} ALTER COLUMN ${sourceCol.column_name}`;
 

@@ -9,6 +9,7 @@ import type { Client } from 'pg';
 import { Utils } from '@/utils/formatting';
 import { ColumnOperations } from '@/sync/operations/columns';
 import { ConstraintOperations } from '@/sync/operations/constraints';
+import { EnumOperations } from '@/sync/operations/enums';
 import { FunctionOperations } from '@/sync/operations/functions';
 import { IndexOperations } from '@/sync/operations/indexes';
 import { SequenceOperations } from '@/sync/operations/sequences';
@@ -31,6 +32,7 @@ export class SchemaSyncOrchestrator {
   private targetClient: Client;
   private options: SyncOptions;
   private tableOps: TableOperations;
+  private enumOps: EnumOperations;
   private columnOps: ColumnOperations;
   private functionOps: FunctionOperations;
   private constraintOps: ConstraintOperations;
@@ -49,6 +51,7 @@ export class SchemaSyncOrchestrator {
 
     // Initialize all operation modules with both clients
     this.tableOps = new TableOperations(sourceClient, targetClient, options);
+    this.enumOps = new EnumOperations(sourceClient, targetClient, options);
     this.columnOps = new ColumnOperations(sourceClient, targetClient, options);
     this.functionOps = new FunctionOperations(
       sourceClient,
@@ -77,25 +80,31 @@ export class SchemaSyncOrchestrator {
    * Execute all schema operations and collect results
    */
   async executeAllOperations(alterStatements: string[]) {
-    // 1. Handle sequence operations (must come before tables)
+    // 1. Handle enum operations (must come before tables/columns that depend on them)
+    alterStatements.push(...Utils.generateSectionHeader('ENUM OPERATIONS'));
+    const enumOps = await this.enumOps.generateEnumOperations();
+    alterStatements.push(...enumOps);
+    alterStatements.push('');
+
+    // 2. Handle sequence operations (must come before tables)
     alterStatements.push(...Utils.generateSectionHeader('SEQUENCE OPERATIONS'));
     const sequenceOps = await this.sequenceOps.generateSequenceOperations();
     alterStatements.push(...sequenceOps);
     alterStatements.push('');
 
-    // 2. Handle table operations
+    // 3. Handle table operations
     alterStatements.push(...Utils.generateSectionHeader('TABLE OPERATIONS'));
     const tableOps = await this.tableOps.generateTableOperations();
     alterStatements.push(...tableOps);
     alterStatements.push('');
 
-    // 3. Handle column operations
+    // 4. Handle column operations
     alterStatements.push(...Utils.generateSectionHeader('COLUMN OPERATIONS'));
     const columnOps = await this.columnOps.generateColumnOperations();
     alterStatements.push(...columnOps);
     alterStatements.push('');
 
-    // 4. Handle function operations
+    // 5. Handle function operations
     alterStatements.push(
       ...Utils.generateSectionHeader('FUNCTION/PROCEDURE OPERATIONS')
     );
@@ -103,7 +112,7 @@ export class SchemaSyncOrchestrator {
     alterStatements.push(...functionOps);
     alterStatements.push('');
 
-    // 5. Handle constraint operations
+    // 6. Handle constraint operations
     alterStatements.push(
       ...Utils.generateSectionHeader('CONSTRAINT OPERATIONS')
     );
@@ -112,13 +121,13 @@ export class SchemaSyncOrchestrator {
     alterStatements.push(...constraintOps);
     alterStatements.push('');
 
-    // 6. Handle index operations
+    // 7. Handle index operations
     alterStatements.push(...Utils.generateSectionHeader('INDEX OPERATIONS'));
     const indexOps = await this.indexOps.generateIndexOperations();
     alterStatements.push(...indexOps);
     alterStatements.push('');
 
-    // 7. Handle trigger operations
+    // 8. Handle trigger operations
     alterStatements.push(...Utils.generateSectionHeader('TRIGGER OPERATIONS'));
     const triggerOps = await this.triggerOps.generateTriggerOperations();
     alterStatements.push(...triggerOps);

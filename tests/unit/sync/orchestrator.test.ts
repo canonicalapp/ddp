@@ -15,6 +15,7 @@ describe('SchemaSyncOrchestrator', () => {
   let mockTargetClient;
   let mockOptions;
   let mockTableOps;
+  let mockEnumOps;
   let mockColumnOps;
   let mockFunctionOps;
   let mockConstraintOps;
@@ -34,6 +35,14 @@ describe('SchemaSyncOrchestrator', () => {
       },
     };
     mockTableOps.generateTableOperations.called = false;
+
+    mockEnumOps = {
+      generateEnumOperations: () => {
+        mockEnumOps.generateEnumOperations.called = true;
+        return Promise.resolve(['-- Enum operations']);
+      },
+    };
+    mockEnumOps.generateEnumOperations.called = false;
 
     mockColumnOps = {
       generateColumnOperations: () => {
@@ -103,6 +112,7 @@ describe('SchemaSyncOrchestrator', () => {
 
     // Replace the operation instances with our mocks
     orchestrator.tableOps = mockTableOps;
+    orchestrator.enumOps = mockEnumOps;
     orchestrator.columnOps = mockColumnOps;
     orchestrator.functionOps = mockFunctionOps;
     orchestrator.constraintOps = mockConstraintOps;
@@ -120,6 +130,7 @@ describe('SchemaSyncOrchestrator', () => {
     it('should initialize all operation modules', () => {
       // Verify that the operation instances are properly set
       expect(orchestrator.tableOps).toBeDefined();
+      expect(orchestrator.enumOps).toBeDefined();
       expect(orchestrator.columnOps).toBeDefined();
       expect(orchestrator.functionOps).toBeDefined();
       expect(orchestrator.constraintOps).toBeDefined();
@@ -129,6 +140,7 @@ describe('SchemaSyncOrchestrator', () => {
 
     it('should store operation module instances', () => {
       expect(orchestrator.tableOps).toBe(mockTableOps);
+      expect(orchestrator.enumOps).toBe(mockEnumOps);
       expect(orchestrator.columnOps).toBe(mockColumnOps);
       expect(orchestrator.functionOps).toBe(mockFunctionOps);
       expect(orchestrator.constraintOps).toBe(mockConstraintOps);
@@ -148,6 +160,7 @@ describe('SchemaSyncOrchestrator', () => {
       expect(result).toContain(`-- Source Schema: ${mockOptions.source}`);
       expect(result).toContain(`-- Target Schema: ${mockOptions.target}`);
       expect(result.some(line => line.includes('-- Generated:'))).toBe(true);
+      expect(result).toContain('-- ENUM OPERATIONS');
       expect(result).toContain('-- TABLE OPERATIONS');
       expect(result).toContain('-- COLUMN OPERATIONS');
       expect(result).toContain('-- FUNCTION/PROCEDURE OPERATIONS');
@@ -160,6 +173,7 @@ describe('SchemaSyncOrchestrator', () => {
     it('should call all operation modules in correct order', async () => {
       await orchestrator.generateSyncScript();
 
+      expect(mockEnumOps.generateEnumOperations.called).toBe(true);
       expect(mockTableOps.generateTableOperations.called).toBe(true);
       expect(mockColumnOps.generateColumnOperations.called).toBe(true);
       expect(mockFunctionOps.generateFunctionOperations.called).toBe(true);
@@ -171,6 +185,7 @@ describe('SchemaSyncOrchestrator', () => {
     it('should include operation results in script', async () => {
       const result = await orchestrator.generateSyncScript();
 
+      expect(result).toContain('-- Enum operations');
       expect(result).toContain('-- Table operations');
       expect(result).toContain('-- Column operations');
       expect(result).toContain('-- Function operations');
@@ -180,6 +195,7 @@ describe('SchemaSyncOrchestrator', () => {
     });
 
     it('should handle empty operation results', async () => {
+      mockEnumOps.generateEnumOperations = () => Promise.resolve([]);
       mockTableOps.generateTableOperations = () => Promise.resolve([]);
       mockColumnOps.generateColumnOperations = () => Promise.resolve([]);
       mockFunctionOps.generateFunctionOperations = () => Promise.resolve([]);
@@ -190,6 +206,7 @@ describe('SchemaSyncOrchestrator', () => {
 
       const result = await orchestrator.generateSyncScript();
 
+      expect(result).toContain('-- ENUM OPERATIONS');
       expect(result).toContain('-- TABLE OPERATIONS');
       expect(result).toContain('-- COLUMN OPERATIONS');
       expect(result).toContain('-- FUNCTION/PROCEDURE OPERATIONS');
@@ -514,6 +531,7 @@ describe('SchemaSyncOrchestrator', () => {
 
     it('should handle operation modules returning null', async () => {
       mockTableOps.generateTableOperations = () => Promise.resolve([]);
+      mockEnumOps.generateEnumOperations = () => Promise.resolve([]);
       mockColumnOps.generateColumnOperations = () => Promise.resolve([]);
       mockFunctionOps.generateFunctionOperations = () => Promise.resolve([]);
       mockConstraintOps.generateConstraintOperations = () =>
@@ -529,6 +547,7 @@ describe('SchemaSyncOrchestrator', () => {
 
     it('should handle operation modules returning undefined', async () => {
       mockTableOps.generateTableOperations = () => Promise.resolve([]);
+      mockEnumOps.generateEnumOperations = () => Promise.resolve([]);
       mockColumnOps.generateColumnOperations = () => Promise.resolve([]);
       mockFunctionOps.generateFunctionOperations = () => Promise.resolve([]);
       mockConstraintOps.generateConstraintOperations = () =>
