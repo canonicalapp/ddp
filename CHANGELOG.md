@@ -1,3 +1,12 @@
+## [2.1.2](https://github.com/canonicalapp/ddp/compare/v2.1.1...v2.1.2) (2026-04-27)
+
+
+### Bug Fixes
+
+* baseline browser check ([c7d1cdb](https://github.com/canonicalapp/ddp/commit/c7d1cdbbc928edc4f82a572df516972ade137797))
+* format seed command output spacing ([efaf763](https://github.com/canonicalapp/ddp/commit/efaf763830189018ef604907c9141b2f84750303))
+* harden state diff generation and validation preflight ([390771a](https://github.com/canonicalapp/ddp/commit/390771ab8998334e52817087a05692c63109cb2e))
+
 ## [2.1.1](https://github.com/canonicalapp/ddp/compare/v2.1.0...v2.1.1) (2026-04-24)
 
 
