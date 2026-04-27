@@ -299,6 +299,7 @@ export const seedCommand = async (options: ISeedCommandOptions) => {
           logWarn('Failed to release advisory lock');
         }
       }
+
       await client.end();
       logInfo('Database client disconnected');
     }
@@ -322,16 +323,19 @@ export const seedCommand = async (options: ISeedCommandOptions) => {
 function reportSeedResults(results: IExecutionResult[]): void {
   console.log('');
   console.log('📊 Seed summary:');
+
   const successful = results.filter(r => r.success).length;
   const failed = results.filter(r => !r.success).length;
   const totalStatements = results.reduce(
     (sum, r) => sum + r.statementsExecuted,
     0
   );
+
   console.log(`✅ Successful files: ${successful}`);
   console.log(`❌ Failed files: ${failed}`);
   console.log(`📝 Statements executed: ${totalStatements}`);
   console.log('');
+
   if (failed > 0) {
     for (const r of results) {
       if (!r.success) {
