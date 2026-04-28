@@ -1,3 +1,10 @@
+# [2.2.0](https://github.com/canonicalapp/ddp/compare/v2.1.2...v2.2.0) (2026-04-28)
+
+
+### Features
+
+* **reset:** add dev DB reset command with guardrails ([62851a8](https://github.com/canonicalapp/ddp/commit/62851a8588dee1b671d175efa5fb8697331afcee))
+
 ## [2.1.2](https://github.com/canonicalapp/ddp/compare/v2.1.1...v2.1.2) (2026-04-27)
 
 
