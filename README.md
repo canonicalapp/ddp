@@ -11,8 +11,9 @@ DDP helps teams manage PostgreSQL schemas in Git:
 3. **`migration`** — **`migration diff`** can generate SQL from state vs a target DB (shadow catalog)
 4. **`apply`** — Run pending migrations with transactions, history, locks, and destructive guards
 5. **`seed`** — Run every top-level `*.sql` in `paths.seeds` (no history; fails if none found)
-6. **`gen`** — Generate `schema.sql` / `procs.sql` / `triggers.sql` from a live database
-7. **`sync`** — Compare two databases and emit `alter.sql` (with data-preserving renames)
+6. **`reset`** — Dev-only DB reset: drop/recreate DB, then run apply + seed
+7. **`gen`** — Generate `schema.sql` / `procs.sql` / `triggers.sql` from a live database
+8. **`sync`** — Compare two databases and emit `alter.sql` (with data-preserving renames)
 
 Run `ddp` with no arguments to print built-in help.
 
@@ -39,6 +40,7 @@ The published package ships the compiled **`dist/`** tree. Installing from a **g
 | `ddp migration diff`          | Materialize state to shadow, diff vs target; optional `--write` migration  |
 | `ddp apply`                   | Apply pending migrations from config (or `--folder`)                       |
 | `ddp seed`                    | Execute all `*.sql` in `paths.seeds` (sorted); no tracking; error if empty |
+| `ddp reset`                   | Dev-only drop/recreate DB, then run `apply` and `seed`                     |
 | `ddp gen`                     | Introspect a DB → SQL files or stdout                                      |
 | `ddp sync`                    | Diff source vs target DB → `alter.sql`                                     |
 
@@ -66,6 +68,9 @@ ddp apply --env .env
 
 # 6. Optional: repeatable seed SQL (db/seeds/*.sql — idempotent SQL recommended)
 ddp seed --env .env
+
+# 7. Optional: dev reset (drop/recreate DB, then apply + seed)
+ddp reset --env .env --non-interactive --force
 ```
 
 ## `ddp init`
@@ -164,6 +169,41 @@ Runs **every** top-level **`*.sql`** file in **`paths.seeds`** (default `{root}/
 | `--skip-lock`               | Skip advisory lock (testing)                       | off                    |
 
 Connection options match **`apply`** (`--env`, `--host`, …).
+
+## `ddp reset` (dev-only)
+
+Resets a local/dev database in one command:
+
+1. Drops and recreates the target database
+2. Runs `ddp apply`
+3. Runs `ddp seed` (unless `--skip-seed`)
+
+Safety guards:
+
+- Only allowed when env resolves to development/test (`DDP_ENV` or `NODE_ENV`, default fallback is `development`).
+- Requires confirmation; for CI/non-interactive runs use `--non-interactive --force`.
+- Target guardrails:
+  - Host must match allowlist (default: `localhost`, `127.0.0.1`, `::1`)
+  - DB name must match allowlist pattern (default contains: `dev`, `test`, `local`, `sandbox`, `tmp`)
+  - Prod-like names (`prod`, `production`, `staging`, `live`) are blocked unless explicitly overridden
+
+| Option                           | Description                                                     | Default     |
+| -------------------------------- | --------------------------------------------------------------- | ----------- |
+| `--maintenance-database <name>`  | Maintenance DB used to execute DROP/CREATE DATABASE             | `postgres`  |
+| `--force`                        | Skip interactive confirmation                                   | off         |
+| `--non-interactive`              | No prompt; must be combined with `--force`                     | off         |
+| `--allowed-hosts <list>`         | Comma-separated reset host allowlist (supports `*`)            | `localhost,127.0.0.1,::1` |
+| `--allowed-databases <list>`     | Comma-separated DB-name allowlist (supports `*`)               | `*dev*,*test*,*local*,*sandbox*,*tmp*` |
+| `--allow-risky-database-name`    | Allow prod-like DB names after other checks                    | off         |
+| `--skip-seed`                    | Run apply only                                                  | off         |
+| `--transaction-mode <mode>`      | Pass-through to apply/seed (`per-file`, `all-or-nothing`, `none`) | command default |
+| `--continue-on-error`            | Pass-through to apply/seed                                      | off         |
+| `--accept-destructive` / `--skip-lock` | Pass-through to apply/seed                                | off         |
+
+Environment equivalents:
+
+- `DDP_RESET_ALLOWED_HOSTS` (comma-separated)
+- `DDP_RESET_ALLOWED_DATABASES` (comma-separated)
 
 ## `ddp gen`
 

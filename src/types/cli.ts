@@ -95,3 +95,31 @@ export interface ISeedCommandOptions extends IDatabaseConnectionOptions {
   createDatabase?: boolean;
   skipLock?: boolean;
 }
+
+/** `ddp reset` — dev-only DB reset, then apply + seed. */
+export interface IResetCommandOptions extends IDatabaseConnectionOptions {
+  /** Optional .env path; loaded before resolving DB_* values. */
+  env?: string;
+  /** Confirmation bypass (required with --non-interactive). */
+  force?: boolean;
+  /** Do not prompt for confirmation. */
+  nonInteractive?: boolean;
+  /** Maintenance DB used for DROP/CREATE DATABASE. */
+  maintenanceDatabase?: string;
+  /** Skip running seed after apply. */
+  skipSeed?: boolean;
+  /** Passed through to apply/seed. */
+  acceptDestructive?: boolean;
+  /** Passed through to apply/seed. */
+  transactionMode?: 'per-file' | 'all-or-nothing' | 'none';
+  /** Passed through to apply/seed. */
+  continueOnError?: boolean;
+  /** Passed through to apply/seed. */
+  skipLock?: boolean;
+  /** Comma-separated allowlist patterns for DB host, supports `*` wildcard. */
+  allowedHosts?: string;
+  /** Comma-separated allowlist patterns for DB name, supports `*` wildcard. */
+  allowedDatabases?: string;
+  /** Allow prod-like DB names (still requires allowlist + confirmation/force). */
+  allowRiskyDatabaseName?: boolean;
+}

@@ -5,6 +5,7 @@ import { genCommand } from '@/commands/gen/index';
 import { syncCommand } from '@/commands/sync/index';
 import { applyCommand } from '@/commands/apply/index';
 import { seedCommand } from '@/commands/seed/index';
+import { resetCommand } from '@/commands/reset/index';
 import { initCommand } from '@/commands/init/index';
 import {
   migrationCreateCommand,
@@ -20,6 +21,7 @@ import type {
   ISyncCommandOptions,
   IApplyCommandOptions,
   ISeedCommandOptions,
+  IResetCommandOptions,
   IInitCommandOptions,
   IMigrationCreateCommandOptions,
 } from '@/types/index';
@@ -76,6 +78,53 @@ program
   .action(async (options: ISeedCommandOptions) => {
     try {
       await seedCommand(options);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : 'Unknown error');
+      process.exit(1);
+    }
+  });
+
+program
+  .command('reset')
+  .description(
+    'Dev-only DB reset: DROP/CREATE database, then run apply and seed.'
+  )
+  .option('--env <path>', 'Path to .env file (default: auto-discover)')
+  .option('--host <host>', 'Database host')
+  .option('--port <port>', 'Database port', '5432')
+  .option('--database <name>', 'Database name')
+  .option('--username <user>', 'Database username')
+  .option('--password <pass>', 'Database password')
+  .option('--schema <name>', 'Target schema (default: DB_SCHEMA or public)')
+  .option(
+    '--maintenance-database <name>',
+    'Maintenance DB used to execute DROP/CREATE DATABASE (default: postgres)'
+  )
+  .option('--force', 'Bypass interactive confirmation prompt')
+  .option('--non-interactive', 'Fail if --force is not provided')
+  .option(
+    '--allowed-hosts <list>',
+    'Comma-separated host allowlist for reset target (supports * wildcard)'
+  )
+  .option(
+    '--allowed-databases <list>',
+    'Comma-separated database allowlist for reset target (supports * wildcard)'
+  )
+  .option(
+    '--allow-risky-database-name',
+    'Allow prod-like DB names (prod/production/staging/live) after other checks'
+  )
+  .option('--skip-seed', 'Do not run ddp seed after apply')
+  .option(
+    '--transaction-mode <mode>',
+    'Pass-through transaction mode for apply/seed: per-file, all-or-nothing, none'
+  )
+  .option('--continue-on-error', 'Pass-through for apply/seed')
+  .option('--accept-destructive', 'Pass-through for apply/seed')
+  .option('--skip-lock', 'Pass-through for apply/seed')
+  .action(async (options: IResetCommandOptions) => {
+    try {
+      await resetCommand(options);
     } catch (error) {
       console.error(error instanceof Error ? error.message : 'Unknown error');
       process.exit(1);
