@@ -184,7 +184,7 @@ Safety guards:
 - Requires confirmation; for CI/non-interactive runs use `--non-interactive --force`.
 - Target guardrails:
   - Host must match allowlist (default: `localhost`, `127.0.0.1`, `::1`)
-  - DB name must match allowlist pattern (default contains: `dev`, `test`, `local`, `sandbox`, `tmp`)
+  - DB name allowlist is optional (set explicitly via option/env when needed)
   - Prod-like names (`prod`, `production`, `staging`, `live`) are blocked unless explicitly overridden
 
 | Option                           | Description                                                     | Default     |
@@ -193,7 +193,7 @@ Safety guards:
 | `--force`                        | Skip interactive confirmation                                   | off         |
 | `--non-interactive`              | No prompt; must be combined with `--force`                     | off         |
 | `--allowed-hosts <list>`         | Comma-separated reset host allowlist (supports `*`)            | `localhost,127.0.0.1,::1` |
-| `--allowed-databases <list>`     | Comma-separated DB-name allowlist (supports `*`)               | `*dev*,*test*,*local*,*sandbox*,*tmp*` |
+| `--allowed-databases <list>`     | Comma-separated DB-name allowlist (supports `*`)               | unset (no DB allowlist) |
 | `--allow-risky-database-name`    | Allow prod-like DB names after other checks                    | off         |
 | `--skip-seed`                    | Run apply only                                                  | off         |
 | `--transaction-mode <mode>`      | Pass-through to apply/seed (`per-file`, `all-or-nothing`, `none`) | command default |

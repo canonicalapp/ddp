@@ -17,13 +17,6 @@ import { resolvePgSchema } from '@/utils/pgSchema';
 
 const DEV_ENV_VALUES = new Set(['development', 'dev', 'local', 'test']);
 const DEFAULT_HOST_ALLOWLIST = ['localhost', '127.0.0.1', '::1'];
-const DEFAULT_DB_ALLOWLIST = [
-  '*dev*',
-  '*test*',
-  '*local*',
-  '*sandbox*',
-  '*tmp*',
-];
 const RISKY_DB_PATTERNS = ['*prod*', '*production*', '*staging*', '*live*'];
 
 const promptLine = (question: string): Promise<string> => {
@@ -87,7 +80,10 @@ function buildConnectionConfig(
   };
 }
 
-async function assertDevOnly(options: IResetCommandOptions): Promise<void> {
+async function assertDevOnly(
+  options: IResetCommandOptions,
+  databaseName: string
+): Promise<void> {
   const envCandidate = (
     process.env.DDP_ENV ??
     process.env.NODE_ENV ??
@@ -123,11 +119,10 @@ async function assertDevOnly(options: IResetCommandOptions): Promise<void> {
     return;
   }
 
-  const db = options.database ?? process.env.DB_NAME;
   const answer = await promptLine(
-    `This will DROP and recreate database "${db}". Type the database name to continue: `
+    `This will DROP and recreate database "${databaseName}". Type the database name to continue: `
   );
-  if (answer !== db) {
+  if (answer !== databaseName) {
     throw new Error(
       'Reset aborted (confirmation did not match database name).'
     );
@@ -157,13 +152,10 @@ function assertResetTargetAllowed(
   const dbAllowlist = parseCsvList(
     options.allowedDatabases ?? process.env.DDP_RESET_ALLOWED_DATABASES
   );
-  const effectiveDbAllowlist =
-    dbAllowlist.length > 0 ? dbAllowlist : DEFAULT_DB_ALLOWLIST;
-
-  if (!anyWildcardMatch(database, effectiveDbAllowlist)) {
+  if (dbAllowlist.length > 0 && !anyWildcardMatch(database, dbAllowlist)) {
     throw new Error(
-      `Reset blocked for database "${database}". Allowed DB patterns: ${effectiveDbAllowlist.join(', ')}.\n` +
-        `Use --allowed-databases or DDP_RESET_ALLOWED_DATABASES for explicit dev DB names.`
+      `Reset blocked for database "${database}". Allowed DB patterns: ${dbAllowlist.join(', ')}.\n` +
+        `Use --allowed-databases or DDP_RESET_ALLOWED_DATABASES to permit this target.`
     );
   }
 
@@ -211,9 +203,8 @@ async function resetDatabase(
 export const resetCommand = async (options: IResetCommandOptions) => {
   try {
     await loadEnvFile(true, options.env);
-    await assertDevOnly(options);
-
     const connectionConfig = buildConnectionConfig(options);
+    await assertDevOnly(options, connectionConfig.database);
     assertResetTargetAllowed(options, connectionConfig);
     const maintenanceDatabase =
       options.maintenanceDatabase ??
