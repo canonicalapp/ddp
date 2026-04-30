@@ -1,3 +1,10 @@
+## [2.2.2](https://github.com/canonicalapp/ddp/compare/v2.2.1...v2.2.2) (2026-04-30)
+
+
+### Bug Fixes
+
+* **reset:** simplify confirmation and add --yes alias ([ac700a2](https://github.com/canonicalapp/ddp/commit/ac700a28b932e23e770f180da16dc7d5a060b69a))
+
 ## [2.2.1](https://github.com/canonicalapp/ddp/compare/v2.2.0...v2.2.1) (2026-04-30)
 
 
