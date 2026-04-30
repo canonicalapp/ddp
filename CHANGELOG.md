@@ -1,3 +1,10 @@
+## [2.2.1](https://github.com/canonicalapp/ddp/compare/v2.2.0...v2.2.1) (2026-04-30)
+
+
+### Bug Fixes
+
+* **reset:** resolve DB from env and relax local DB guard ([a6652c0](https://github.com/canonicalapp/ddp/commit/a6652c0968ef5781c5dc9f7319fcab19b62d1ea0))
+
 # [2.2.0](https://github.com/canonicalapp/ddp/compare/v2.1.2...v2.2.0) (2026-04-28)
 
 
