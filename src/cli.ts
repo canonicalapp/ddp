@@ -100,8 +100,9 @@ program
     '--maintenance-database <name>',
     'Maintenance DB used to execute DROP/CREATE DATABASE (default: postgres)'
   )
+  .option('-y, --yes', 'Accept confirmation prompt (alias of --force)')
   .option('--force', 'Bypass interactive confirmation prompt')
-  .option('--non-interactive', 'Fail if --force is not provided')
+  .option('--non-interactive', 'Fail if --force/--yes is not provided')
   .option(
     '--allowed-hosts <list>',
     'Comma-separated host allowlist for reset target (supports * wildcard)'

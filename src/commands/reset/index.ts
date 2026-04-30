@@ -84,6 +84,7 @@ async function assertDevOnly(
   options: IResetCommandOptions,
   databaseName: string
 ): Promise<void> {
+  const skipPrompt = options.force === true || options.yes === true;
   const envCandidate = (
     process.env.DDP_ENV ??
     process.env.NODE_ENV ??
@@ -101,9 +102,9 @@ async function assertDevOnly(
   }
 
   if (options.nonInteractive) {
-    if (!options.force) {
+    if (!skipPrompt) {
       throw new Error(
-        'Non-interactive reset requires --force to avoid accidental database destruction.'
+        'Non-interactive reset requires --force or --yes to avoid accidental database destruction.'
       );
     }
     return;
@@ -115,17 +116,15 @@ async function assertDevOnly(
     );
   }
 
-  if (options.force) {
+  if (skipPrompt) {
     return;
   }
 
   const answer = await promptLine(
-    `This will DROP and recreate database "${databaseName}". Type the database name to continue: `
+    `This will DROP and recreate database "${databaseName}". Continue? [y/N] `
   );
-  if (answer !== databaseName) {
-    throw new Error(
-      'Reset aborted (confirmation did not match database name).'
-    );
+  if (!/^y(es)?$/i.test(answer)) {
+    throw new Error('Reset aborted.');
   }
 }
 

@@ -100,6 +100,8 @@ export interface ISeedCommandOptions extends IDatabaseConnectionOptions {
 export interface IResetCommandOptions extends IDatabaseConnectionOptions {
   /** Optional .env path; loaded before resolving DB_* values. */
   env?: string;
+  /** Alias for force confirmation (Prisma-style). */
+  yes?: boolean;
   /** Confirmation bypass (required with --non-interactive). */
   force?: boolean;
   /** Do not prompt for confirmation. */

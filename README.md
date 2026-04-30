@@ -190,8 +190,9 @@ Safety guards:
 | Option                           | Description                                                     | Default     |
 | -------------------------------- | --------------------------------------------------------------- | ----------- |
 | `--maintenance-database <name>`  | Maintenance DB used to execute DROP/CREATE DATABASE             | `postgres`  |
+| `--yes`                          | Skip interactive confirmation (alias to `--force`)             | off         |
 | `--force`                        | Skip interactive confirmation                                   | off         |
-| `--non-interactive`              | No prompt; must be combined with `--force`                     | off         |
+| `--non-interactive`              | No prompt; must be combined with `--force` or `--yes`         | off         |
 | `--allowed-hosts <list>`         | Comma-separated reset host allowlist (supports `*`)            | `localhost,127.0.0.1,::1` |
 | `--allowed-databases <list>`     | Comma-separated DB-name allowlist (supports `*`)               | unset (no DB allowlist) |
 | `--allow-risky-database-name`    | Allow prod-like DB names after other checks                    | off         |
