@@ -82,7 +82,7 @@ export class HistoryTracker {
 
     for (const row of res.rows) {
       const migrationId = this.extractMigrationIdFromPath(row.file_path);
-      const value = migrationId || `legacy_${row.id}`;
+      const value = migrationId ?? `legacy_${row.id}`;
       await client.query(
         `UPDATE ${this.tableName} SET migration_id = $1 WHERE id = $2`,
         [value, row.id]

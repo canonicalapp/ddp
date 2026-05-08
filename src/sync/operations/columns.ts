@@ -25,6 +25,11 @@ interface ColumnInfo {
   ordinal_position: number;
 }
 
+type TManualBackfillReason =
+  | 'fk_like'
+  | 'enum_or_custom_type'
+  | 'uuid_needs_domain_value';
+
 export class ColumnOperations {
   private sourceClient: Client;
   private targetClient: Client;
@@ -171,6 +176,7 @@ export class ColumnOperations {
       alterStatements.push(
         `-- TODO: Manually drop column ${this.options.target}.${tableName}.${backupName} after confirming data is no longer needed`
       );
+      alterStatements.push('');
     }
   }
 
@@ -206,11 +212,44 @@ export class ColumnOperations {
       targetCol
     );
     alterStatements.push(alterStatement);
+    alterStatements.push('');
   }
 
   /**
    * Handle columns that need to be added or modified
    */
+  private isLikelyForeignKeyColumn(columnName: string) {
+    return columnName.toLowerCase().endsWith('_id');
+  }
+
+  private isNumericIdentifierType(dataType: string) {
+    const t = dataType.toLowerCase();
+    return (
+      t.includes('integer') || t.includes('bigint') || t.includes('smallint')
+    );
+  }
+
+  private requiresManualBackfill(
+    sourceCol: ColumnInfo
+  ): TManualBackfillReason | null {
+    if (
+      this.isLikelyForeignKeyColumn(sourceCol.column_name) &&
+      this.isNumericIdentifierType(sourceCol.data_type)
+    ) {
+      return 'fk_like';
+    }
+
+    if (sourceCol.data_type.toLowerCase() === 'user-defined') {
+      return 'enum_or_custom_type';
+    }
+
+    if (sourceCol.data_type.toLowerCase() === 'uuid') {
+      return 'uuid_needs_domain_value';
+    }
+
+    return null;
+  }
+
   handleColumnsToAddOrModify(
     tableName: string,
     sourceTableCols: TArray<ColumnInfo>,
@@ -225,9 +264,13 @@ export class ColumnOperations {
       if (!targetCol) {
         // Column exists in source but not in target - add it
         const columnDef = this.generateColumnDefinition(sourceCol);
+        alterStatements.push(
+          `-- Adding column ${tableName}.${sourceCol.column_name}`
+        );
 
         // If column is NOT NULL and has no default, add it as nullable first, then update
         if (sourceCol.is_nullable === 'NO' && !sourceCol.column_default) {
+          const manualReason = this.requiresManualBackfill(sourceCol);
           // Add column as nullable first
           const nullableDef = this.generateColumnDefinition({
             ...sourceCol,
@@ -237,22 +280,41 @@ export class ColumnOperations {
             `ALTER TABLE ${this.options.target}.${tableName} ADD COLUMN ${nullableDef};`
           );
 
-          // Update existing rows with a default value
-          const defaultValue = this.getDefaultValueForType(sourceCol.data_type);
-          alterStatements.push(
-            `UPDATE ${this.options.target}.${tableName} SET "${sourceCol.column_name}" = ${defaultValue} WHERE "${sourceCol.column_name}" IS NULL;`
-          );
+          if (manualReason) {
+            const markerPayload = JSON.stringify({
+              table: tableName,
+              column: sourceCol.column_name,
+              type: sourceCol.resolved_type ?? sourceCol.data_type,
+              reason: manualReason,
+            });
+            alterStatements.push(`-- BACKFILL_REQUIRED ${markerPayload}`);
+            alterStatements.push(
+              `-- TODO: Backfill ${tableName}.${sourceCol.column_name} with domain-valid values, then enforce NOT NULL in a follow-up migration.`
+            );
+          } else {
+            // Update existing rows with a generated default value for simple scalar types
+            const defaultValue = this.getDefaultValueForType(
+              sourceCol.data_type
+            );
+            alterStatements.push(
+              `-- Backfilling ${tableName}.${sourceCol.column_name} before enforcing NOT NULL`
+            );
+            alterStatements.push(
+              `UPDATE ${this.options.target}.${tableName} SET "${sourceCol.column_name}" = ${defaultValue} WHERE "${sourceCol.column_name}" IS NULL;`
+            );
 
-          // Now make it NOT NULL
-          alterStatements.push(
-            `ALTER TABLE ${this.options.target}.${tableName} ALTER COLUMN "${sourceCol.column_name}" SET NOT NULL;`
-          );
+            // Now make it NOT NULL
+            alterStatements.push(
+              `ALTER TABLE ${this.options.target}.${tableName} ALTER COLUMN "${sourceCol.column_name}" SET NOT NULL;`
+            );
+          }
         } else {
           // Add column with original definition
           alterStatements.push(
             `ALTER TABLE ${this.options.target}.${tableName} ADD COLUMN ${columnDef};`
           );
         }
+        alterStatements.push('');
       } else {
         // Column exists in both, check for differences
         const sourceType = Utils.formatDataType(sourceCol);
@@ -332,6 +394,7 @@ export class ColumnOperations {
       if (targetColumnsByTable[tableName]) {
         const sourceTableCols = sourceColumnsByTable[tableName] ?? [];
         const targetTableCols = targetColumnsByTable[tableName] ?? [];
+        const tableStatementsStart = alterStatements.length;
 
         // Find columns that exist in target but not in source (need to be dropped)
         const columnsToDrop = targetTableCols.filter(
@@ -348,6 +411,15 @@ export class ColumnOperations {
           targetTableCols,
           alterStatements
         );
+
+        if (alterStatements.length > tableStatementsStart) {
+          alterStatements.splice(
+            tableStatementsStart,
+            0,
+            `-- Table ${tableName} column changes`
+          );
+          alterStatements.push('');
+        }
       }
     }
 

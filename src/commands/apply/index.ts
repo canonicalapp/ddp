@@ -5,7 +5,6 @@
 
 import { resolve } from 'path';
 import { buildConnectionString, testConnection } from '@/database/connection';
-import { assertDestructiveMigrationsAllowed } from '@/commands/apply/destructiveGuard';
 import {
   ensurePgSchemaExists,
   ensureTargetDatabase,
@@ -14,13 +13,16 @@ import { FileLoader } from '@/commands/apply/fileLoader';
 import { SQLExecutor } from '@/commands/apply/executor';
 import { TransactionManager } from '@/commands/apply/transactionManager';
 import { HistoryTracker } from '@/commands/apply/historyTracker';
-import type {
-  IApplyCommandOptions,
-  ILoadedFile,
-  IExecutionResult,
-  TransactionMode,
-  IFileLoadOptions,
-} from '@/types/apply';
+import {
+  executeFiles,
+  type IExecuteFilesOptions,
+} from '@/commands/apply/executionPipeline';
+import {
+  detectPendingBackfillMigrations,
+  filterFilesByBackfillVerify,
+} from '@/commands/apply/backfillWorkflow';
+import { performDryRun, reportResults } from '@/commands/apply/reporting';
+import type { IApplyCommandOptions, IFileLoadOptions } from '@/types/apply';
 import type { IDatabaseConnection } from '@/types/database';
 import { ValidationError } from '@/types/errors';
 import { loadEnvFile } from '@/utils/envLoader';
@@ -28,7 +30,6 @@ import { resolvePgSchema } from '@/utils/pgSchema';
 import { resolveDdpConfig, resolveDdpMigrationsDir } from '@/utils/ddpConfig';
 import { DatabaseConnectionError } from '@/utils/generatorErrors';
 import { logDebug, logError, logInfo, logWarn } from '@/utils/logger';
-import { createProgress } from '@/utils/progress';
 import { Client } from 'pg';
 
 const ADVISORY_LOCK_K1 = 0x44445031;
@@ -52,7 +53,10 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
     console.log('');
 
     const fileLoader = new FileLoader();
-    const loadOptions: IFileLoadOptions = { folder: migrationsFolder };
+    const loadOptions: IFileLoadOptions = {
+      folder: migrationsFolder,
+      withBackfill: options.withBackfill ?? false,
+    };
     console.log('📂 Loading SQL migrations...');
     const files = await fileLoader.loadFiles(loadOptions);
 
@@ -152,9 +156,15 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
         console.log('');
       }
 
-      const transactionMode: TransactionMode =
-        options.transactionMode || 'per-file';
-      const continueOnError = options.continueOnError || false;
+      const transactionMode = options.transactionMode ?? 'per-file';
+      const continueOnError = options.continueOnError ?? false;
+      const pendingBackfillMigrations = await detectPendingBackfillMigrations(
+        files,
+        historyTracker,
+        client,
+        options.skipHistory ?? false,
+        enforceImmutability
+      );
 
       console.log('🚀 Applying migrations...');
       console.log(`Transaction mode: ${transactionMode}`);
@@ -162,10 +172,36 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
       console.log(`Immutability: ${enforceImmutability}`);
       console.log('');
 
-      const execOpts: Parameters<typeof executeFiles>[5] = {
+      if (pendingBackfillMigrations.length > 0) {
+        console.log(
+          '🧩 Detected migrations with backfill scaffolds (backfill.sql):'
+        );
+        pendingBackfillMigrations.forEach(item => {
+          console.log(`   - ${item.migrationId}: ${item.backfillPath}`);
+        });
+        console.log('');
+        console.log(
+          '   Apply up.sql/expand.sql first, then complete backfill.sql before running constraints.sql.'
+        );
+        console.log('');
+
+        if (!options.acknowledgeBackfill && !options.withBackfill) {
+          throw new ValidationError(
+            'Pending backfill.sql files detected. Re-run with --acknowledge-backfill after reviewing manual backfill steps.',
+            'backfill',
+            {
+              pendingBackfillMigrations: pendingBackfillMigrations.map(
+                item => item.migrationId
+              ),
+            }
+          );
+        }
+      }
+
+      const execOpts: IExecuteFilesOptions = {
         transactionMode,
         continueOnError,
-        skipHistory: options.skipHistory || false,
+        skipHistory: options.skipHistory ?? false,
         enforceImmutability,
       };
       if (options.acceptDestructive !== undefined) {
@@ -175,8 +211,12 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
         execOpts.nonInteractive = options.nonInteractive;
       }
 
+      const executionFiles = options.withBackfill
+        ? await filterFilesByBackfillVerify(files, client)
+        : files;
+
       const results = await executeFiles(
-        files,
+        executionFiles,
         executor,
         transactionManager,
         historyTracker,
@@ -195,6 +235,13 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
 
       console.log('');
       console.log('🎉 All migrations applied successfully!');
+      if (pendingBackfillMigrations.length > 0) {
+        console.log('');
+        console.log('📌 Manual backfill follow-up:');
+        pendingBackfillMigrations.forEach(item => {
+          console.log(`   - Review and run: ${item.backfillPath}`);
+        });
+      }
     } finally {
       if (lockHeld) {
         try {
@@ -272,237 +319,4 @@ function buildConnectionConfig(
 
 function escapeIdentifier(identifier: string): string {
   return `"${identifier.replace(/"/g, '""')}"`;
-}
-
-async function performDryRun(files: ILoadedFile[]): Promise<void> {
-  console.log('Migrations that would run (in order):');
-  console.log('');
-
-  for (const file of files) {
-    console.log(`📄 ${file.migrationId}`);
-    console.log(`   Path: ${file.path}`);
-    console.log(`   Checksum: ${file.checksum.substring(0, 16)}...`);
-    console.log(`   Size: ${file.content.length} bytes`);
-    console.log('');
-  }
-
-  console.log('✅ Dry-run completed — no database changes');
-}
-
-async function executeFiles(
-  files: ILoadedFile[],
-  executor: SQLExecutor,
-  transactionManager: TransactionManager,
-  historyTracker: HistoryTracker,
-  client: Client,
-  options: {
-    transactionMode: TransactionMode;
-    continueOnError: boolean;
-    skipHistory: boolean;
-    enforceImmutability: boolean;
-    acceptDestructive?: boolean;
-    nonInteractive?: boolean;
-  }
-): Promise<IExecutionResult[]> {
-  const results: IExecutionResult[] = [];
-  const progress = createProgress({
-    total: files.length,
-    title: 'Applying migrations',
-    showPercentage: true,
-    showTime: true,
-  });
-
-  const filesToApply: ILoadedFile[] = [];
-
-  if (!options.skipHistory) {
-    for (const file of files) {
-      const decision = await historyTracker.getApplyDecision(
-        client,
-        file.migrationId,
-        file.checksum,
-        options.enforceImmutability
-      );
-
-      if (decision === 'skip') {
-        logInfo('Skipping already applied migration', {
-          migrationId: file.migrationId,
-        });
-        console.log(`⏭️  Skipping ${file.migrationId} (already applied)`);
-        results.push({
-          success: true,
-          fileName: file.name,
-          statementsExecuted: 0,
-          executionTime: 0,
-        });
-        progress.update();
-      } else {
-        filesToApply.push(file);
-      }
-    }
-  } else {
-    filesToApply.push(...files);
-  }
-
-  const destructiveOpts: Parameters<
-    typeof assertDestructiveMigrationsAllowed
-  >[1] = {};
-  if (options.acceptDestructive !== undefined) {
-    destructiveOpts.acceptDestructive = options.acceptDestructive;
-  }
-  if (options.nonInteractive !== undefined) {
-    destructiveOpts.nonInteractive = options.nonInteractive;
-  }
-  await assertDestructiveMigrationsAllowed(filesToApply, destructiveOpts);
-
-  const recordPayload = (file: ILoadedFile, result: IExecutionResult) => ({
-    migration_id: file.migrationId,
-    file_name: file.name,
-    file_path: file.path,
-    checksum: file.checksum,
-    execution_time_ms: result.executionTime,
-    success: result.success,
-    error_message: result.errorMessage ?? null,
-  });
-
-  if (options.transactionMode === 'all-or-nothing') {
-    try {
-      await transactionManager.executeInTransaction(client, {
-        mode: options.transactionMode,
-        operations: async () => {
-          for (const file of filesToApply) {
-            const result = await executor.execute(client, {
-              sql: file.content,
-              fileName: file.name,
-              transactionMode: 'none',
-              continueOnError: options.continueOnError,
-            });
-
-            results.push(result);
-
-            if (!options.skipHistory && result.success) {
-              await historyTracker.recordMigration(
-                client,
-                recordPayload(file, result)
-              );
-            }
-
-            progress.update();
-
-            if (!result.success && !options.continueOnError) {
-              throw new Error(result.errorMessage || 'Execution failed');
-            }
-          }
-        },
-      });
-    } catch (error) {
-      logError('All-or-nothing transaction failed', error as Error);
-      throw error;
-    }
-  } else {
-    for (const file of filesToApply) {
-      try {
-        await transactionManager.executeInTransaction(client, {
-          mode: options.transactionMode,
-          operations: async () => {
-            const result = await executor.execute(client, {
-              sql: file.content,
-              fileName: file.name,
-              transactionMode: options.transactionMode,
-              continueOnError: options.continueOnError,
-            });
-
-            results.push(result);
-
-            if (!options.skipHistory && result.success) {
-              await historyTracker.recordMigration(
-                client,
-                recordPayload(file, result)
-              );
-            }
-
-            if (!result.success && !options.continueOnError) {
-              throw new Error(result.errorMessage || 'Execution failed');
-            }
-          },
-        });
-
-        progress.update();
-      } catch (error) {
-        logError('Migration execution failed', error as Error, {
-          fileName: file.name,
-        });
-
-        const errorResult: IExecutionResult = {
-          success: false,
-          fileName: file.name,
-          statementsExecuted: 0,
-          executionTime: 0,
-          error: error as Error,
-          errorMessage: (error as Error).message,
-        };
-
-        results.push(errorResult);
-
-        if (!options.skipHistory) {
-          try {
-            await historyTracker.recordMigration(client, {
-              migration_id: file.migrationId,
-              file_name: file.name,
-              file_path: file.path,
-              checksum: file.checksum,
-              execution_time_ms: 0,
-              success: false,
-              error_message: (error as Error).message,
-            });
-          } catch (historyError) {
-            logWarn('Failed to record failure in history', {
-              error: (historyError as Error).message,
-            });
-          }
-        }
-
-        if (!options.continueOnError) {
-          throw error;
-        }
-
-        progress.update();
-      }
-    }
-  }
-
-  progress.complete();
-  return results;
-}
-
-function reportResults(results: IExecutionResult[]): void {
-  console.log('');
-  console.log('📊 Execution summary:');
-  console.log('');
-
-  const successful = results.filter(r => r.success).length;
-  const failed = results.filter(r => !r.success).length;
-  const totalStatements = results.reduce(
-    (sum, r) => sum + r.statementsExecuted,
-    0
-  );
-  const totalTime = results.reduce((sum, r) => sum + r.executionTime, 0);
-
-  console.log(`✅ Successful: ${successful}`);
-  console.log(`❌ Failed: ${failed}`);
-  console.log(`📝 Total statements: ${totalStatements}`);
-  console.log(`⏱️  Total time: ${totalTime}ms`);
-  console.log('');
-
-  if (failed > 0) {
-    console.log('Failed migrations:');
-    for (const result of results) {
-      if (!result.success) {
-        console.log(`  ❌ ${result.fileName}`);
-        if (result.errorMessage) {
-          console.log(`     Error: ${result.errorMessage}`);
-        }
-      }
-    }
-    console.log('');
-  }
 }

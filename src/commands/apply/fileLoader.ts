@@ -12,6 +12,9 @@ import { logDebug, logError, logInfo } from '@/utils/logger';
 export class FileLoader {
   private readonly migrationNamePattern = /^\d{14}_[a-z0-9_]+$/;
   private readonly upFileName = 'up.sql';
+  private readonly expandFileName = 'expand.sql';
+  private readonly constraintsFileName = 'constraints.sql';
+  private readonly verifyFileName = 'backfill.verify.sql';
 
   /**
    * Load SQL files based on provided options
@@ -24,7 +27,7 @@ export class FileLoader {
     logInfo('Loading migrations from standardized folder structure', {
       folder: options.folder,
     });
-    const files = await this.discoverFilesInFolder(options.folder);
+    const files = await this.discoverFilesInFolder(options.folder, options);
 
     logInfo('Files loaded successfully', {
       count: files.length,
@@ -43,7 +46,10 @@ export class FileLoader {
    *       down.sql (optional)
    *       migration.json (optional)
    */
-  private async discoverFilesInFolder(folder: string): Promise<ILoadedFile[]> {
+  private async discoverFilesInFolder(
+    folder: string,
+    options: IFileLoadOptions
+  ): Promise<ILoadedFile[]> {
     try {
       const entries = await readdir(folder);
       const files: ILoadedFile[] = [];
@@ -59,23 +65,63 @@ export class FileLoader {
 
         this.validateMigrationDirectoryName(entry);
 
+        const expandPath = join(migrationDir, this.expandFileName);
+        const expandStats = await stat(expandPath).catch(() => null);
         const upFilePath = join(migrationDir, this.upFileName);
         const upFileStats = await stat(upFilePath).catch(() => null);
 
-        if (!upFileStats?.isFile()) {
+        if (!expandStats?.isFile() && !upFileStats?.isFile()) {
           throw new Error(
-            `Missing required file "${this.upFileName}" in migration directory: ${entry}`
+            `Missing required file "${this.upFileName}" or "${this.expandFileName}" in migration directory: ${entry}`
           );
         }
 
         const order = this.parseMigrationOrder(entry);
-        const file = await this.loadSingleFile(
-          entry,
-          upFilePath,
-          'unknown',
-          order
-        );
-        files.push(file);
+        if (expandStats?.isFile()) {
+          const expand = await this.loadSingleFile(
+            `${entry}::expand`,
+            entry,
+            expandPath,
+            'expand',
+            'unknown',
+            order * 10 + 1
+          );
+          files.push(expand);
+
+          if (options.withBackfill) {
+            const constraintsPath = join(
+              migrationDir,
+              this.constraintsFileName
+            );
+            const constraintsStats = await stat(constraintsPath).catch(
+              () => null
+            );
+            if (constraintsStats?.isFile()) {
+              const verifyPath = join(migrationDir, this.verifyFileName);
+              const verifyStats = await stat(verifyPath).catch(() => null);
+              const constraints = await this.loadSingleFile(
+                `${entry}::constraints`,
+                entry,
+                constraintsPath,
+                'constraints',
+                'unknown',
+                order * 10 + 3,
+                verifyStats?.isFile() ? verifyPath : undefined
+              );
+              files.push(constraints);
+            }
+          }
+        } else {
+          const file = await this.loadSingleFile(
+            entry,
+            entry,
+            upFilePath,
+            undefined,
+            'unknown',
+            order * 10
+          );
+          files.push(file);
+        }
       }
 
       if (files.length === 0) {
@@ -125,9 +171,12 @@ export class FileLoader {
    */
   private async loadSingleFile(
     migrationId: string,
+    baseMigrationId: string,
     filePath: string,
+    phase: 'expand' | 'constraints' | undefined,
     type: 'schema' | 'procs' | 'triggers' | 'unknown',
-    order: number
+    order: number,
+    verifyPath?: string
   ): Promise<ILoadedFile> {
     try {
       const content = await readFile(filePath, 'utf8');
@@ -145,8 +194,11 @@ export class FileLoader {
 
       return {
         migrationId,
+        baseMigrationId,
+        phase,
         name: displayName,
         path: filePath,
+        verifyPath,
         content,
         checksum,
         order,

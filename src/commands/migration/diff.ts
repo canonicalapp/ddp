@@ -34,6 +34,121 @@ const DEFAULT_SAME_DB_SHADOW_SCHEMA = 'ddp_shadow';
 const hasActionableDrift = (lines: string[]): boolean =>
   lines.some(line => /^(ALTER|CREATE|DROP)\b/i.test(line.trim()));
 
+interface IBackfillRequirement {
+  table: string;
+  column: string;
+  type: string;
+  reason: string;
+}
+
+const extractBackfillRequirements = (
+  lines: string[]
+): { cleanLines: string[]; requirements: IBackfillRequirement[] } => {
+  const requirements: IBackfillRequirement[] = [];
+  const cleanLines: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith('-- BACKFILL_REQUIRED ')) {
+      const payload = line.slice('-- BACKFILL_REQUIRED '.length).trim();
+      try {
+        const parsed = JSON.parse(payload) as IBackfillRequirement;
+        if (parsed.table && parsed.column && parsed.type && parsed.reason) {
+          requirements.push(parsed);
+          continue;
+        }
+      } catch {
+        // Ignore malformed marker; keep original line in output.
+      }
+    }
+    cleanLines.push(line);
+  }
+
+  return { cleanLines, requirements };
+};
+
+const buildBackfillScaffoldSql = (
+  requirements: IBackfillRequirement[],
+  targetSchema: string
+): string => {
+  if (requirements.length === 0) {
+    return '';
+  }
+
+  const reasonHint: Record<string, string> = {
+    fk_like:
+      'FK-like identifier: use a join-based mapping to real parent keys (never placeholder ids).',
+    enum_or_custom_type:
+      'Enum/custom type: choose a valid domain value explicitly before NOT NULL.',
+    uuid_needs_domain_value:
+      'UUID column: derive/create real UUIDs from domain data; avoid synthetic placeholders unless explicitly acceptable.',
+  };
+
+  const grouped = new Map<string, IBackfillRequirement[]>();
+  for (const req of requirements) {
+    const key = req.table;
+    const existing = grouped.get(key) ?? [];
+    existing.push(req);
+    grouped.set(key, existing);
+  }
+
+  const lines: string[] = [
+    '-- Manual backfill scaffold',
+    '-- Fill in domain-correct UPDATE statements for each item below.',
+    '-- After backfill, you can add NOT NULL in a follow-up migration.',
+    '-- Verify each column returns 0 NULL rows before NOT NULL enforcement.',
+    '',
+  ];
+
+  for (const [tableName, tableRequirements] of grouped.entries()) {
+    lines.push(`-- Table: ${targetSchema}.${tableName}`);
+    lines.push('');
+    for (const req of tableRequirements) {
+      lines.push(
+        `-- TODO [${req.reason}] ${targetSchema}.${req.table}.${req.column} (${req.type})`
+      );
+      if (reasonHint[req.reason]) {
+        lines.push(`-- Hint: ${reasonHint[req.reason]}`);
+      }
+      lines.push(
+        `-- UPDATE ${targetSchema}.${req.table} SET "${req.column}" = <valid_value_or_join> WHERE "${req.column}" IS NULL;`
+      );
+      lines.push(
+        `-- VERIFY: SELECT COUNT(*) AS "${req.column}_nulls" FROM ${targetSchema}.${req.table} WHERE "${req.column}" IS NULL;`
+      );
+      lines.push('');
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
+};
+
+const buildBackfillVerifySql = (
+  requirements: IBackfillRequirement[],
+  targetSchema: string
+): string => {
+  if (requirements.length === 0) return '';
+  return requirements
+    .map(
+      req =>
+        `SELECT COUNT(*) AS "${req.table}_${req.column}_nulls" FROM ${targetSchema}.${req.table} WHERE "${req.column}" IS NULL;`
+    )
+    .join('\n');
+};
+
+const buildConstraintsSql = (
+  requirements: IBackfillRequirement[],
+  targetSchema: string
+): string => {
+  if (requirements.length === 0) return '';
+  return requirements
+    .map(
+      req =>
+        `ALTER TABLE ${targetSchema}.${req.table} ALTER COLUMN "${req.column}" SET NOT NULL;`
+    )
+    .join('\n');
+};
+
 const promptLine = (question: string): Promise<string> =>
   new Promise(resolve => {
     const rl = createInterface({
@@ -306,7 +421,9 @@ export const migrateDiffCommand = async (
       );
 
       logInfo('migrate diff: generating structural diff (shadow → target)');
-      const alterStatements = await orchestrator.generateSyncScript();
+      const rawStatements = await orchestrator.generateSyncScript();
+      const { cleanLines: alterStatements, requirements } =
+        extractBackfillRequirements(rawStatements);
 
       if (options.write === true && hasActionableDrift(alterStatements)) {
         const artifacts = await collectPreservedArtifacts(
@@ -322,17 +439,29 @@ export const migrateDiffCommand = async (
       }
 
       const script = alterStatements.join('\n').trimEnd();
+      const backfillSql = buildBackfillScaffoldSql(requirements, targetSchema);
+      const verifySql = buildBackfillVerifySql(requirements, targetSchema);
+      const constraintsSql = buildConstraintsSql(requirements, targetSchema);
 
       if (options.write === true) {
         const name = await resolveMigrationSlugForWrite(options);
         const { migrationId, targetDir } = await migrationWriteFromDiff({
           name,
           upSql: script,
+          backfillSql,
+          verifySql,
+          constraintsSql,
         });
         console.log('');
         console.log('Wrote migration:');
         console.log(`- Id: ${migrationId}`);
         console.log(`- Path: ${targetDir}`);
+        if (backfillSql.trim().length > 0) {
+          console.log('- Expand: expand.sql');
+          console.log('- Backfill: backfill.sql');
+          console.log('- Verify: backfill.verify.sql');
+          console.log('- Constraints: constraints.sql');
+        }
         console.log('');
         console.log('Review up.sql, then run: ddp apply');
       } else {

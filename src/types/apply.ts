@@ -7,14 +7,18 @@ import type { IDatabaseConnectionOptions } from './cli';
 // File loading options
 export interface IFileLoadOptions {
   folder?: string;
+  withBackfill?: boolean;
 }
 
 // Loaded file information
 export interface ILoadedFile {
   /** Version folder name, e.g. 20260417120000_add_users */
   migrationId: string;
+  baseMigrationId: string;
+  phase: 'expand' | 'constraints' | undefined;
   name: string;
   path: string;
+  verifyPath: string | undefined;
   content: string;
   checksum: string;
   order: number;
@@ -80,6 +84,10 @@ export interface IApplyCommandOptions extends IDatabaseConnectionOptions {
   createDatabase?: boolean;
   /** Skip pg advisory lock (testing only) */
   skipLock?: boolean;
+  /** Acknowledge pending backfill.sql follow-ups for generated safe migrations */
+  acknowledgeBackfill?: boolean;
+  /** Include and enforce constraints.sql after verify checks pass */
+  withBackfill?: boolean;
 }
 
 // Execution error

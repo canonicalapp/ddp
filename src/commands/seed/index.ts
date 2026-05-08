@@ -101,8 +101,11 @@ async function loadSeedSqlFiles(seedsDir: string): Promise<ILoadedFile[]> {
     const stem = basename(name, '.sql');
     files.push({
       migrationId: stem,
+      baseMigrationId: stem,
+      phase: undefined,
       name,
       path: filePath,
+      verifyPath: undefined,
       content,
       checksum,
       order: order++,
@@ -231,7 +234,7 @@ export const seedCommand = async (options: ISeedCommandOptions) => {
                 });
                 results.push(result);
                 if (!result.success && !continueOnError) {
-                  throw new Error(result.errorMessage || 'Execution failed');
+                  throw new Error(result.errorMessage ?? 'Execution failed');
                 }
               }
             },
@@ -254,7 +257,7 @@ export const seedCommand = async (options: ISeedCommandOptions) => {
                 });
                 results.push(result);
                 if (!result.success && !continueOnError) {
-                  throw new Error(result.errorMessage || 'Execution failed');
+                  throw new Error(result.errorMessage ?? 'Execution failed');
                 }
               },
             });

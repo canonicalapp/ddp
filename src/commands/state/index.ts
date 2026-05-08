@@ -107,7 +107,7 @@ const runDeepStateValidation = async (): Promise<void> => {
     );
   }
 
-  const shadowSchema = process.env.DDP_SHADOW_SCHEMA?.trim() || 'ddp_shadow';
+  const shadowSchema = process.env.DDP_SHADOW_SCHEMA?.trim() ?? 'ddp_shadow';
   if (shadowSchema === 'public') {
     throw new Error(
       'DDP_SHADOW_SCHEMA must be non-public for deep validation.'

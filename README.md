@@ -38,7 +38,8 @@ The published package ships the compiled **`dist/`** tree. Installing from a **g
 | `ddp state validate`          | Validate layout + manifest against policy                                   |
 | `ddp migration create <name>` | New timestamped migration folder under `paths.migrations`                   |
 | `ddp migration diff`          | Materialize state to shadow, diff vs target; optional `--write` migration   |
-| `ddp inspect`                 | List preserved backup artifacts (`*_old_*`, `*_dropped_*`) in target schema |
+| `ddp inspect stale`           | List preserved backup artifacts (`*_old_*`, `*_dropped_*`) in target schema |
+| `ddp inspect backfill`        | Show split backfill migration progress (`expand/backfill/constraints`)      |
 | `ddp apply`                   | Apply pending migrations from config (or `--folder`)                        |
 | `ddp seed`                    | Execute all `*.sql` in `paths.seeds` (sorted); no tracking; error if empty  |
 | `ddp reset`                   | Dev-only drop/recreate DB, then run `apply` and `seed`                      |
@@ -136,8 +137,16 @@ Useful options:
 Connection flags match other commands (`--host`, `--port`, `--database`, `--username`, `--password`, `--schema`).
 
 When `--write` generates a real drift migration and preserved backup artifacts exist, `up.sql` includes a short notice and points to `ddp inspect` for the complete artifact log.
+When safe backfill requirements are detected, `ddp migration diff --write` also emits `expand.sql`, `backfill.sql`, `backfill.verify.sql`, and `constraints.sql`.
 
 ## `ddp inspect`
+
+`inspect` is a read-only diagnostics verb with explicit intents:
+
+- `ddp inspect stale`
+- `ddp inspect backfill`
+
+### `ddp inspect stale`
 
 Inspects the target schema for preserved backup artifacts left by rename-first safety behavior:
 
@@ -146,6 +155,16 @@ Inspects the target schema for preserved backup artifacts left by rename-first s
 - Column backups matching `*_dropped_<timestamp>`
 
 Use the same connection flags as other DB commands (`--env`, `--host`, `--port`, `--database`, `--username`, `--password`, `--schema`).
+
+### `ddp inspect backfill`
+
+Inspects split migration backfill progress by combining migration files and apply history:
+
+- detects `expand.sql`, `backfill.sql`, `backfill.verify.sql`, `constraints.sql`
+- checks applied status for `::expand` / `::constraints`
+- prints next-step guidance for pending backfill workflows
+
+Uses the same connection flags as other DB commands (`--env`, `--host`, `--port`, `--database`, `--username`, `--password`, `--schema`).
 
 ## `ddp apply`
 
@@ -161,9 +180,13 @@ Runs versioned migrations from **`paths.migrations`** in `ddp.config.json`, or *
 | `--accept-destructive`      | Allow migrations flagged as destructive                                  | off         |
 | `--non-interactive`         | No prompts (use with `--accept-destructive` / `--create-database` in CI) | off         |
 | `--create-database`         | Create database if it does not exist                                     | off         |
+| `--acknowledge-backfill`    | Proceed when pending `backfill.sql` follow-ups are detected              | off         |
+| `--with-backfill`           | Run `constraints.sql` after verify checks pass                           | off         |
 | `--skip-lock`               | Skip PostgreSQL advisory lock (testing only)                             | off         |
 
 Destructive heuristics (e.g. `DROP`, `TRUNCATE`) require explicit **`--accept-destructive`** in non-interactive runs.
+When pending generated `backfill.sql` files exist, `ddp apply` requires **`--acknowledge-backfill`** after review.
+For split migrations (`expand.sql`, `backfill.verify.sql`, `constraints.sql`), use **`--with-backfill`** once manual backfill is complete; apply verifies checks are all zero before executing constraints.
 
 ## `ddp seed`
 
