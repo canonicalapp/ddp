@@ -182,12 +182,12 @@ Runs versioned migrations from **`paths.migrations`** in `ddp.config.json`, or *
 | `--accept-destructive`      | Allow migrations flagged as destructive                                  | off         |
 | `--non-interactive`         | No prompts (use with `--accept-destructive` / `--create-database` in CI) | off         |
 | `--create-database`         | Create database if it does not exist                                     | off         |
-| `--acknowledge-backfill`    | Proceed when pending `backfill.sql` follow-ups are detected              | off         |
+| `--acknowledge-backfill`    | Optional acknowledgment for pending `backfill.sql` follow-ups            | off         |
 | `--with-backfill`           | Run `constraints.sql` after verify checks pass                           | off         |
 | `--skip-lock`               | Skip PostgreSQL advisory lock (testing only)                             | off         |
 
 Destructive heuristics (e.g. `DROP`, `TRUNCATE`) require explicit **`--accept-destructive`** in non-interactive runs.
-When pending generated `backfill.sql` files exist, `ddp apply` requires **`--acknowledge-backfill`** after review.
+When pending generated `backfill.sql` files exist, `ddp apply` continues with `up.sql` and prints follow-up guidance.
 For split migrations (`up.sql`, `backfill.verify.sql`, `constraints.sql`), use **`--with-backfill`** once manual backfill is complete; apply verifies checks are all zero before executing constraints.
 
 ## `ddp seed`

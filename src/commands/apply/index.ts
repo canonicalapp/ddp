@@ -185,16 +185,11 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
         );
         console.log('');
 
-        if (!options.acknowledgeBackfill && !options.withBackfill) {
-          throw new ValidationError(
-            'Pending backfill.sql files detected. Re-run with --acknowledge-backfill after reviewing manual backfill steps.',
-            'backfill',
-            {
-              pendingBackfillMigrations: pendingBackfillMigrations.map(
-                item => item.migrationId
-              ),
-            }
+        if (!options.withBackfill && !options.acknowledgeBackfill) {
+          console.log(
+            'ℹ️ Continuing with up.sql only. Run backfill.sql manually, then re-run apply with --with-backfill to execute constraints.sql.'
           );
+          console.log('');
         }
       }
 

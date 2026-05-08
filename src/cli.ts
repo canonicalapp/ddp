@@ -434,7 +434,7 @@ withDbConnectionOptions(
   .option('--with-backfill', 'Include constraints.sql after verify checks pass')
   .option(
     '--acknowledge-backfill',
-    'Acknowledge pending backfill.sql follow-ups and continue apply'
+    'Optional acknowledgment for pending backfill.sql follow-ups (informational only)'
   )
   .option('--skip-lock', 'Skip PostgreSQL advisory lock (testing only)')
   .action(async (options: IApplyCommandOptions) => {

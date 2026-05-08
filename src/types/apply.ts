@@ -84,7 +84,7 @@ export interface IApplyCommandOptions extends IDatabaseConnectionOptions {
   createDatabase?: boolean;
   /** Skip pg advisory lock (testing only) */
   skipLock?: boolean;
-  /** Acknowledge pending backfill.sql follow-ups for generated safe migrations */
+  /** Optional acknowledgment for pending backfill.sql follow-ups (informational only) */
   acknowledgeBackfill?: boolean;
   /** Include and enforce constraints.sql after verify checks pass */
   withBackfill?: boolean;
