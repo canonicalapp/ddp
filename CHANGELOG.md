@@ -1,3 +1,10 @@
+## [3.0.1](https://github.com/canonicalapp/ddp/compare/v3.0.0...v3.0.1) (2026-05-08)
+
+
+### Bug Fixes
+
+* **apply:** remove legacy expand.sql compatibility path ([8ee7044](https://github.com/canonicalapp/ddp/commit/8ee7044af9b3a1721f6f4093edacfca430bc8607))
+
 # [3.0.0](https://github.com/canonicalapp/ddp/compare/v2.3.0...v3.0.0) (2026-05-08)
 
 
