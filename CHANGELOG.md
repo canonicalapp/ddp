@@ -1,3 +1,23 @@
+# [3.0.0](https://github.com/canonicalapp/ddp/compare/v2.3.0...v3.0.0) (2026-05-08)
+
+
+* feat!: mark inspect intent split as breaking ([d30ad3b](https://github.com/canonicalapp/ddp/commit/d30ad3bf56a919b443ec1bdd12785efd24e208a3))
+
+
+### Bug Fixes
+
+* **core:** tighten strict checks and reduce runtime overhead ([8a6d7b9](https://github.com/canonicalapp/ddp/commit/8a6d7b9c7fdf7af7bb808b07da0f3fd00ee9746c))
+
+
+### Features
+
+* **apply:** add backfill-aware split migration and inspect workflows ([ae2810c](https://github.com/canonicalapp/ddp/commit/ae2810cf4ab1d96a2304153c520c6c5c2b3078a3))
+
+
+### BREAKING CHANGES
+
+* `ddp inspect` no longer executes stale inspection by default; use `ddp inspect stale` or `ddp inspect backfill`.
+
 # [2.3.0](https://github.com/canonicalapp/ddp/compare/v2.2.2...v2.3.0) (2026-05-08)
 
 
