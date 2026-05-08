@@ -79,59 +79,78 @@ export class SchemaSyncOrchestrator {
   /**
    * Execute all schema operations and collect results
    */
+  private appendSectionIfNotEmpty(
+    alterStatements: string[],
+    sectionTitle: string,
+    operations: string[] | null | undefined
+  ) {
+    const safeOperations = Array.isArray(operations) ? operations : [];
+    const hasContent = safeOperations.some(
+      statement => typeof statement === 'string' && statement.trim().length > 0
+    );
+
+    if (!hasContent) {
+      return;
+    }
+
+    alterStatements.push(...Utils.generateSectionHeader(sectionTitle));
+    alterStatements.push(...safeOperations);
+    alterStatements.push('');
+  }
+
   async executeAllOperations(alterStatements: string[]) {
     // 1. Handle enum operations (must come before tables/columns that depend on them)
-    alterStatements.push(...Utils.generateSectionHeader('ENUM OPERATIONS'));
     const enumOps = await this.enumOps.generateEnumOperations();
-    alterStatements.push(...enumOps);
-    alterStatements.push('');
+    this.appendSectionIfNotEmpty(alterStatements, 'ENUM OPERATIONS', enumOps);
 
     // 2. Handle sequence operations (must come before tables)
-    alterStatements.push(...Utils.generateSectionHeader('SEQUENCE OPERATIONS'));
     const sequenceOps = await this.sequenceOps.generateSequenceOperations();
-    alterStatements.push(...sequenceOps);
-    alterStatements.push('');
+    this.appendSectionIfNotEmpty(
+      alterStatements,
+      'SEQUENCE OPERATIONS',
+      sequenceOps
+    );
 
     // 3. Handle table operations
-    alterStatements.push(...Utils.generateSectionHeader('TABLE OPERATIONS'));
     const tableOps = await this.tableOps.generateTableOperations();
-    alterStatements.push(...tableOps);
-    alterStatements.push('');
+    this.appendSectionIfNotEmpty(alterStatements, 'TABLE OPERATIONS', tableOps);
 
     // 4. Handle column operations
-    alterStatements.push(...Utils.generateSectionHeader('COLUMN OPERATIONS'));
     const columnOps = await this.columnOps.generateColumnOperations();
-    alterStatements.push(...columnOps);
-    alterStatements.push('');
+    this.appendSectionIfNotEmpty(
+      alterStatements,
+      'COLUMN OPERATIONS',
+      columnOps
+    );
 
     // 5. Handle function operations
-    alterStatements.push(
-      ...Utils.generateSectionHeader('FUNCTION/PROCEDURE OPERATIONS')
-    );
     const functionOps = await this.functionOps.generateFunctionOperations();
-    alterStatements.push(...functionOps);
-    alterStatements.push('');
+    this.appendSectionIfNotEmpty(
+      alterStatements,
+      'FUNCTION/PROCEDURE OPERATIONS',
+      functionOps
+    );
 
     // 6. Handle constraint operations
-    alterStatements.push(
-      ...Utils.generateSectionHeader('CONSTRAINT OPERATIONS')
-    );
     const constraintOps =
       await this.constraintOps.generateConstraintOperations();
-    alterStatements.push(...constraintOps);
-    alterStatements.push('');
+    this.appendSectionIfNotEmpty(
+      alterStatements,
+      'CONSTRAINT OPERATIONS',
+      constraintOps
+    );
 
     // 7. Handle index operations
-    alterStatements.push(...Utils.generateSectionHeader('INDEX OPERATIONS'));
     const indexOps = await this.indexOps.generateIndexOperations();
-    alterStatements.push(...indexOps);
-    alterStatements.push('');
+    this.appendSectionIfNotEmpty(alterStatements, 'INDEX OPERATIONS', indexOps);
 
     // 8. Handle trigger operations
-    alterStatements.push(...Utils.generateSectionHeader('TRIGGER OPERATIONS'));
     const triggerOps = await this.triggerOps.generateTriggerOperations();
-    alterStatements.push(...triggerOps);
-    alterStatements.push('');
+    this.appendSectionIfNotEmpty(
+      alterStatements,
+      'TRIGGER OPERATIONS',
+      triggerOps
+    );
   }
 
   /**

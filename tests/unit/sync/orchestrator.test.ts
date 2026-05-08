@@ -206,13 +206,14 @@ describe('SchemaSyncOrchestrator', () => {
 
       const result = await orchestrator.generateSyncScript();
 
-      expect(result).toContain('-- ENUM OPERATIONS');
-      expect(result).toContain('-- TABLE OPERATIONS');
-      expect(result).toContain('-- COLUMN OPERATIONS');
-      expect(result).toContain('-- FUNCTION/PROCEDURE OPERATIONS');
-      expect(result).toContain('-- CONSTRAINT OPERATIONS');
-      expect(result).toContain('-- INDEX OPERATIONS');
-      expect(result).toContain('-- TRIGGER OPERATIONS');
+      expect(result).not.toContain('-- ENUM OPERATIONS');
+      expect(result).not.toContain('-- TABLE OPERATIONS');
+      expect(result).not.toContain('-- COLUMN OPERATIONS');
+      expect(result).not.toContain('-- FUNCTION/PROCEDURE OPERATIONS');
+      expect(result).not.toContain('-- CONSTRAINT OPERATIONS');
+      expect(result).not.toContain('-- INDEX OPERATIONS');
+      expect(result).not.toContain('-- TRIGGER OPERATIONS');
+      expect(result).toContain('-- END OF SCHEMA SYNC SCRIPT');
     });
 
     it('should handle operation module errors', async () => {
@@ -542,7 +543,7 @@ describe('SchemaSyncOrchestrator', () => {
       const result = await orchestrator.generateSyncScript();
 
       expect(result).toBeDefined();
-      expect(result).toContain('-- TABLE OPERATIONS');
+      expect(result).not.toContain('-- TABLE OPERATIONS');
     });
 
     it('should handle operation modules returning undefined', async () => {
@@ -558,7 +559,7 @@ describe('SchemaSyncOrchestrator', () => {
       const result = await orchestrator.generateSyncScript();
 
       expect(result).toBeDefined();
-      expect(result).toContain('-- TABLE OPERATIONS');
+      expect(result).not.toContain('-- TABLE OPERATIONS');
     });
   });
 });
