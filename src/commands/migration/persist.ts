@@ -104,12 +104,6 @@ export const migrationWriteFromDiff = async (
       'utf8'
     );
 
-    await writeFile(
-      join(targetDir, 'expand.sql'),
-      `${header}${options.upSql.trim()}\n`,
-      'utf8'
-    );
-
     if (options.verifySql && options.verifySql.trim().length > 0) {
       await writeFile(
         join(targetDir, 'backfill.verify.sql'),

@@ -457,7 +457,7 @@ export const migrateDiffCommand = async (
         console.log(`- Id: ${migrationId}`);
         console.log(`- Path: ${targetDir}`);
         if (backfillSql.trim().length > 0) {
-          console.log('- Expand: expand.sql');
+          console.log('- Expand: up.sql');
           console.log('- Backfill: backfill.sql');
           console.log('- Verify: backfill.verify.sql');
           console.log('- Constraints: constraints.sql');

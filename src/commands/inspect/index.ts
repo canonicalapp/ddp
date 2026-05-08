@@ -89,7 +89,7 @@ export const inspectStaleCommand = async (
 
 interface IBackfillMigrationStatus {
   migrationId: string;
-  hasExpand: boolean;
+  hasUp: boolean;
   hasBackfill: boolean;
   hasVerify: boolean;
   hasConstraints: boolean;
@@ -126,7 +126,7 @@ const inspectBackfillMigrations = async (
     const dirStats = await stat(dir).catch(() => null);
     if (!dirStats?.isDirectory()) continue;
 
-    const hasExpand = await stat(join(dir, 'expand.sql'))
+    const hasUp = await stat(join(dir, 'up.sql'))
       .then(s => s.isFile())
       .catch(() => false);
     const hasBackfill = await stat(join(dir, 'backfill.sql'))
@@ -139,7 +139,7 @@ const inspectBackfillMigrations = async (
       .then(s => s.isFile())
       .catch(() => false);
 
-    if (!hasExpand && !hasBackfill && !hasVerify && !hasConstraints) {
+    if (!hasUp && !hasBackfill && !hasVerify && !hasConstraints) {
       continue;
     }
 
@@ -149,7 +149,7 @@ const inspectBackfillMigrations = async (
 
     statuses.push({
       migrationId: entry,
-      hasExpand,
+      hasUp,
       hasBackfill,
       hasVerify,
       hasConstraints,
@@ -203,7 +203,7 @@ export const inspectBackfillCommand = async (
 
     for (const status of statuses) {
       const fileSet = [
-        status.hasExpand ? 'expand.sql' : '',
+        status.hasUp ? 'up.sql' : '',
         status.hasBackfill ? 'backfill.sql' : '',
         status.hasVerify ? 'backfill.verify.sql' : '',
         status.hasConstraints ? 'constraints.sql' : '',

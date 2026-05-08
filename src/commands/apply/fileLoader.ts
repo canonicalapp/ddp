@@ -12,7 +12,7 @@ import { logDebug, logError, logInfo } from '@/utils/logger';
 export class FileLoader {
   private readonly migrationNamePattern = /^\d{14}_[a-z0-9_]+$/;
   private readonly upFileName = 'up.sql';
-  private readonly expandFileName = 'expand.sql';
+  private readonly backfillFileName = 'backfill.sql';
   private readonly constraintsFileName = 'constraints.sql';
   private readonly verifyFileName = 'backfill.verify.sql';
 
@@ -65,23 +65,32 @@ export class FileLoader {
 
         this.validateMigrationDirectoryName(entry);
 
-        const expandPath = join(migrationDir, this.expandFileName);
-        const expandStats = await stat(expandPath).catch(() => null);
         const upFilePath = join(migrationDir, this.upFileName);
         const upFileStats = await stat(upFilePath).catch(() => null);
+        const backfillPath = join(migrationDir, this.backfillFileName);
+        const backfillStats = await stat(backfillPath).catch(() => null);
+        const constraintsPath = join(migrationDir, this.constraintsFileName);
+        const constraintsStats = await stat(constraintsPath).catch(() => null);
+        const verifyPath = join(migrationDir, this.verifyFileName);
+        const verifyStats = await stat(verifyPath).catch(() => null);
 
-        if (!expandStats?.isFile() && !upFileStats?.isFile()) {
+        if (!upFileStats?.isFile()) {
           throw new Error(
-            `Missing required file "${this.upFileName}" or "${this.expandFileName}" in migration directory: ${entry}`
+            `Missing required file "${this.upFileName}" in migration directory: ${entry}`
           );
         }
 
         const order = this.parseMigrationOrder(entry);
-        if (expandStats?.isFile()) {
+        const isSplitMigration =
+          backfillStats?.isFile() ||
+          constraintsStats?.isFile() ||
+          verifyStats?.isFile();
+
+        if (isSplitMigration) {
           const expand = await this.loadSingleFile(
             `${entry}::expand`,
             entry,
-            expandPath,
+            upFilePath,
             'expand',
             'unknown',
             order * 10 + 1
@@ -89,16 +98,7 @@ export class FileLoader {
           files.push(expand);
 
           if (options.withBackfill) {
-            const constraintsPath = join(
-              migrationDir,
-              this.constraintsFileName
-            );
-            const constraintsStats = await stat(constraintsPath).catch(
-              () => null
-            );
             if (constraintsStats?.isFile()) {
-              const verifyPath = join(migrationDir, this.verifyFileName);
-              const verifyStats = await stat(verifyPath).catch(() => null);
               const constraints = await this.loadSingleFile(
                 `${entry}::constraints`,
                 entry,

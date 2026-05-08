@@ -137,7 +137,7 @@ Useful options:
 Connection flags match other commands (`--host`, `--port`, `--database`, `--username`, `--password`, `--schema`).
 
 When `--write` generates a real drift migration and preserved backup artifacts exist, `up.sql` includes a short notice and points to `ddp inspect` for the complete artifact log.
-When safe backfill requirements are detected, `ddp migration diff --write` also emits `expand.sql`, `backfill.sql`, `backfill.verify.sql`, and `constraints.sql`.
+When safe backfill requirements are detected, `ddp migration diff --write` emits `up.sql` (expand phase), plus `backfill.sql`, `backfill.verify.sql`, and `constraints.sql`.
 
 ## `ddp inspect`
 
@@ -162,7 +162,7 @@ Use the same connection flags as other DB commands (`--env`, `--host`, `--port`,
 
 Inspects split migration backfill progress by combining migration files and apply history:
 
-- detects `expand.sql`, `backfill.sql`, `backfill.verify.sql`, `constraints.sql`
+- detects `up.sql`, `backfill.sql`, `backfill.verify.sql`, `constraints.sql`
 - checks applied status for `::expand` / `::constraints`
 - prints next-step guidance for pending backfill workflows
 
@@ -188,7 +188,7 @@ Runs versioned migrations from **`paths.migrations`** in `ddp.config.json`, or *
 
 Destructive heuristics (e.g. `DROP`, `TRUNCATE`) require explicit **`--accept-destructive`** in non-interactive runs.
 When pending generated `backfill.sql` files exist, `ddp apply` requires **`--acknowledge-backfill`** after review.
-For split migrations (`expand.sql`, `backfill.verify.sql`, `constraints.sql`), use **`--with-backfill`** once manual backfill is complete; apply verifies checks are all zero before executing constraints.
+For split migrations (`up.sql`, `backfill.verify.sql`, `constraints.sql`), use **`--with-backfill`** once manual backfill is complete; apply verifies checks are all zero before executing constraints.
 
 ## `ddp seed`
 

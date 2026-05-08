@@ -181,7 +181,7 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
         });
         console.log('');
         console.log(
-          '   Apply up.sql/expand.sql first, then complete backfill.sql before running constraints.sql.'
+          '   Apply up.sql first, then complete backfill.sql before running constraints.sql.'
         );
         console.log('');
 
