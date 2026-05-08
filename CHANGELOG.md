@@ -1,3 +1,10 @@
+## [3.0.2](https://github.com/canonicalapp/ddp/compare/v3.0.1...v3.0.2) (2026-05-08)
+
+
+### Bug Fixes
+
+* **apply:** keep default apply flow unchanged with backfill scaffolds ([1be319d](https://github.com/canonicalapp/ddp/commit/1be319d0be2a7881e2ff867790eb168d4270d570))
+
 ## [3.0.1](https://github.com/canonicalapp/ddp/compare/v3.0.0...v3.0.1) (2026-05-08)
 
 
