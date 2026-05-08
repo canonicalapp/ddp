@@ -20,16 +20,14 @@ export interface LogEntry {
 }
 
 export class Logger {
-  private static instance: Logger;
+  private static instance: Logger | undefined;
   private logLevel: LogLevel = LogLevel.INFO;
   private logs: LogEntry[] = [];
 
   private constructor() {}
 
   public static getInstance(): Logger {
-    if (!Logger.instance) {
-      Logger.instance = new Logger();
-    }
+    Logger.instance ??= new Logger();
     return Logger.instance;
   }
 

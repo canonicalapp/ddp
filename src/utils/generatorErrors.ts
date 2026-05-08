@@ -16,9 +16,17 @@ export class GeneratorError extends Error {
     this.code = code;
     this.context = context;
 
-    // Maintains proper stack trace for where our error was thrown (only available on V8)
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, GeneratorError);
+    // Maintains proper stack trace for where our error was thrown (V8 only).
+    const captureStackTrace = (
+      Error as ErrorConstructor & {
+        captureStackTrace?: (
+          targetObject: object,
+          constructorOpt?: Function
+        ) => void;
+      }
+    ).captureStackTrace;
+    if (typeof captureStackTrace === 'function') {
+      captureStackTrace(this, GeneratorError);
     }
   }
 }

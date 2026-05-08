@@ -132,11 +132,6 @@ export class TriggerOperations {
     sourceTrigger: ITriggerDefinition,
     targetTrigger: ITriggerDefinition
   ) {
-    // Handle null values
-    if (!sourceTrigger || !targetTrigger) {
-      return false;
-    }
-
     // Compare key properties that define trigger behavior
     const sourceProps = {
       event_manipulation: sourceTrigger.event_manipulation,

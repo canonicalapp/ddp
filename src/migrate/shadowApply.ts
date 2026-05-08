@@ -60,6 +60,13 @@ export const applyStateFilesToShadowWithAggregateErrors = async (
   options: { schema: string }
 ): Promise<IShadowApplyResult> => {
   const errors: IShadowApplyError[] = [];
+  const sqlByPath = new Map<string, string>();
+
+  // Read all state files before opening transaction/savepoints to keep
+  // lock/transaction time focused on SQL execution only.
+  for (const file of files) {
+    sqlByPath.set(file.absolutePath, await readFile(file.absolutePath, 'utf8'));
+  }
 
   if (options.schema && options.schema !== 'public') {
     await client.query(
@@ -71,12 +78,15 @@ export const applyStateFilesToShadowWithAggregateErrors = async (
   await client.query('BEGIN');
 
   for (let i = 0; i < files.length; i++) {
-    const file = files[i]!;
+    const file = files[i];
+    if (!file) {
+      continue;
+    }
     const sp = `ddp_sh_${i}`;
     await client.query(`SAVEPOINT ${sp}`);
 
     try {
-      const sql = await readFile(file.absolutePath, 'utf8');
+      const sql = sqlByPath.get(file.absolutePath) ?? '';
       const statements = splitSqlStatements(sql.trim());
 
       for (const stmt of statements) {
