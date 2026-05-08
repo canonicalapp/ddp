@@ -1,3 +1,17 @@
+# [2.3.0](https://github.com/canonicalapp/ddp/compare/v2.2.2...v2.3.0) (2026-05-08)
+
+
+### Bug Fixes
+
+* **state:** sanitize allowed schema kinds from config ([7db5e28](https://github.com/canonicalapp/ddp/commit/7db5e28922377af283f944e90a5079f2be1ff048))
+* **sync:** omit empty diff sections ([d61cc83](https://github.com/canonicalapp/ddp/commit/d61cc83651331d894950aedc25526cc4733021b5))
+* **triggers:** ignore preserved rename backups in drop diff ([676b18c](https://github.com/canonicalapp/ddp/commit/676b18c61067250e573952e93afdbce35ce9d5a1))
+
+
+### Features
+
+* **inspect:** report preserved backup artifacts ([9bff1cb](https://github.com/canonicalapp/ddp/commit/9bff1cb74391e6e7fe2bd294abc1c95c2ab1fb6b))
+
 ## [2.2.2](https://github.com/canonicalapp/ddp/compare/v2.2.1...v2.2.2) (2026-04-30)
 
 
