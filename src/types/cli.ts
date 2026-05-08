@@ -125,3 +125,5 @@ export interface IResetCommandOptions extends IDatabaseConnectionOptions {
   /** Allow prod-like DB names (still requires allowlist + confirmation/force). */
   allowRiskyDatabaseName?: boolean;
 }
+
+export type IInspectCommandOptions = IDatabaseConnectionOptions;

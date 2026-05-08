@@ -7,6 +7,7 @@ import { applyCommand } from '@/commands/apply/index';
 import { seedCommand } from '@/commands/seed/index';
 import { resetCommand } from '@/commands/reset/index';
 import { initCommand } from '@/commands/init/index';
+import { inspectCommand } from '@/commands/inspect/index';
 import {
   migrationCreateCommand,
   migrateDiffCommand,
@@ -24,6 +25,7 @@ import type {
   IResetCommandOptions,
   IInitCommandOptions,
   IMigrationCreateCommandOptions,
+  IInspectCommandOptions,
 } from '@/types/index';
 
 program
@@ -40,6 +42,27 @@ program
   .action(async (options: IInitCommandOptions) => {
     try {
       await initCommand(options);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : 'Unknown error');
+      process.exit(1);
+    }
+  });
+
+program
+  .command('inspect')
+  .description(
+    'Inspect preserved backup artifacts (e.g. *_old_* / *_dropped_*) in the target schema'
+  )
+  .option('--env <path>', 'Path to .env file (default: auto-discover)')
+  .option('--host <host>', 'Database host')
+  .option('--port <port>', 'Database port', '5432')
+  .option('--database <name>', 'Database name')
+  .option('--username <user>', 'Database username')
+  .option('--password <pass>', 'Database password')
+  .option('--schema <name>', 'Target schema (default: DB_SCHEMA or public)')
+  .action(async (options: IInspectCommandOptions) => {
+    try {
+      await inspectCommand(options);
     } catch (error) {
       console.error(error instanceof Error ? error.message : 'Unknown error');
       process.exit(1);

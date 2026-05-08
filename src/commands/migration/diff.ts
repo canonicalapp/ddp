@@ -24,8 +24,15 @@ import { loadEnvFile } from '@/utils/envLoader';
 import { resolvePgSchema } from '@/utils/pgSchema';
 import { logError, logInfo } from '@/utils/logger';
 import { migrationWriteFromDiff, sanitizeMigrationSlug } from './persist';
+import {
+  collectPreservedArtifacts,
+  formatArtifactNoticeLines,
+} from '@/commands/inspect/artifacts';
 
 const DEFAULT_SAME_DB_SHADOW_SCHEMA = 'ddp_shadow';
+
+const hasActionableDrift = (lines: string[]): boolean =>
+  lines.some(line => /^(ALTER|CREATE|DROP)\b/i.test(line.trim()));
 
 const promptLine = (question: string): Promise<string> =>
   new Promise(resolve => {
@@ -300,6 +307,20 @@ export const migrateDiffCommand = async (
 
       logInfo('migrate diff: generating structural diff (shadow → target)');
       const alterStatements = await orchestrator.generateSyncScript();
+
+      if (options.write === true && hasActionableDrift(alterStatements)) {
+        const artifacts = await collectPreservedArtifacts(
+          targetClient,
+          targetSchema
+        );
+
+        const noticeLines = formatArtifactNoticeLines(artifacts, targetSchema);
+
+        if (noticeLines.length > 0) {
+          alterStatements.splice(7, 0, ...noticeLines, '');
+        }
+      }
+
       const script = alterStatements.join('\n').trimEnd();
 
       if (options.write === true) {

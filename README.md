@@ -31,18 +31,19 @@ The published package ships the compiled **`dist/`** tree. Installing from a **g
 
 ## Command summary
 
-| Command                       | Purpose                                                                    |
-| ----------------------------- | -------------------------------------------------------------------------- |
-| `ddp init`                    | Create `ddp.config.json` (default root `db/`) and folder layout            |
-| `ddp state create …`          | Scaffold a new state SQL file (schema / proc / trigger)                    |
-| `ddp state validate`          | Validate layout + manifest against policy                                  |
-| `ddp migration create <name>` | New timestamped migration folder under `paths.migrations`                  |
-| `ddp migration diff`          | Materialize state to shadow, diff vs target; optional `--write` migration  |
-| `ddp apply`                   | Apply pending migrations from config (or `--folder`)                       |
-| `ddp seed`                    | Execute all `*.sql` in `paths.seeds` (sorted); no tracking; error if empty |
-| `ddp reset`                   | Dev-only drop/recreate DB, then run `apply` and `seed`                     |
-| `ddp gen`                     | Introspect a DB → SQL files or stdout                                      |
-| `ddp sync`                    | Diff source vs target DB → `alter.sql`                                     |
+| Command                       | Purpose                                                                     |
+| ----------------------------- | --------------------------------------------------------------------------- |
+| `ddp init`                    | Create `ddp.config.json` (default root `db/`) and folder layout             |
+| `ddp state create …`          | Scaffold a new state SQL file (schema / proc / trigger)                     |
+| `ddp state validate`          | Validate layout + manifest against policy                                   |
+| `ddp migration create <name>` | New timestamped migration folder under `paths.migrations`                   |
+| `ddp migration diff`          | Materialize state to shadow, diff vs target; optional `--write` migration   |
+| `ddp inspect`                 | List preserved backup artifacts (`*_old_*`, `*_dropped_*`) in target schema |
+| `ddp apply`                   | Apply pending migrations from config (or `--folder`)                        |
+| `ddp seed`                    | Execute all `*.sql` in `paths.seeds` (sorted); no tracking; error if empty  |
+| `ddp reset`                   | Dev-only drop/recreate DB, then run `apply` and `seed`                      |
+| `ddp gen`                     | Introspect a DB → SQL files or stdout                                       |
+| `ddp sync`                    | Diff source vs target DB → `alter.sql`                                      |
 
 ## Quick start (declarative workflow)
 
@@ -134,6 +135,18 @@ Useful options:
 
 Connection flags match other commands (`--host`, `--port`, `--database`, `--username`, `--password`, `--schema`).
 
+When `--write` generates a real drift migration and preserved backup artifacts exist, `up.sql` includes a short notice and points to `ddp inspect` for the complete artifact log.
+
+## `ddp inspect`
+
+Inspects the target schema for preserved backup artifacts left by rename-first safety behavior:
+
+- Trigger backups matching `*_old_<timestamp>`
+- Table backups matching `*_dropped_<timestamp>`
+- Column backups matching `*_dropped_<timestamp>`
+
+Use the same connection flags as other DB commands (`--env`, `--host`, `--port`, `--database`, `--username`, `--password`, `--schema`).
+
 ## `ddp apply`
 
 Runs versioned migrations from **`paths.migrations`** in `ddp.config.json`, or **`--folder`**.
@@ -187,19 +200,19 @@ Safety guards:
   - DB name allowlist is optional (set explicitly via option/env when needed)
   - Prod-like names (`prod`, `production`, `staging`, `live`) are blocked unless explicitly overridden
 
-| Option                           | Description                                                     | Default     |
-| -------------------------------- | --------------------------------------------------------------- | ----------- |
-| `--maintenance-database <name>`  | Maintenance DB used to execute DROP/CREATE DATABASE             | `postgres`  |
-| `--yes`                          | Skip interactive confirmation (alias to `--force`)             | off         |
-| `--force`                        | Skip interactive confirmation                                   | off         |
-| `--non-interactive`              | No prompt; must be combined with `--force` or `--yes`         | off         |
-| `--allowed-hosts <list>`         | Comma-separated reset host allowlist (supports `*`)            | `localhost,127.0.0.1,::1` |
-| `--allowed-databases <list>`     | Comma-separated DB-name allowlist (supports `*`)               | unset (no DB allowlist) |
-| `--allow-risky-database-name`    | Allow prod-like DB names after other checks                    | off         |
-| `--skip-seed`                    | Run apply only                                                  | off         |
-| `--transaction-mode <mode>`      | Pass-through to apply/seed (`per-file`, `all-or-nothing`, `none`) | command default |
-| `--continue-on-error`            | Pass-through to apply/seed                                      | off         |
-| `--accept-destructive` / `--skip-lock` | Pass-through to apply/seed                                | off         |
+| Option                                 | Description                                                       | Default                   |
+| -------------------------------------- | ----------------------------------------------------------------- | ------------------------- |
+| `--maintenance-database <name>`        | Maintenance DB used to execute DROP/CREATE DATABASE               | `postgres`                |
+| `--yes`                                | Skip interactive confirmation (alias to `--force`)                | off                       |
+| `--force`                              | Skip interactive confirmation                                     | off                       |
+| `--non-interactive`                    | No prompt; must be combined with `--force` or `--yes`             | off                       |
+| `--allowed-hosts <list>`               | Comma-separated reset host allowlist (supports `*`)               | `localhost,127.0.0.1,::1` |
+| `--allowed-databases <list>`           | Comma-separated DB-name allowlist (supports `*`)                  | unset (no DB allowlist)   |
+| `--allow-risky-database-name`          | Allow prod-like DB names after other checks                       | off                       |
+| `--skip-seed`                          | Run apply only                                                    | off                       |
+| `--transaction-mode <mode>`            | Pass-through to apply/seed (`per-file`, `all-or-nothing`, `none`) | command default           |
+| `--continue-on-error`                  | Pass-through to apply/seed                                        | off                       |
+| `--accept-destructive` / `--skip-lock` | Pass-through to apply/seed                                        | off                       |
 
 Environment equivalents:
 
