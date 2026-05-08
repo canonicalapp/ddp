@@ -132,6 +132,48 @@ describe('TriggerOperations', () => {
       );
     });
 
+    it('should ignore preserved old triggers when detecting drops', async () => {
+      const sourceTriggers = [
+        {
+          trigger_name: 'current_trigger',
+          event_manipulation: 'UPDATE',
+          event_object_table: 'users',
+          action_timing: 'BEFORE',
+          action_statement: 'EXECUTE FUNCTION current_fn()',
+        },
+      ];
+      const targetTriggers = [
+        {
+          trigger_name: 'current_trigger',
+          event_manipulation: 'UPDATE',
+          event_object_table: 'users',
+          action_timing: 'BEFORE',
+          action_statement: 'EXECUTE FUNCTION current_fn()',
+        },
+        {
+          trigger_name: 'current_trigger_old_1778152978900',
+          event_manipulation: 'UPDATE',
+          event_object_table: 'users',
+          action_timing: 'BEFORE',
+          action_statement: 'EXECUTE FUNCTION old_fn()',
+        },
+      ];
+
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTriggers });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTriggers });
+
+      const result = await triggerOps.generateTriggerOperations();
+
+      expect(result.some(line => line.includes('DROP TRIGGER IF EXISTS'))).toBe(
+        false
+      );
+      expect(
+        result.some(line =>
+          line.includes('exists in prod_schema but not in dev_schema')
+        )
+      ).toBe(false);
+    });
+
     it('should handle triggers to create in target', async () => {
       const sourceTriggers = sourceTriggersForAddTest;
       const targetTriggers = targetTriggersForAddTest;

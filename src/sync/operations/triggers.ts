@@ -217,13 +217,19 @@ export class TriggerOperations {
   /**
    * Handle triggers to drop in target
    */
+  private isPreservedOldTriggerName(triggerName: string) {
+    return /_old_\d+$/.test(triggerName);
+  }
+
   async handleTriggersToDrop(
     sourceTriggers: ITriggerRow[],
     targetTriggers: ITriggerRow[],
     alterStatements: string[]
   ) {
     const triggersToDrop = targetTriggers.filter(
-      p => !sourceTriggers.some(d => d.trigger_name === p.trigger_name)
+      p =>
+        !this.isPreservedOldTriggerName(p.trigger_name) &&
+        !sourceTriggers.some(d => d.trigger_name === p.trigger_name)
     );
 
     for (const trigger of triggersToDrop) {
