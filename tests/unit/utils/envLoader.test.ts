@@ -4,7 +4,13 @@ import { join } from 'path';
 import { loadEnvFile } from '@/utils/envLoader';
 
 describe('loadEnvFile', () => {
-  const keys = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'] as const;
+  const keys = [
+    'DB_HOST',
+    'DB_PORT',
+    'DB_NAME',
+    'DB_USER',
+    'DB_PASSWORD',
+  ] as const;
 
   beforeEach(() => {
     for (const key of keys) {

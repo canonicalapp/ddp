@@ -30,8 +30,8 @@ export const getStatePolicy = async (): Promise<{
   const cfg = resolved.config;
   const strictMode = cfg.statePolicy?.strictMode ?? defaults.strictMode;
   const legacyMode = cfg.compat?.legacyMode ?? defaults.legacyMode;
-  const allowedSchemaKinds = (cfg.statePolicy?.allowedSchemaKinds ??
-    defaults.allowedSchemaKinds) as SchemaStateKind[];
+  const allowedSchemaKinds =
+    cfg.statePolicy?.allowedSchemaKinds ?? defaults.allowedSchemaKinds;
   const namePattern = new RegExp(
     cfg.statePolicy?.namePattern ?? '^[a-z][a-z0-9_]*$'
   );
