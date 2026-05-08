@@ -146,6 +146,8 @@ When safe backfill requirements are detected, `ddp migration diff --write` also 
 - `ddp inspect stale`
 - `ddp inspect backfill`
 
+> Breaking change: bare `ddp inspect` no longer runs stale artifact inspection directly. Use an explicit intent (`ddp inspect stale` or `ddp inspect backfill`).
+
 ### `ddp inspect stale`
 
 Inspects the target schema for preserved backup artifacts left by rename-first safety behavior:
