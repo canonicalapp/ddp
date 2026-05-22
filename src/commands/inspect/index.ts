@@ -80,7 +80,7 @@ export const inspectStaleCommand = async (
     }
 
     console.log(
-      '\nCleanup guidance: review artifacts and drop only after validating they are no longer needed.'
+      '\nCleanup: after validating data is no longer needed, remove tombstones with `ddp apply --prune --dry-run` then `ddp apply --prune`, or drop manually.'
     );
   } finally {
     await client.end().catch(() => undefined);
@@ -139,7 +139,8 @@ const inspectBackfillMigrations = async (
       .then(s => s.isFile())
       .catch(() => false);
 
-    if (!hasUp && !hasBackfill && !hasVerify && !hasConstraints) {
+    const isPhasedMigration = hasBackfill || hasVerify || hasConstraints;
+    if (!isPhasedMigration) {
       continue;
     }
 

@@ -15,9 +15,10 @@ import {
   migrationCreateCommand,
   migrateDiffCommand,
   migrateDiffOptionsFromCommander,
-} from '@/commands/migration/index';
+} from '@/commands/migrate/index';
 import {
   stateCreateCommand,
+  stateSortManifestCommand,
   stateValidateCommand,
 } from '@/commands/state/index';
 import type {
@@ -264,6 +265,20 @@ stateCommand
     }
   });
 
+stateCommand
+  .command('sort-manifest')
+  .description(
+    'Rewrite state-manifest.json so schema/table entries follow FK dependency order (same logic as apply).'
+  )
+  .action(async function (this: Command) {
+    try {
+      await stateSortManifestCommand();
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : 'Unknown error');
+      process.exit(1);
+    }
+  });
+
 const migrationCommand = program
   .command('migration')
   .description('Create and manage versioned SQL migrations');
@@ -410,7 +425,7 @@ withDbConnectionOptions(
   )
   .option(
     '--dry-run',
-    'List pending migrations without connecting to the database'
+    'Without --prune: list pending migrations only (no database). With --prune: connect, discover tombstones, print DROP statements without executing.'
   )
   .option('--continue-on-error', 'Continue execution even if errors occur')
   .option(
@@ -433,8 +448,18 @@ withDbConnectionOptions(
   )
   .option('--with-backfill', 'Include constraints.sql after verify checks pass')
   .option(
+    '--force',
+    'With --with-backfill, bypass failed verify/backfill checks and apply constraints.sql anyway (dangerous)'
+  )
+  .option(
     '--acknowledge-backfill',
     'Optional acknowledgment for pending backfill.sql follow-ups (informational only)'
+  )
+  .option(
+    '--prune',
+    'Prune-only: DROP preserved rename tombstones (*_old_<n> triggers, *_dropped_<n> tables/columns). ' +
+      'Does not load or apply migrations. Use --dry-run to print statements without executing. ' +
+      'Same patterns as `ddp inspect` (non-destructive sync policy).'
   )
   .option('--skip-lock', 'Skip PostgreSQL advisory lock (testing only)')
   .action(async (options: IApplyCommandOptions) => {

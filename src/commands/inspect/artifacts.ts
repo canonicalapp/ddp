@@ -7,6 +7,31 @@ export interface IArtifactSummary {
   totalCount: number;
 }
 
+/** Trigger names matching non-destructive renames (`ddp sync` / diff); need table for DROP TRIGGER. */
+export const collectPreservedTriggerDropRefs = async (
+  client: Client,
+  schema: string
+): Promise<Array<{ triggerName: string; eventObjectTable: string }>> => {
+  const triggerRows = await client.query<{
+    trigger_name: string;
+    event_object_table: string;
+  }>(
+    `
+      SELECT trigger_name, event_object_table
+      FROM information_schema.triggers
+      WHERE trigger_schema = $1
+        AND trigger_name ~ '_old_[0-9]+$'
+      ORDER BY trigger_name
+      `,
+    [schema]
+  );
+
+  return triggerRows.rows.map(row => ({
+    triggerName: row.trigger_name,
+    eventObjectTable: row.event_object_table,
+  }));
+};
+
 export const collectPreservedArtifacts = async (
   client: Client,
   schema: string
@@ -86,5 +111,6 @@ export const formatArtifactNoticeLines = (
     '-- Notice: preserved backup artifacts were found in target schema.',
     `-- Backup summary (${schema}): ${preview}.`,
     '-- Run `ddp inspect` for complete artifact log and cleanup guidance.',
+    '-- To remove these tombstones when safe: `ddp apply --prune --dry-run`, then `ddp apply --prune`.',
   ];
 };

@@ -88,6 +88,14 @@ export interface IApplyCommandOptions extends IDatabaseConnectionOptions {
   acknowledgeBackfill?: boolean;
   /** Include and enforce constraints.sql after verify checks pass */
   withBackfill?: boolean;
+  /** With --with-backfill, allow constraints.sql even when verify/backfill checks fail (dangerous) */
+  force?: boolean;
+  /**
+   * Prune-only run: remove preserved rename tombstones (sync non-destructive policy).
+   * Matches `*_old_<digits>` triggers, `*_dropped_<digits>` tables, and `*_dropped_<digits>` columns
+   * (same detection as `ddp inspect`). Does not load or apply migrations; use plain `ddp apply` for that.
+   */
+  prune?: boolean;
 }
 
 // Execution error
@@ -98,4 +106,9 @@ export interface IExecutionError {
   statement?: string;
   line?: number;
   suggestion?: string;
+}
+
+export interface IStateApplyFile {
+  absolutePath: string;
+  displayPath: string;
 }

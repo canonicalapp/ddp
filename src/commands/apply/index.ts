@@ -19,9 +19,10 @@ import {
 } from '@/commands/apply/executionPipeline';
 import {
   detectPendingBackfillMigrations,
-  filterFilesByBackfillVerify,
+  prepareFilesForBackfillExecution,
 } from '@/commands/apply/backfillWorkflow';
 import { performDryRun, reportResults } from '@/commands/apply/reporting';
+import { runApplyPruneFlow } from '@/commands/apply/pruneRenamedArtifacts';
 import type { IApplyCommandOptions, IFileLoadOptions } from '@/types/apply';
 import type { IDatabaseConnection } from '@/types/database';
 import { ValidationError } from '@/types/errors';
@@ -44,9 +45,20 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
       options: { ...options, password: '[REDACTED]' },
     });
 
-    await loadEnvFile(true);
+    await loadEnvFile(true, options.env);
 
     const connectionConfig = buildConnectionConfig(options);
+
+    if (options.prune === true) {
+      if (options.withBackfill === true || options.force === true) {
+        logWarn(
+          'apply: --prune ignores --with-backfill and --force for this invocation'
+        );
+      }
+      await runApplyPruneFlow(connectionConfig, options);
+      return;
+    }
+
     const migrationsFolder = await resolveApplyFolder(options);
 
     console.log(`📂 Migrations folder: ${migrationsFolder}`);
@@ -207,7 +219,9 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
       }
 
       const executionFiles = options.withBackfill
-        ? await filterFilesByBackfillVerify(files, client)
+        ? await prepareFilesForBackfillExecution(files, client, {
+            force: options.force ?? false,
+          })
         : files;
 
       const results = await executeFiles(
