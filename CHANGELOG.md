@@ -1,3 +1,17 @@
+# [3.1.0](https://github.com/canonicalapp/ddp/compare/v3.0.2...v3.1.0) (2026-05-22)
+
+
+### Bug Fixes
+
+* **cli:** honor --env when loading dotenv for database commands ([683ab67](https://github.com/canonicalapp/ddp/commit/683ab675529bf8a1d8fa03f69dd3a41dbb469f3c))
+* **sync:** stop false constraint churn and fix removed-table diff SQL ([79060bf](https://github.com/canonicalapp/ddp/commit/79060bfa9de7508002ab03e5802b738739162821))
+
+
+### Features
+
+* **apply:** add --prune tombstone cleanup and gate backfill on verify ([2442260](https://github.com/canonicalapp/ddp/commit/2442260020d31cdae61198445aa3ecbf997a4e21))
+* **state:** consolidate migrate package and order state by FK deps ([064d828](https://github.com/canonicalapp/ddp/commit/064d8280a9bdd2f66ee8185b6989f4acc34e7707))
+
 ## [3.0.2](https://github.com/canonicalapp/ddp/compare/v3.0.1...v3.0.2) (2026-05-08)
 
 
