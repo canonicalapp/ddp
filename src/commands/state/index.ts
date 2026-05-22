@@ -11,12 +11,13 @@ import type { IStateManifestEntry } from '@/types/state';
 import { buildConnectionString } from '@/database/connection';
 import { loadEnvFile } from '@/utils/envLoader';
 import { resolvePgSchema } from '@/utils/pgSchema';
-import { assembleStateApplyPlan } from '@/migrate/assembleStateApplyPlan';
+import { assembleStateApplyPlan } from '@/commands/migrate/assembleStateApplyPlan';
 import {
   applyStateFilesToShadowWithAggregateErrors,
   resetShadowSchema,
-} from '@/migrate/shadowApply';
-import { resolveDdpRootPath } from '@/utils/ddpConfig';
+} from '@/commands/migrate/shadowApply';
+import { sortStateManifestEntriesByTableDependencies } from '@/commands/migrate/sortStateManifestByTableDeps';
+import { resolveDdpConfig, resolveDdpRootPath } from '@/utils/ddpConfig';
 import { logError, logInfo } from '@/utils/logger';
 
 export const stateCreateCommand = async (input: {
@@ -200,6 +201,31 @@ export const stateValidateCommand = async (
     logError('DDP state validate command failed', error as Error);
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('DDP STATE VALIDATE failed:', message);
+    process.exit(1);
+  }
+};
+
+export const stateSortManifestCommand = async () => {
+  try {
+    const resolved = await resolveDdpConfig();
+    if (!resolved) {
+      throw new Error('ddp.config.json not found. Run `ddp init` first.');
+    }
+    const { projectRoot, rootPath } = resolved;
+    const manifest = await readManifest(rootPath);
+    const sorted = await sortStateManifestEntriesByTableDependencies(
+      manifest,
+      projectRoot
+    );
+    await writeManifest(rootPath, sorted);
+    console.log(
+      'Updated state-manifest.json: schema/table entries ordered by FK dependencies (aligned with apply).'
+    );
+    console.log(`- Manifest: ${getManifestPath(rootPath)}`);
+  } catch (error) {
+    logError('DDP state sort-manifest command failed', error as Error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('DDP STATE SORT-MANIFEST failed:', message);
     process.exit(1);
   }
 };

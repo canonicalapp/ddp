@@ -1,5 +1,7 @@
 /**
- * Migration commands: scaffold folders, diff vs DB, write SQL.
+ * `ddp migration` CLI entry: create versioned folders, diff state vs target.
+ * Other modules in this folder (`assembleStateApplyPlan`, `shadowApply`, etc.) are imported
+ * directly by `state` / `diff` so this file does not pull the full dependency graph.
  */
 
 import { mkdir, writeFile } from 'fs/promises';
@@ -13,12 +15,6 @@ import {
   migrationIdPattern,
   sanitizeMigrationSlug,
   utcTimestamp14,
-} from './persist';
-
-export {
-  migrationWriteFromDiff,
-  sanitizeMigrationSlug,
-  type IMigrationWriteFromDiffInput,
 } from './persist';
 
 export { migrateDiffCommand, migrateDiffOptionsFromCommander } from './diff';

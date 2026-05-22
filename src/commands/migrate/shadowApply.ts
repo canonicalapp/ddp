@@ -5,7 +5,7 @@
 import { readFile } from 'fs/promises';
 import type { Client } from 'pg';
 import { splitSqlStatements } from '@/utils/splitSqlStatements';
-import type { IStateApplyFile } from '@/migrate/assembleStateApplyPlan';
+import type { IStateApplyFile } from '@/types/apply';
 
 export interface IShadowApplyError {
   file: string;

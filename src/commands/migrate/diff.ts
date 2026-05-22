@@ -11,11 +11,11 @@ import {
   ensurePgSchemaExists,
   ensureTargetDatabase,
 } from '@/commands/apply/databasePreflight';
-import { assembleStateApplyPlan } from '@/migrate/assembleStateApplyPlan';
+import { assembleStateApplyPlan } from '@/commands/migrate/assembleStateApplyPlan';
 import {
   applyStateFilesToShadowWithAggregateErrors,
   resetShadowSchema,
-} from '@/migrate/shadowApply';
+} from '@/commands/migrate/shadowApply';
 import { SchemaSyncOrchestrator } from '@/sync/orchestrator';
 import type { IMigrateDiffCommandOptions } from '@/types/cli';
 import type { IDatabaseConnection } from '@/types/database';
@@ -23,6 +23,7 @@ import { ValidationError } from '@/types/errors';
 import { loadEnvFile } from '@/utils/envLoader';
 import { resolvePgSchema } from '@/utils/pgSchema';
 import { logError, logInfo } from '@/utils/logger';
+import { resolveRemovedTableStrategy } from '@/sync/pendingTableRemoval';
 import { migrationWriteFromDiff, sanitizeMigrationSlug } from './persist';
 import {
   collectPreservedArtifacts,
@@ -302,7 +303,7 @@ export const migrateDiffCommand = async (
   options: IMigrateDiffCommandOptions
 ): Promise<void> => {
   try {
-    await loadEnvFile(true);
+    await loadEnvFile(true, options.env);
 
     const targetConfig = buildTargetConfig(options);
     const targetSchema = resolvePgSchema(
@@ -412,6 +413,12 @@ export const migrateDiffCommand = async (
         target: targetSchema,
         targetConn,
         dryRun: false,
+        removedTableStrategy: resolveRemovedTableStrategy({
+          conn: shadowConnectionString,
+          source: shadowCatalogSchema,
+          target: targetSchema,
+          targetConn,
+        }),
       };
 
       const orchestrator = new SchemaSyncOrchestrator(
