@@ -145,9 +145,10 @@ CREATE TABLE target.orders (
   "order_date" timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
 
--- Rename extra table before drop (data preservation)
-ALTER TABLE target.old_table RENAME TO old_table_dropped_2024-01-15T10-30-45-123Z;
-DROP TABLE IF EXISTS target.old_table_dropped_2024-01-15T10-30-45-123Z;
+-- Removed tables (not in source state): per-object drops are omitted; CASCADE drops run last in FK order
+-- Section: REMOVED TABLE OPERATIONS (DROP CASCADE)
+DROP TABLE IF EXISTS target.child_affiliate_table CASCADE;
+DROP TABLE IF EXISTS target.affiliate_commissions CASCADE;
 ```
 
 ### Column Operations

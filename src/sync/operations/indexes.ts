@@ -6,6 +6,7 @@
 import type { Client } from 'pg';
 import type { ILegacySyncOptions, TNullable } from '@/types';
 import { isDdpDiffIgnoredTable } from '@/sync/ddpInternalSchema';
+import { shouldSkipPerObjectDropsOnRemovedTable } from '@/sync/pendingTableRemoval';
 import {
   type SyncDbSide,
   clientForSyncSide,
@@ -169,6 +170,10 @@ export class IndexOperations {
     );
 
     for (const index of indexesToDrop) {
+      if (shouldSkipPerObjectDropsOnRemovedTable(this.options, index.tablename)) {
+        continue;
+      }
+
       alterStatements.push(
         `-- Index ${index.indexname} exists in ${this.options.target} but not in ${this.options.source}`
       );

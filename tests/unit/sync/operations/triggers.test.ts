@@ -649,6 +649,29 @@ describe('TriggerOperations', () => {
       expect(result).toBe(true);
     });
 
+    it('should return false for EXECUTE PROCEDURE vs EXECUTE FUNCTION (same trigger)', () => {
+      const trigger1 = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'INSERT',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE PROCEDURE public.test_function()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      const trigger2 = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'INSERT',
+        action_timing: 'AFTER',
+        action_statement: 'EXECUTE FUNCTION test_function()',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+
+      const result = triggerOps.compareTriggerDefinitions(trigger1, trigger2);
+      expect(result).toBe(false);
+    });
+
     it('should return false if either trigger is null', () => {
       const trigger1 = {
         trigger_name: 'test_trigger',

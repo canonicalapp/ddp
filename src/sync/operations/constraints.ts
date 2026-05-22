@@ -11,6 +11,7 @@ import {
   schemaNameForSide,
 } from '@/sync/syncClient';
 import { ConstraintDefinitions } from '@/utils/constraintDefinitions';
+import { mergeConstraintColumnName } from '@/utils/constraintEquivalence';
 import { ConstraintHandlers } from '@/utils/constraintHandlers';
 import type { Client } from 'pg';
 import { IndexOperations, type IIndexRow } from './indexes';
@@ -108,7 +109,10 @@ export class ConstraintOperations {
       } else {
         uniqueConstraints.set(key, {
           ...existing,
-          column_name: existing.column_name ?? row.column_name,
+          column_name: mergeConstraintColumnName(
+            existing.column_name,
+            row.column_name
+          ),
           check_clause: existing.check_clause ?? row.check_clause,
           foreign_table_name:
             existing.foreign_table_name ?? row.foreign_table_name,

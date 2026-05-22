@@ -15,6 +15,10 @@ import { IndexOperations } from '@/sync/operations/indexes';
 import { SequenceOperations } from '@/sync/operations/sequences';
 import { TableOperations } from '@/sync/operations/tables';
 import { TriggerOperations } from '@/sync/operations/triggers';
+import {
+  primePendingTableRemovals,
+  resolveRemovedTableStrategy,
+} from '@/sync/pendingTableRemoval';
 
 interface SyncOptions {
   conn: string;
@@ -99,6 +103,17 @@ export class SchemaSyncOrchestrator {
   }
 
   async executeAllOperations(alterStatements: string[]) {
+    const tablesPendingRemoval = await this.tableOps.getTablesToDrop();
+    primePendingTableRemovals(
+      this.options,
+      tablesPendingRemoval.map(t => t.table_name)
+    );
+    if (this.options.removedTableStrategy === undefined) {
+      this.options.removedTableStrategy = resolveRemovedTableStrategy(
+        this.options
+      );
+    }
+
     // 1. Handle enum operations (must come before tables/columns that depend on them)
     const enumOps = await this.enumOps.generateEnumOperations();
     this.appendSectionIfNotEmpty(alterStatements, 'ENUM OPERATIONS', enumOps);
@@ -111,7 +126,7 @@ export class SchemaSyncOrchestrator {
       sequenceOps
     );
 
-    // 3. Handle table operations
+    // 3. Create missing tables only (drop renames run after constraints/indexes/triggers)
     const tableOps = await this.tableOps.generateTableOperations();
     this.appendSectionIfNotEmpty(alterStatements, 'TABLE OPERATIONS', tableOps);
 
@@ -150,6 +165,19 @@ export class SchemaSyncOrchestrator {
       alterStatements,
       'TRIGGER OPERATIONS',
       triggerOps
+    );
+
+    // 9. Remove tables absent from source (CASCADE default, or rename-first)
+    const removedTableOps =
+      await this.tableOps.generateRemovedTableOperations();
+    const removedSectionTitle =
+      resolveRemovedTableStrategy(this.options) === 'preserve-rename'
+        ? 'TABLE DROP PRESERVATION (RENAME)'
+        : 'REMOVED TABLE OPERATIONS (DROP CASCADE)';
+    this.appendSectionIfNotEmpty(
+      alterStatements,
+      removedSectionTitle,
+      removedTableOps
     );
   }
 

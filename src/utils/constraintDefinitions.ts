@@ -10,6 +10,11 @@ import {
   schemaNameForSide,
 } from '@/sync/syncClient';
 import type { Client } from 'pg';
+import {
+  normalizeCheckClauseForCompare,
+  normalizeConstraintColumnList,
+  normalizeReferentialAction,
+} from './constraintEquivalence';
 import { Utils } from './formatting';
 
 interface IConstraintRow {
@@ -170,34 +175,56 @@ export class ConstraintDefinitions {
       return false;
     }
 
-    // Compare key properties that define constraint behavior
-    const sourceProps = {
-      constraint_type: sourceConstraint.constraint_type,
-      column_name: sourceConstraint.column_name,
-      foreign_table_name: sourceConstraint.foreign_table_name,
-      foreign_column_name: sourceConstraint.foreign_column_name,
-      update_rule: sourceConstraint.update_rule,
-      delete_rule: sourceConstraint.delete_rule,
-    };
+    if (sourceConstraint.table_name !== targetConstraint.table_name) {
+      return true;
+    }
 
-    const targetProps = {
-      constraint_type: targetConstraint.constraint_type,
-      column_name: targetConstraint.column_name,
-      foreign_table_name: targetConstraint.foreign_table_name,
-      foreign_column_name: targetConstraint.foreign_column_name,
-      update_rule: targetConstraint.update_rule,
-      delete_rule: targetConstraint.delete_rule,
-    };
+    if (sourceConstraint.constraint_type !== targetConstraint.constraint_type) {
+      return true;
+    }
 
-    // Compare each property
-    for (const [key, sourceValue] of Object.entries(sourceProps)) {
-      const targetValue = targetProps[key as keyof typeof targetProps];
-      if (sourceValue !== targetValue) {
-        return true; // Found a difference
+    if (sourceConstraint.constraint_type === 'CHECK') {
+      return (
+        normalizeCheckClauseForCompare(sourceConstraint.check_clause) !==
+        normalizeCheckClauseForCompare(targetConstraint.check_clause)
+      );
+    }
+
+    if (
+      normalizeConstraintColumnList(sourceConstraint.column_name) !==
+      normalizeConstraintColumnList(targetConstraint.column_name)
+    ) {
+      return true;
+    }
+
+    if (sourceConstraint.constraint_type === 'FOREIGN KEY') {
+      if (
+        sourceConstraint.foreign_table_name !==
+        targetConstraint.foreign_table_name
+      ) {
+        return true;
+      }
+      if (
+        sourceConstraint.foreign_column_name !==
+        targetConstraint.foreign_column_name
+      ) {
+        return true;
+      }
+      if (
+        normalizeReferentialAction(sourceConstraint.update_rule) !==
+        normalizeReferentialAction(targetConstraint.update_rule)
+      ) {
+        return true;
+      }
+      if (
+        normalizeReferentialAction(sourceConstraint.delete_rule) !==
+        normalizeReferentialAction(targetConstraint.delete_rule)
+      ) {
+        return true;
       }
     }
 
-    return false; // No differences found
+    return false;
   }
 
   /**

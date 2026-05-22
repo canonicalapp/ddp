@@ -29,22 +29,44 @@ npm install @advcomm/ddp
 
 The published package ships the compiled **`dist/`** tree. Installing from a **git URL** without building will not provide `dist/cli.js`; use npm or clone and run `npm ci && npm run build`.
 
+## Environment variables and `.env`
+
+Commands that need a database (for example **`apply`**, **`seed`**, **`migration diff`**, **`gen`**, **`inspect`**, **`reset`**) call **`loadEnvFile`** before reading `DB_*` (or `SOURCE_DB_*` / `TARGET_DB_*` for **`sync`**).
+
+- **Auto-discover:** if you do **not** pass **`--env`**, DDP searches upward from the **current working directory** for a file named **`.env`** and merges its entries into `process.env` **only when a key is not already set** (shell exports and CI-injected secrets keep precedence).
+- **`--env <path>`:** optional. Use it when the file is not named `.env`, is outside the search path, or you want an explicit profile (for example **`.env.staging`**).
+- **Tests:** most commands skip loading `.env` when `NODE_ENV=test` or `JEST_WORKER_ID` is set; **`sync`** still loads so integration tests can control behavior.
+
+Typical target-database variables (see also **Configuration** below):
+
+```bash
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=mydatabase
+DB_USER=username
+DB_PASSWORD=password
+DB_SCHEMA=public
+```
+
+So in docs, **`ddp apply`** and similar examples **omit `--env`** when you run them from the project root that already contains a standard **`.env`**.
+
 ## Command summary
 
-| Command                       | Purpose                                                                     |
-| ----------------------------- | --------------------------------------------------------------------------- |
-| `ddp init`                    | Create `ddp.config.json` (default root `db/`) and folder layout             |
-| `ddp state create …`          | Scaffold a new state SQL file (schema / proc / trigger)                     |
-| `ddp state validate`          | Validate layout + manifest against policy                                   |
-| `ddp migration create <name>` | New timestamped migration folder under `paths.migrations`                   |
-| `ddp migration diff`          | Materialize state to shadow, diff vs target; optional `--write` migration   |
-| `ddp inspect stale`           | List preserved backup artifacts (`*_old_*`, `*_dropped_*`) in target schema |
-| `ddp inspect backfill`        | Show split backfill migration progress (`expand/backfill/constraints`)      |
-| `ddp apply`                   | Apply pending migrations from config (or `--folder`)                        |
-| `ddp seed`                    | Execute all `*.sql` in `paths.seeds` (sorted); no tracking; error if empty  |
-| `ddp reset`                   | Dev-only drop/recreate DB, then run `apply` and `seed`                      |
-| `ddp gen`                     | Introspect a DB → SQL files or stdout                                       |
-| `ddp sync`                    | Diff source vs target DB → `alter.sql`                                      |
+| Command                       | Purpose                                                                            |
+| ----------------------------- | ---------------------------------------------------------------------------------- |
+| `ddp init`                    | Create `ddp.config.json` (default root `db/`) and folder layout                    |
+| `ddp state create …`          | Scaffold a new state SQL file (schema / proc / trigger)                            |
+| `ddp state validate`          | Validate layout + manifest against policy                                          |
+| `ddp state sort-manifest`     | Reorder `state-manifest.json` table entries by FK dependencies (aligns with apply) |
+| `ddp migration create <name>` | New timestamped migration folder under `paths.migrations`                          |
+| `ddp migration diff`          | Materialize state to shadow, diff vs target; optional `--write` migration          |
+| `ddp inspect stale`           | List preserved backup artifacts (`*_old_*`, `*_dropped_*`) in target schema        |
+| `ddp inspect backfill`        | Show split backfill migration progress (`expand/backfill/constraints`)             |
+| `ddp apply`                   | Apply pending migrations from config (or `--folder`)                               |
+| `ddp seed`                    | Execute all `*.sql` in `paths.seeds` (sorted); no tracking; error if empty         |
+| `ddp reset`                   | Dev-only drop/recreate DB, then run `apply` and `seed`                             |
+| `ddp gen`                     | Introspect a DB → SQL files or stdout                                              |
+| `ddp sync`                    | Diff source vs target DB → `alter.sql`                                             |
 
 ## Quick start (declarative workflow)
 
@@ -62,17 +84,17 @@ ddp state validate
 # 3. Hand-written migration when needed
 ddp migration create add_feature_x
 
-# 4. Optional: generate a migration from state vs target DB
-ddp migration diff --env .env --write
+# 4. Optional: generate a migration from state vs target DB (uses .env from project root)
+ddp migration diff --write
 
 # 5. Apply migrations
-ddp apply --env .env
+ddp apply
 
 # 6. Optional: repeatable seed SQL (db/seeds/*.sql — idempotent SQL recommended)
-ddp seed --env .env
+ddp seed
 
 # 7. Optional: dev reset (drop/recreate DB, then apply + seed)
-ddp reset --env .env --non-interactive --force
+ddp reset --non-interactive --force
 ```
 
 ## `ddp init`
@@ -109,7 +131,11 @@ ddp state create trg audit_users
 
 ### `ddp state validate`
 
-Checks structure and **`state-manifest.json`** against **`statePolicy`** in `ddp.config.json` (strict mode, naming patterns, allowed kinds).
+Checks structure and **`state-manifest.json`** against **`statePolicy`** in `ddp.config.json` (strict mode, naming patterns, allowed kinds). Deep validation connects to the database (uses **`.env`** / **`--env`** like other DB commands).
+
+### `ddp state sort-manifest`
+
+Rewrites **`state-manifest.json`** so **`kind: "table"`** entries follow **foreign-key dependency order** (same ordering logic used when applying state / shadow). Other manifest rows keep their relative order within each apply kind. Run from the project root after editing table SQL if you want the committed manifest order to match apply.
 
 ## `ddp migration`
 
@@ -126,18 +152,32 @@ Applies declarative **state** to a **shadow** catalog, diffs against the **targe
 
 Useful options:
 
-| Option                    | Description                                                   |
-| ------------------------- | ------------------------------------------------------------- |
-| `--write`                 | Emit SQL into a new migration under `paths.migrations`        |
-| `--migration-name <slug>` | With `--write`: name slug (required with `--non-interactive`) |
-| `--non-interactive`       | Fail instead of prompting (CI)                                |
-| `--create-database`       | Create target DB if missing                                   |
-| `--env <path>`            | `.env` file (default: auto-discover)                          |
+| Option                    | Description                                                              |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `--write`                 | Emit SQL into a new migration under `paths.migrations`                   |
+| `--migration-name <slug>` | With `--write`: name slug (required with `--non-interactive`)            |
+| `--non-interactive`       | Fail instead of prompting (CI)                                           |
+| `--create-database`       | Create target DB if missing                                              |
+| `--env <path>`            | Optional `.env` path (default: auto-discover **`.env`** upward from cwd) |
 
-Connection flags match other commands (`--host`, `--port`, `--database`, `--username`, `--password`, `--schema`).
+Connection flags match other commands (`--env`, `--host`, `--port`, `--database`, `--username`, `--password`, `--schema`).
 
 When `--write` generates a real drift migration and preserved backup artifacts exist, `up.sql` includes a short notice and points to `ddp inspect` for the complete artifact log.
 When safe backfill requirements are detected, `ddp migration diff --write` emits `up.sql` (expand phase), plus `backfill.sql`, `backfill.verify.sql`, and `constraints.sql`.
+
+**Why does `up.sql` list many unrelated `ALTER`s?** The diff is the **full** structural delta between **shadow** (materialized from repo state) and **target**. If the target DB is missing migrations, has looser nullability, or catalog text differs cosmetically from shadow, you will see every mismatch in one file—not only the change you had in mind. Bring the target in line with state (or reset a dev DB) before diffing to narrow the script.
+
+**Constraint churn on every diff:** If `migration diff` keeps emitting the same `DROP CONSTRAINT` / `ADD CONSTRAINT` pairs, the target catalog and shadow often differ cosmetically (multi-column UNIQUE column order, CHECK expression parentheses/casts). DDP normalizes those before comparing. After upgrading DDP, regenerate once; if a migration only contained false constraint churn, you can drop it from history on dev.
+
+**Trigger rename churn (`*_old_<timestamp>`) on every diff:** PostgreSQL catalogs can spell the same trigger slightly differently (for example `EXECUTE PROCEDURE` vs `EXECUTE FUNCTION`, optional `public.` on the function). DDP now normalizes those before deciding a trigger “changed,” so spurious `ALTER TRIGGER … RENAME` blocks should be far less common.
+
+**Removed tables (not in `state/`):** For whole modules (e.g. affiliate tables), DDP:
+
+1. Drops **FKs on remaining tables** that still point at removed tables (e.g. `orders → affiliates`).
+2. Skips per-constraint/index/trigger noise on tables being removed.
+3. Emits **`DROP TABLE … CASCADE`** at the end in **child → parent** order.
+
+Default strategy is **`cascade`** (destructive; review `up.sql`). For rename-first tombstones instead, set `DDP_REMOVED_TABLE_STRATEGY=preserve-rename` before `migration diff`.
 
 ## `ddp inspect`
 
@@ -156,7 +196,7 @@ Inspects the target schema for preserved backup artifacts left by rename-first s
 - Table backups matching `*_dropped_<timestamp>`
 - Column backups matching `*_dropped_<timestamp>`
 
-Use the same connection flags as other DB commands (`--env`, `--host`, `--port`, `--database`, `--username`, `--password`, `--schema`).
+Connection options follow **Environment variables and `.env`** above (optional **`--env`**, or a discovered **`.env`**).
 
 ### `ddp inspect backfill`
 
@@ -166,29 +206,34 @@ Inspects split migration backfill progress by combining migration files and appl
 - checks applied status for `::expand` / `::constraints`
 - prints next-step guidance for pending backfill workflows
 
-Uses the same connection flags as other DB commands (`--env`, `--host`, `--port`, `--database`, `--username`, `--password`, `--schema`).
+Connection options follow **Environment variables and `.env`** above.
 
 ## `ddp apply`
 
 Runs versioned migrations from **`paths.migrations`** in `ddp.config.json`, or **`--folder`**.
 
-| Option                      | Description                                                              | Default     |
-| --------------------------- | ------------------------------------------------------------------------ | ----------- |
-| `--folder <path>`           | Override migrations root                                                 | from config |
-| `--transaction-mode <mode>` | `per-file` \| `all-or-nothing` \| `none`                                 | `per-file`  |
-| `--dry-run`                 | List pending migrations only (no DB execute)                             | off         |
-| `--continue-on-error`       | Continue after a failed file                                             | off         |
-| `--skip-history`            | Do not record history (not recommended)                                  | off         |
-| `--accept-destructive`      | Allow migrations flagged as destructive                                  | off         |
-| `--non-interactive`         | No prompts (use with `--accept-destructive` / `--create-database` in CI) | off         |
-| `--create-database`         | Create database if it does not exist                                     | off         |
-| `--acknowledge-backfill`    | Optional acknowledgment for pending `backfill.sql` follow-ups            | off         |
-| `--with-backfill`           | Run `constraints.sql` after verify checks pass                           | off         |
-| `--skip-lock`               | Skip PostgreSQL advisory lock (testing only)                             | off         |
+**`--prune` (prune-only):** this flag means **no migrations** are loaded or applied for that invocation. Instead, DDP connects to the target database and runs **only** `DROP` / `DROP COLUMN` for preserved rename tombstones from the non-destructive sync policy: triggers matching `*_old_<digits>`, tables matching `*_dropped_<digits>`, and columns matching `*_dropped_<digits>` (same rules as `ddp inspect`). Use **`ddp apply --prune --dry-run`** to print the statements without executing. For normal migration runs, omit `--prune`.
+
+| Option                      | Description                                                                                                   | Default     |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------- |
+| `--folder <path>`           | Override migrations root                                                                                      | from config |
+| `--prune`                   | Prune-only: drop preserved rename tombstones only; **does not** apply migrations                              | off         |
+| `--transaction-mode <mode>` | `per-file` \| `all-or-nothing` \| `none`                                                                      | `per-file`  |
+| `--dry-run`                 | Without `--prune`: list pending migrations (no DB). With `--prune`: print DROPs only (connects for discovery) | off         |
+| `--continue-on-error`       | Continue after a failed file                                                                                  | off         |
+| `--skip-history`            | Do not record history (not recommended)                                                                       | off         |
+| `--accept-destructive`      | Allow migrations flagged as destructive                                                                       | off         |
+| `--non-interactive`         | No prompts (use with `--accept-destructive` / `--create-database` in CI)                                      | off         |
+| `--create-database`         | Create database if it does not exist                                                                          | off         |
+| `--acknowledge-backfill`    | Optional acknowledgment for pending `backfill.sql` follow-ups                                                 | off         |
+| `--with-backfill`           | Run `constraints.sql` after verify checks pass                                                                | off         |
+| `--force`                   | With `--with-backfill`, apply `constraints.sql` even if verify fails                                          | off         |
+| `--skip-lock`               | Skip PostgreSQL advisory lock (testing only)                                                                  | off         |
 
 Destructive heuristics (e.g. `DROP`, `TRUNCATE`) require explicit **`--accept-destructive`** in non-interactive runs.
 When pending generated `backfill.sql` files exist, `ddp apply` continues with `up.sql` and prints follow-up guidance.
 For split migrations (`up.sql`, `backfill.verify.sql`, `constraints.sql`), use **`--with-backfill`** once manual backfill is complete; apply verifies checks are all zero before executing constraints.
+If verify/backfill checks still fail but you intentionally want to proceed, use **`--with-backfill --force`** (dangerous).
 
 ## `ddp seed`
 
@@ -206,7 +251,7 @@ Runs **every** top-level **`*.sql`** file in **`paths.seeds`** (default `{root}/
 | `--create-database`         | Create database if missing                         | off                    |
 | `--skip-lock`               | Skip advisory lock (testing)                       | off                    |
 
-Connection options match **`apply`** (`--env`, `--host`, …).
+Connection options match **`apply`** (see **Environment variables and `.env`** above).
 
 ## `ddp reset` (dev-only)
 
@@ -250,26 +295,26 @@ Generate **`schema.sql`**, **`procs.sql`**, **`triggers.sql`** from a live datab
 
 ```bash
 ddp gen --database mydb --username user --password pass --output ./output
-ddp gen --env .env --schema-only
+ddp gen --schema-only
 ddp gen --procs-only --stdout
 ```
 
-| Option                                               | Description           | Default       |
-| ---------------------------------------------------- | --------------------- | ------------- |
-| `--env <path>`                                       | `.env` path           | auto-discover |
-| `--output <dir>`                                     | Output directory      | `./output`    |
-| `--stdout`                                           | Print files to stdout | off           |
-| `--schema-only` / `--procs-only` / `--triggers-only` | Partial output        | off           |
+| Option                                               | Description           | Default                  |
+| ---------------------------------------------------- | --------------------- | ------------------------ |
+| `--env <path>`                                       | Optional `.env` path  | auto-discover **`.env`** |
+| `--output <dir>`                                     | Output directory      | `./output`               |
+| `--stdout`                                           | Print files to stdout | off                      |
+| `--schema-only` / `--procs-only` / `--triggers-only` | Partial output        | off                      |
 
 ## `ddp sync`
 
-Compare **source** and **target** databases and write **`alter.sql`**. Supports DB connection flags or `--env`. Optional GitHub-style **`--source-repo` / `--target-repo`** (and branches) for repo-integrated flows.
+Compare **source** and **target** databases and write **`alter.sql`**. Uses the same **`.env`** / **`--env`** behavior as other commands (see **Environment variables and `.env`**). Optional GitHub-style **`--source-repo` / `--target-repo`** (and branches) for repo-integrated flows.
 
 ```bash
 ddp sync \
   --source-database dev_db --source-username u1 --source-password p1 \
   --target-database prod_db --target-username u2 --target-password p2
-ddp sync --env .env --dry-run --output migration.sql
+ddp sync --dry-run --output migration.sql
 ```
 
 ## Configuration
@@ -283,7 +328,7 @@ ddp sync --env .env --dry-run --output migration.sql
 
 ### Environment variables
 
-Typical database variables (also used by `--env` discovery):
+These names are what a **`.env`** file (or **`--env`**) typically supplies for the **target** database. The same auto-load rules apply as in **Environment variables and `.env`** at the top of this document.
 
 ```bash
 DB_HOST=localhost
@@ -328,7 +373,7 @@ ALTER TABLE target.products ADD COLUMN "description" text;
 
 ## Data preservation (`sync`)
 
-Destructive operations **rename** objects with timestamps before drop (tables, columns, functions, constraints, indexes, triggers). Review and clean up renamed objects manually after verification.
+Destructive operations **rename** objects with timestamps before drop (tables, columns, functions, constraints, indexes, triggers). After you have validated migrations and data, you can remove the preserved rename tombstones with **`ddp apply --prune`** (see **`ddp apply`**); use **`ddp apply --prune --dry-run`** first to review the exact `DROP` statements.
 
 ## Development
 

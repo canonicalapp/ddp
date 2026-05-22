@@ -29,12 +29,18 @@ describe('SchemaSyncOrchestrator', () => {
 
     // Create mock operation instances with call tracking
     mockTableOps = {
+      getTablesToDrop: () => Promise.resolve([]),
       generateTableOperations: () => {
         mockTableOps.generateTableOperations.called = true;
         return Promise.resolve(['-- Table operations']);
       },
+      generateRemovedTableOperations: () => {
+        mockTableOps.generateRemovedTableOperations.called = true;
+        return Promise.resolve(['-- Removed table CASCADE drops']);
+      },
     };
     mockTableOps.generateTableOperations.called = false;
+    mockTableOps.generateRemovedTableOperations.called = false;
 
     mockEnumOps = {
       generateEnumOperations: () => {
@@ -167,6 +173,7 @@ describe('SchemaSyncOrchestrator', () => {
       expect(result).toContain('-- CONSTRAINT OPERATIONS');
       expect(result).toContain('-- INDEX OPERATIONS');
       expect(result).toContain('-- TRIGGER OPERATIONS');
+      expect(result).toContain('-- REMOVED TABLE OPERATIONS (DROP CASCADE)');
       expect(result).toContain('-- END OF SCHEMA SYNC SCRIPT');
     });
 
@@ -180,6 +187,41 @@ describe('SchemaSyncOrchestrator', () => {
       expect(mockConstraintOps.generateConstraintOperations.called).toBe(true);
       expect(mockIndexOps.generateIndexOperations.called).toBe(true);
       expect(mockTriggerOps.generateTriggerOperations.called).toBe(true);
+      expect(mockTableOps.generateRemovedTableOperations.called).toBe(true);
+    });
+
+    it('should run removed table CASCADE drops after triggers', async () => {
+      const order: string[] = [];
+      mockTableOps.generateTableOperations = () => {
+        order.push('tableCreate');
+        return Promise.resolve([]);
+      };
+      mockConstraintOps.generateConstraintOperations = () => {
+        order.push('constraints');
+        return Promise.resolve([]);
+      };
+      mockIndexOps.generateIndexOperations = () => {
+        order.push('indexes');
+        return Promise.resolve([]);
+      };
+      mockTriggerOps.generateTriggerOperations = () => {
+        order.push('triggers');
+        return Promise.resolve([]);
+      };
+      mockTableOps.generateRemovedTableOperations = () => {
+        order.push('tableCascadeDrop');
+        return Promise.resolve([]);
+      };
+
+      await orchestrator.generateSyncScript();
+
+      expect(order).toEqual([
+        'tableCreate',
+        'constraints',
+        'indexes',
+        'triggers',
+        'tableCascadeDrop',
+      ]);
     });
 
     it('should include operation results in script', async () => {
@@ -192,11 +234,13 @@ describe('SchemaSyncOrchestrator', () => {
       expect(result).toContain('-- Constraint operations');
       expect(result).toContain('-- Index operations');
       expect(result).toContain('-- Trigger operations');
+      expect(result).toContain('-- Removed table CASCADE drops');
     });
 
     it('should handle empty operation results', async () => {
       mockEnumOps.generateEnumOperations = () => Promise.resolve([]);
       mockTableOps.generateTableOperations = () => Promise.resolve([]);
+      mockTableOps.generateRemovedTableOperations = () => Promise.resolve([]);
       mockColumnOps.generateColumnOperations = () => Promise.resolve([]);
       mockFunctionOps.generateFunctionOperations = () => Promise.resolve([]);
       mockConstraintOps.generateConstraintOperations = () =>
@@ -213,6 +257,7 @@ describe('SchemaSyncOrchestrator', () => {
       expect(result).not.toContain('-- CONSTRAINT OPERATIONS');
       expect(result).not.toContain('-- INDEX OPERATIONS');
       expect(result).not.toContain('-- TRIGGER OPERATIONS');
+      expect(result).not.toContain('-- REMOVED TABLE OPERATIONS (DROP CASCADE)');
       expect(result).toContain('-- END OF SCHEMA SYNC SCRIPT');
     });
 

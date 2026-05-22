@@ -5,6 +5,10 @@
 
 import type { ILegacySyncOptions, TNullable } from '@/types';
 import type { Client } from 'pg';
+import {
+  referencesPendingTableRemoval,
+  shouldSkipPerObjectDropsOnRemovedTable,
+} from '@/sync/pendingTableRemoval';
 import { ConstraintDefinitions } from './constraintDefinitions';
 import {
   collectNotNullCheckKeys,
@@ -68,10 +72,15 @@ export class ConstraintHandlers {
     targetConstraints: IConstraintRow[],
     alterStatements: string[]
   ): Promise<void> {
-    const constraintsToUpdate = sourceConstraints.filter(sourceConstraint => {
-      const targetConstraint = targetConstraints.find(
-        p => p.constraint_name === sourceConstraint.constraint_name
+    const findTargetConstraint = (sourceConstraint: IConstraintRow) =>
+      targetConstraints.find(
+        p =>
+          p.constraint_name === sourceConstraint.constraint_name &&
+          p.table_name === sourceConstraint.table_name
       );
+
+    const constraintsToUpdate = sourceConstraints.filter(sourceConstraint => {
+      const targetConstraint = findTargetConstraint(sourceConstraint);
       return (
         targetConstraint &&
         this.constraintDefinitions.compareConstraintDefinitions(
@@ -82,13 +91,20 @@ export class ConstraintHandlers {
     });
 
     for (const sourceConstraint of constraintsToUpdate) {
+      if (
+        shouldSkipPerObjectDropsOnRemovedTable(
+          this.options,
+          sourceConstraint.table_name
+        )
+      ) {
+        continue;
+      }
+
       alterStatements.push(
         `-- Constraint ${sourceConstraint.constraint_name} has changed, updating in ${this.options.target}`
       );
 
-      const targetConstraint = targetConstraints.find(
-        p => p.constraint_name === sourceConstraint.constraint_name
-      );
+      const targetConstraint = findTargetConstraint(sourceConstraint);
       const dropName = quotePgIdent(
         targetConstraint?.constraint_name ?? sourceConstraint.constraint_name
       );
@@ -117,11 +133,62 @@ export class ConstraintHandlers {
   /**
    * Handle constraints to drop in target
    */
+  /**
+   * Drop FKs on tables that remain in the schema but reference a removed module table
+   * (must run before CASCADE drops on the referenced tables).
+   */
+  private emitForeignKeyDropsReferencingRemovedTables(
+    targetConstraints: IConstraintRow[],
+    alterStatements: string[],
+    emittedDropSql: Set<string>
+  ): void {
+    for (const constraint of targetConstraints) {
+      if (constraint.constraint_type !== 'FOREIGN KEY') {
+        continue;
+      }
+      if (
+        !referencesPendingTableRemoval(
+          this.options,
+          constraint.foreign_table_name
+        )
+      ) {
+        continue;
+      }
+      if (
+        shouldSkipPerObjectDropsOnRemovedTable(
+          this.options,
+          constraint.table_name
+        )
+      ) {
+        continue;
+      }
+
+      const dropSql = `ALTER TABLE ${this.options.target}.${constraint.table_name} DROP CONSTRAINT IF EXISTS ${quotePgIdent(constraint.constraint_name)};`;
+
+      if (emittedDropSql.has(dropSql)) {
+        continue;
+      }
+      emittedDropSql.add(dropSql);
+
+      alterStatements.push(
+        `-- FK ${constraint.constraint_name} on ${constraint.table_name} references removed table ${constraint.foreign_table_name}`
+      );
+      alterStatements.push(dropSql);
+    }
+  }
+
   async handleConstraintsToDrop(
     sourceConstraints: IConstraintRow[],
     targetConstraints: IConstraintRow[],
     alterStatements: string[]
   ): Promise<void> {
+    const emittedDropSql = new Set<string>();
+    this.emitForeignKeyDropsReferencingRemovedTables(
+      targetConstraints,
+      alterStatements,
+      emittedDropSql
+    );
+
     const sourceNotNullKeys = collectNotNullCheckKeys(sourceConstraints);
 
     const constraintsToDrop = targetConstraints.filter(p => {
@@ -142,9 +209,16 @@ export class ConstraintHandlers {
       return true;
     });
 
-    const emittedDropSql = new Set<string>();
-
     for (const constraint of constraintsToDrop) {
+      if (
+        shouldSkipPerObjectDropsOnRemovedTable(
+          this.options,
+          constraint.table_name
+        )
+      ) {
+        continue;
+      }
+
       const dropSql = `ALTER TABLE ${this.options.target}.${constraint.table_name} DROP CONSTRAINT IF EXISTS ${quotePgIdent(constraint.constraint_name)};`;
 
       if (emittedDropSql.has(dropSql)) {

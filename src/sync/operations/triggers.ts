@@ -5,6 +5,7 @@
 
 import type { ILegacySyncOptions, TArray, TNullable } from '@/types';
 import { isDdpDiffIgnoredTable } from '@/sync/ddpInternalSchema';
+import { shouldSkipPerObjectDropsOnRemovedTable } from '@/sync/pendingTableRemoval';
 import {
   type SyncDbSide,
   clientForSyncSide,
@@ -129,35 +130,58 @@ export class TriggerOperations {
    * Compare two trigger definitions to detect changes
    */
   compareTriggerDefinitions(
-    sourceTrigger: ITriggerDefinition,
-    targetTrigger: ITriggerDefinition
-  ) {
-    // Compare key properties that define trigger behavior
+    sourceTrigger: ITriggerDefinition | null | undefined,
+    targetTrigger: ITriggerDefinition | null | undefined
+  ): boolean {
+    if (!sourceTrigger || !targetTrigger) {
+      return false;
+    }
+
+    const normalizeText = (value: string | null | undefined): string =>
+      (value ?? '').trim().replace(/\s+/g, ' ');
+
+    /** PG 11–13 used EXECUTE PROCEDURE; newer catalogs often say EXECUTE FUNCTION for the same trigger. */
+    const normalizeActionStatement = (
+      value: string | null | undefined
+    ): string => {
+      let s = normalizeText(value).replace(/;\s*$/, '');
+      s = s.replace(/EXECUTE\s+PROCEDURE/gi, 'EXECUTE FUNCTION');
+      // Optional schema qualifier on the routine name (same object either way)
+      s = s.replace(/(EXECUTE\s+FUNCTION\s+)public\./gi, '$1');
+      return s.toLowerCase();
+    };
+
+    const normalizeEnumish = (value: string | null | undefined): string =>
+      normalizeText(value).toLowerCase();
+
     const sourceProps = {
-      event_manipulation: sourceTrigger.event_manipulation,
-      action_timing: sourceTrigger.action_timing,
-      action_statement: sourceTrigger.action_statement,
-      action_orientation: sourceTrigger.action_orientation,
-      action_condition: sourceTrigger.action_condition,
+      event_manipulation: normalizeEnumish(sourceTrigger.event_manipulation),
+      action_timing: normalizeEnumish(sourceTrigger.action_timing),
+      action_statement: normalizeActionStatement(
+        sourceTrigger.action_statement
+      ),
+      action_orientation: normalizeEnumish(sourceTrigger.action_orientation),
+      action_condition: normalizeText(sourceTrigger.action_condition),
     };
 
     const targetProps = {
-      event_manipulation: targetTrigger.event_manipulation,
-      action_timing: targetTrigger.action_timing,
-      action_statement: targetTrigger.action_statement,
-      action_orientation: targetTrigger.action_orientation,
-      action_condition: targetTrigger.action_condition,
+      event_manipulation: normalizeEnumish(targetTrigger.event_manipulation),
+      action_timing: normalizeEnumish(targetTrigger.action_timing),
+      action_statement: normalizeActionStatement(
+        targetTrigger.action_statement
+      ),
+      action_orientation: normalizeEnumish(targetTrigger.action_orientation),
+      action_condition: normalizeText(targetTrigger.action_condition),
     };
 
-    // Compare each property
     for (const [key, sourceValue] of Object.entries(sourceProps)) {
       const targetValue = targetProps[key as keyof typeof targetProps];
       if (sourceValue !== targetValue) {
-        return true; // Found a difference
+        return true;
       }
     }
 
-    return false; // No differences found
+    return false;
   }
 
   /**
@@ -228,6 +252,15 @@ export class TriggerOperations {
     );
 
     for (const trigger of triggersToDrop) {
+      if (
+        shouldSkipPerObjectDropsOnRemovedTable(
+          this.options,
+          trigger.event_object_table
+        )
+      ) {
+        continue;
+      }
+
       alterStatements.push(
         `-- Trigger ${trigger.trigger_name} exists in ${this.options.target} but not in ${this.options.source}`
       );
@@ -352,6 +385,15 @@ export class TriggerOperations {
       const sourceFirstTrigger = sourceTriggerGroup[0];
 
       if (!sourceFirstTrigger) continue;
+
+      if (
+        shouldSkipPerObjectDropsOnRemovedTable(
+          this.options,
+          sourceFirstTrigger.event_object_table
+        )
+      ) {
+        continue;
+      }
 
       const oldTriggerName = `${triggerName}_old_${Utils.generateTimestamp()}`;
       alterStatements.push(

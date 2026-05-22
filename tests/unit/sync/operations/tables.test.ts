@@ -244,7 +244,7 @@ describe('TableOperations', () => {
       ).toBe(true);
     });
 
-    it('should handle tables to drop in target', async () => {
+    it('should not drop removed tables in generateTableOperations', async () => {
       const sourceTables = sourceTablesForDropTest;
       const targetTables = targetTablesForDropTest;
 
@@ -253,17 +253,23 @@ describe('TableOperations', () => {
 
       const result = await tableOps.generateTableOperations();
 
+      expect(result).not.toContain('DROP TABLE');
+    });
+
+    it('should emit CASCADE drops via generateRemovedTableCascadeDrops', async () => {
+      const sourceTables = sourceTablesForDropTest;
+      const targetTables = targetTablesForDropTest;
+
+      mockSourceClient.query.mockResolvedValue({ rows: sourceTables });
+      mockTargetClient.query.mockResolvedValue({ rows: targetTables });
+
+      const result = await tableOps.generateRemovedTableCascadeDrops();
+
       expect(result).toContain(
         '-- Table old_table exists in prod_schema but not in dev_schema'
       );
       expect(result).toContain(
-        '-- Renaming table to preserve data before manual drop'
-      );
-      expect(result).toContain(
-        'ALTER TABLE prod_schema.old_table RENAME TO old_table_backup_2024-01-01T00-00-00-000Z;'
-      );
-      expect(result).toContain(
-        '-- TODO: Manually drop table prod_schema.old_table_backup_2024-01-01T00-00-00-000Z after confirming data is no longer needed'
+        'DROP TABLE IF EXISTS prod_schema.old_table CASCADE;'
       );
     });
 
@@ -334,7 +340,7 @@ describe('TableOperations', () => {
       mockSourceClient.query.mockResolvedValue({ rows: sourceTables });
       mockTargetClient.query.mockResolvedValue({ rows: targetTables });
 
-      const result = await tableOps.generateTableOperations();
+      const result = await tableOps.generateRemovedTableCascadeDrops();
 
       expect(
         result.filter(
@@ -345,7 +351,7 @@ describe('TableOperations', () => {
             )
         ).length
       ).toBe(2);
-      expect(result.filter(line => line.includes('RENAME TO')).length).toBe(2);
+      expect(result.filter(line => line.includes('DROP TABLE')).length).toBe(2);
     });
 
     it('should handle database errors during table operations', async () => {
