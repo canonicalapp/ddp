@@ -121,7 +121,7 @@ export const seedCommand = async (options: ISeedCommandOptions) => {
       options: { ...options, password: '[REDACTED]' },
     });
 
-    await loadEnvFile(true);
+    await loadEnvFile(true, options.env);
 
     const connectionConfig = buildConnectionConfig(options);
     const seedsFolder = await resolveSeedFolder(options);

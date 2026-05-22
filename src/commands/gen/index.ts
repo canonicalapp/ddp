@@ -54,7 +54,7 @@ export const genCommand = async (options: IGenCommandOptions) => {
   try {
     logInfo('Starting DDP gen command', { options });
 
-    await loadEnvFile(true); // Skip in test environment
+    await loadEnvFile(true, options.env); // Skip in test environment
 
     // Build connection string from options or environment
     const database = options.database ?? process.env.DB_NAME;

@@ -47,7 +47,7 @@ const buildConnectionString = (details: IDatabaseConnection) => {
 
 export const syncCommand = async (options: ISyncCommandOptions) => {
   try {
-    await loadEnvFile(false); // Don't skip in any environment for sync
+    await loadEnvFile(false, options.env); // Don't skip in any environment for sync
 
     // Check sync mode
     if (options.sourceRepo && options.targetRepo) {
