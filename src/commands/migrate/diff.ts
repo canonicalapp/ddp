@@ -16,6 +16,7 @@ import {
   applyStateFilesToShadowWithAggregateErrors,
   resetShadowSchema,
 } from '@/commands/migrate/shadowApply';
+import { resolveCatalogSchemaNames } from '@/utils/catalogSchemas';
 import { SchemaSyncOrchestrator } from '@/sync/orchestrator';
 import type { IMigrateDiffCommandOptions } from '@/types/cli';
 import type { IDatabaseConnection } from '@/types/database';
@@ -216,6 +217,7 @@ const MIGRATE_DIFF_CLI_KEYS = [
   'migrationName',
   'nonInteractive',
   'createDatabase',
+  'check',
 ] as const satisfies ReadonlyArray<keyof IMigrateDiffCommandOptions>;
 
 /** Pick only defined Commander options into `IMigrateDiffCommandOptions`. */
@@ -356,16 +358,25 @@ export const migrateDiffCommand = async (
         await resetShadowSchema(shadowClient, shadowCatalogSchema);
       }
 
+      const catalogNames = resolveCatalogSchemaNames(
+        targetSchema,
+        shadowCatalogSchema
+      );
       logInfo('migrate diff: applying state to shadow', {
         fileCount: files.length,
-        shadowSchema: shadowCatalogSchema,
-        targetSchema,
+        shadowSchema: catalogNames.shadowSchema,
+        targetSchema: catalogNames.targetSchema,
+        layout: usesSeparateShadowDb ? 'separate-database' : 'same-database',
         separateShadowDb: usesSeparateShadowDb,
       });
       const shadowResult = await applyStateFilesToShadowWithAggregateErrors(
         shadowClient,
         files,
-        { schema: shadowCatalogSchema }
+        {
+          shadowSchema: catalogNames.shadowSchema,
+          targetSchema: catalogNames.targetSchema,
+          layout: usesSeparateShadowDb ? 'separate-database' : 'same-database',
+        }
       );
 
       if (!shadowResult.success) {
@@ -450,6 +461,24 @@ export const migrateDiffCommand = async (
       const verifySql = buildBackfillVerifySql(requirements, targetSchema);
       const constraintsSql = buildConstraintsSql(requirements, targetSchema);
 
+      const hasDrift = hasActionableDrift(alterStatements);
+
+      if (options.check === true) {
+        if (hasDrift) {
+          console.error(
+            'Drift detected between materialized state (shadow) and target schema.'
+          );
+          console.error(
+            'Run without --check to preview SQL, or use --write to generate a migration.'
+          );
+          process.exit(1);
+        }
+        console.log(
+          '✅ No actionable drift between state catalog and target schema.'
+        );
+        return;
+      }
+
       if (options.write === true) {
         const name = await resolveMigrationSlugForWrite(options);
         const { migrationId, targetDir } = await migrationWriteFromDiff({
@@ -470,7 +499,7 @@ export const migrateDiffCommand = async (
           console.log('- Constraints: constraints.sql');
         }
         console.log('');
-        console.log('Review up.sql, then run: ddp apply');
+        console.log('Review up.sql, then run: ddp apply --validate && ddp apply');
       } else {
         console.log(script);
       }

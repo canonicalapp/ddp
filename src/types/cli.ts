@@ -70,6 +70,8 @@ export interface IMigrateDiffCommandOptions extends IDatabaseConnectionOptions {
   createDatabase?: boolean;
   /** Fail instead of prompting when DB is missing (use with --create-database in CI). */
   nonInteractive?: boolean;
+  /** Exit 1 when drift exists; do not write a migration (CI gate). */
+  check?: boolean;
 }
 
 export type StateArtifactType = 'schema' | 'proc' | 'trigger';

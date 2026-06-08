@@ -335,6 +335,10 @@ withDbConnectionOptions(
     '--create-database',
     'Create the target database if it does not exist (same as ddp apply)'
   )
+  .option(
+    '--check',
+    'Exit with code 1 if drift exists (no --write); for CI gates'
+  )
   .action(async opts => {
     try {
       await migrateDiffCommand(migrateDiffOptionsFromCommander(opts));
