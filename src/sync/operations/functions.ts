@@ -9,21 +9,28 @@ import {
   clientForSyncSide,
   schemaNameForSide,
 } from '@/sync/syncClient';
+import {
+  APPLICATION_ROUTINES_IN_SCHEMA_QUERY,
+  APPLICATION_ROUTINES_IN_SCHEMAS_QUERY,
+  formatRoutineDropStatement,
+  mergeRoutinesByLogicalKey,
+  routineIdentityKey,
+  type IRoutineIdentity,
+} from '@/sync/routineSql';
+import { isPreservedDroppedArtifactName } from '@/utils/preservedArtifacts';
 import type { Client } from 'pg';
 
-interface IFunctionRow {
-  routine_name: string;
-  routine_type: string;
-  specific_name: string;
+interface IFunctionRow extends IRoutineIdentity {
+  specific_name?: string;
   data_type: string;
-  routine_definition: TNullable<string>;
+  routine_definition?: TNullable<string>;
 }
 
 interface IFunctionDefinition {
   routine_name: string;
   routine_type: string;
   data_type: string;
-  routine_definition: TNullable<string>;
+  routine_definition?: TNullable<string>;
 }
 
 export class FunctionOperations {
@@ -44,94 +51,268 @@ export class FunctionOperations {
   /**
    * Get all functions and procedures from a schema on the given database.
    */
-  async getFunctions(side: SyncDbSide): Promise<IFunctionRow[]> {
-    const functionsQuery = `
-      SELECT 
-        routine_name,
-        routine_type,
-        specific_name,
-        data_type,
-        routine_definition
-      FROM information_schema.routines 
-      WHERE routine_schema = $1 
-      AND routine_type IN ('FUNCTION', 'PROCEDURE')
-    `;
+  /**
+   * Routines referenced by any trigger (any table schema). Never auto-drop these.
+   */
+  async getTriggerReferencedRoutineKeys(
+    side: SyncDbSide
+  ): Promise<Set<string>> {
+    const client = clientForSyncSide(
+      side,
+      this.sourceClient,
+      this.targetClient
+    );
+    const result = await client.query<{
+      routine_type: string;
+      routine_name: string;
+      identity_arguments: string | null;
+    }>(`
+      SELECT DISTINCT
+        CASE p.prokind
+          WHEN 'p' THEN 'PROCEDURE'
+          ELSE 'FUNCTION'
+        END AS routine_type,
+        p.proname AS routine_name,
+        pg_get_function_identity_arguments(p.oid) AS identity_arguments
+      FROM pg_trigger t
+      JOIN pg_proc p ON p.oid = t.tgfoid
+    `);
 
-    const schemaName = schemaNameForSide(side, this.options);
+    const keys = new Set<string>();
+    for (const row of result.rows) {
+      keys.add(
+        routineIdentityKey(row, {
+          useCatalogOid: this.useCatalogOidForRoutineMatch(),
+        })
+      );
+    }
+    return keys;
+  }
+
+  private isCrossSchemaCatalog(): boolean {
+    return this.options.source !== this.options.target;
+  }
+
+  private schemasForSide(side: SyncDbSide): string[] {
+    if (side === 'target') {
+      return [this.options.target];
+    }
+    return [this.options.source];
+  }
+
+  async getFunctions(side: SyncDbSide): Promise<IFunctionRow[]> {
+    const client = clientForSyncSide(
+      side,
+      this.sourceClient,
+      this.targetClient
+    );
+    const schemas = this.schemasForSide(side);
+
+    const result = await client.query<IFunctionRow>(
+      schemas.length === 1
+        ? APPLICATION_ROUTINES_IN_SCHEMA_QUERY
+        : APPLICATION_ROUTINES_IN_SCHEMAS_QUERY,
+      [schemas.length === 1 ? schemas[0] : schemas]
+    );
+
+    const filtered = result.rows.filter(
+      row => !isPreservedDroppedArtifactName(row.routine_name)
+    );
+
+    return mergeRoutinesByLogicalKey(filtered, {
+      useCatalogOid: !this.isCrossSchemaCatalog(),
+    });
+  }
+
+  /** True if the same logical routine (name + type + args) exists in the given schema. */
+  private async routineExistsInSchema(
+    side: SyncDbSide,
+    schemaName: string,
+    candidate: IFunctionRow
+  ): Promise<boolean> {
+    const client = clientForSyncSide(
+      side,
+      this.sourceClient,
+      this.targetClient
+    );
+    const result = await client.query<{ exists: boolean }>(
+      `
+      SELECT EXISTS (
+        SELECT 1
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = $1
+          AND p.proname = $2
+          AND CASE p.prokind WHEN 'p' THEN 'PROCEDURE' ELSE 'FUNCTION' END = $3
+          AND pg_get_function_identity_arguments(p.oid) IS NOT DISTINCT FROM $4
+          AND NOT EXISTS (
+            SELECT 1 FROM pg_depend d
+            WHERE d.classid = 'pg_proc'::regclass
+              AND d.objid = p.oid
+              AND d.deptype = 'e'
+          )
+      ) AS exists
+      `,
+      [
+        schemaName,
+        candidate.routine_name,
+        candidate.routine_type,
+        candidate.identity_arguments ?? '',
+      ]
+    );
+    return result.rows[0]?.exists === true;
+  }
+
+  private useCatalogOidForRoutineMatch(): boolean {
+    return this.options.source === this.options.target;
+  }
+
+  private routineKey(routine: IFunctionRow): string {
+    return routineIdentityKey(routine, {
+      useCatalogOid: this.useCatalogOidForRoutineMatch(),
+    });
+  }
+
+  private findMatchingRoutine(
+    routines: IFunctionRow[],
+    candidate: IFunctionRow
+  ): IFunctionRow | undefined {
+    const key = this.routineKey(candidate);
+    const direct = routines.find(r => this.routineKey(r) === key);
+    if (direct) {
+      return direct;
+    }
+    return undefined;
+  }
+
+  /**
+   * Desired-state match: shadow materialization first, then same logical routine in shadow schema.
+   */
+  private async findDesiredRoutineMatch(
+    sourceRoutines: IFunctionRow[],
+    targetRoutine: IFunctionRow
+  ): Promise<IFunctionRow | undefined> {
+    const direct = this.findMatchingRoutine(sourceRoutines, targetRoutine);
+    if (direct) {
+      return direct;
+    }
+    if (!this.isCrossSchemaCatalog()) {
+      return undefined;
+    }
+    const inShadow = await this.routineExistsInSchema(
+      'source',
+      this.options.source,
+      targetRoutine
+    );
+    if (inShadow) {
+      return targetRoutine;
+    }
+    return undefined;
+  }
+
+  /**
+   * Resolve catalog schema for a routine row (shadow vs target layout).
+   */
+  private schemaForRoutine(side: SyncDbSide, routine: IRoutineIdentity): string {
+    return (
+      routine.routine_schema?.trim() ||
+      schemaNameForSide(side, this.options)
+    );
+  }
+
+  /**
+   * Full routine body from pg_get_functiondef (correct overload by identity args).
+   */
+  async getFunctionDefinition(
+    side: SyncDbSide,
+    routine: IRoutineIdentity
+  ): Promise<string | null> {
+    const schemaName = this.schemaForRoutine(side, routine);
     const client = clientForSyncSide(
       side,
       this.sourceClient,
       this.targetClient
     );
 
-    const result = await client.query(functionsQuery, [schemaName]);
-
-    return result.rows;
-  }
-
-  /**
-   * Get function/procedure definition from the given database side.
-   */
-  async getFunctionDefinition(
-    side: SyncDbSide,
-    routineName: string,
-    routineType: string
-  ): Promise<string | null> {
     try {
-      // Use pg_get_functiondef to get the complete definition for both functions and procedures
       const functionDefQuery = `
-        SELECT pg_get_functiondef(p.oid) as definition
+        SELECT pg_get_functiondef(p.oid) AS definition
         FROM pg_proc p
         JOIN pg_namespace n ON p.pronamespace = n.oid
-        WHERE n.nspname = $1 AND p.proname = $2
+        WHERE n.nspname = $1
+          AND p.proname = $2
+          AND CASE p.prokind WHEN 'p' THEN 'PROCEDURE' ELSE 'FUNCTION' END = $3
+          AND pg_get_function_identity_arguments(p.oid) IS NOT DISTINCT FROM $4
         LIMIT 1
       `;
 
-      const schemaName = schemaNameForSide(side, this.options);
-      const client = clientForSyncSide(
-        side,
-        this.sourceClient,
-        this.targetClient
+      const result = await client.query<{ definition: string }>(
+        functionDefQuery,
+        [
+          schemaName,
+          routine.routine_name,
+          routine.routine_type,
+          routine.identity_arguments ?? '',
+        ]
       );
 
-      const result = await client.query(functionDefQuery, [
-        schemaName,
-        routineName,
-      ]);
-
       const definition = result.rows[0]?.definition;
-
       if (definition) {
         return definition;
       }
+    } catch (error) {
+      console.warn(
+        `pg_get_functiondef failed for ${routine.routine_type} ${schemaName}.${routine.routine_name}:`,
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
 
-      // Fallback to information_schema if pg_get_functiondef fails
-      const fallbackQuery = `
-        SELECT 
-          routine_name,
-          routine_type,
-          data_type as return_type,
-          routine_definition
-        FROM information_schema.routines 
-        WHERE routine_schema = $1 
-        AND routine_name = $2 
-        AND routine_type = $3
-      `;
-
-      const fallbackResult = await client.query(fallbackQuery, [
-        schemaName,
-        routineName,
-        routineType,
-      ]);
+    try {
+      const fallbackResult = await client.query<{ routine_definition: string }>(
+        `
+        SELECT routine_definition
+        FROM information_schema.routines
+        WHERE routine_schema = $1
+          AND routine_name = $2
+          AND routine_type = $3
+        LIMIT 1
+        `,
+        [schemaName, routine.routine_name, routine.routine_type]
+      );
 
       return fallbackResult.rows[0]?.routine_definition ?? null;
     } catch (error) {
       console.warn(
-        `Failed to get definition for ${routineType} ${routineName}:`,
+        `Failed to get definition for ${routine.routine_type} ${schemaName}.${routine.routine_name}:`,
         error instanceof Error ? error.message : 'Unknown error'
       );
       return null;
     }
+  }
+
+  /**
+   * Compare bodies from the database (catalog rows do not carry definitions).
+   */
+  private async routineBodiesDiffer(
+    sourceRoutine: IFunctionRow,
+    targetRoutine: IFunctionRow
+  ): Promise<boolean> {
+    const [sourceDef, targetDef] = await Promise.all([
+      this.getFunctionDefinition('source', sourceRoutine),
+      this.getFunctionDefinition('target', targetRoutine),
+    ]);
+
+    if (sourceDef === null && targetDef === null) {
+      return false;
+    }
+    if (sourceDef === null || targetDef === null) {
+      return true;
+    }
+
+    return (
+      this.normalizeFunctionDefinition(sourceDef) !==
+      this.normalizeFunctionDefinition(targetDef)
+    );
   }
 
   /**
@@ -178,12 +359,34 @@ export class FunctionOperations {
    * Normalize function definition by replacing schema references
    */
   private normalizeFunctionDefinition(definition: string) {
-    if (!definition) return definition;
+    if (!definition) {
+      return definition;
+    }
 
-    // Replace schema references with a placeholder to normalize comparison
-    return definition
-      .replace(/\b(dev|prod)\./g, 'SCHEMA.')
-      .replace(/\b(dev|prod)\b/g, 'SCHEMA');
+    let normalized = definition;
+    const schemas = [
+      this.options.source,
+      this.options.target,
+      'dev',
+      'prod',
+      'public',
+      'ddp_shadow',
+    ];
+    for (const schema of schemas) {
+      if (!schema) {
+        continue;
+      }
+      const escaped = schema.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      normalized = normalized.replace(
+        new RegExp(`\\b${escaped}\\.`, 'g'),
+        'SCHEMA.'
+      );
+      normalized = normalized.replace(
+        new RegExp(`\\b${escaped}\\b`, 'g'),
+        'SCHEMA'
+      );
+    }
+    return normalized;
   }
 
   /**
@@ -307,34 +510,32 @@ export class FunctionOperations {
     targetFunctions: IFunctionRow[],
     alterStatements: string[]
   ) {
-    const functionsToUpdate = sourceFunctions.filter(sourceFunction => {
-      const targetFunction = targetFunctions.find(
-        p =>
-          p.routine_name === sourceFunction.routine_name &&
-          p.routine_type === sourceFunction.routine_type
+    for (const sourceFunction of sourceFunctions) {
+      const targetFunction = this.findMatchingRoutine(
+        targetFunctions,
+        sourceFunction
       );
-      return (
-        targetFunction &&
-        this.compareFunctionDefinitions(sourceFunction, targetFunction)
-      );
-    });
+      if (!targetFunction) {
+        continue;
+      }
 
-    for (const sourceFunction of functionsToUpdate) {
+      const bodyChanged = await this.routineBodiesDiffer(
+        sourceFunction,
+        targetFunction
+      );
+      if (!bodyChanged) {
+        continue;
+      }
+
       alterStatements.push(
         `-- ${sourceFunction.routine_type.toLowerCase() || 'function'} ${
           sourceFunction.routine_name
         } has changed, updating in ${this.options.target}`
       );
 
-      // Drop the existing function first
-      alterStatements.push(
-        `DROP ${sourceFunction.routine_type.toLowerCase() === 'procedure' ? 'PROCEDURE' : 'FUNCTION'} IF EXISTS ${this.options.target}.${sourceFunction.routine_name};`
-      );
-
       const definition = await this.getFunctionDefinition(
         'source',
-        sourceFunction.routine_name,
-        sourceFunction.routine_type
+        sourceFunction
       );
 
       const createStatement = this.generateCreateStatement(
@@ -357,11 +558,14 @@ export class FunctionOperations {
 
     const sourceFunctions = await this.getFunctions('source');
     const targetFunctions = await this.getFunctions('target');
+    const triggerReferencedKeys =
+      await this.getTriggerReferencedRoutineKeys('target');
 
-    this.handleFunctionsToDrop(
+    await this.handleFunctionsToDrop(
       alterStatements,
       sourceFunctions,
-      targetFunctions
+      targetFunctions,
+      triggerReferencedKeys
     );
     await this.handleFunctionsToCreate(
       alterStatements,
@@ -380,27 +584,35 @@ export class FunctionOperations {
   /**
    * Handle functions that need to be dropped in target
    */
-  handleFunctionsToDrop(
+  async handleFunctionsToDrop(
     alterStatements: string[],
     sourceFunctions: IFunctionRow[],
-    targetFunctions: IFunctionRow[]
+    targetFunctions: IFunctionRow[],
+    triggerReferencedKeys: Set<string>
   ) {
-    const functionsToDrop = targetFunctions.filter(
-      p =>
-        !sourceFunctions.some(
-          d =>
-            d.routine_name === p.routine_name &&
-            d.routine_type === p.routine_type
-        )
-    );
+    const functionsToDrop: IFunctionRow[] = [];
+    for (const p of targetFunctions) {
+      if (triggerReferencedKeys.has(this.routineKey(p))) {
+        continue;
+      }
+      const desired = await this.findDesiredRoutineMatch(sourceFunctions, p);
+      if (!desired) {
+        functionsToDrop.push(p);
+      }
+    }
 
+    const emittedDrop = new Set<string>();
     for (const func of functionsToDrop) {
+      const dropKey = this.routineKey(func);
+      if (emittedDrop.has(dropKey)) {
+        continue;
+      }
+      emittedDrop.add(dropKey);
+
       alterStatements.push(
         `-- ${func.routine_type} ${func.routine_name} exists in ${this.options.target} but not in ${this.options.source}`
       );
-      alterStatements.push(
-        `DROP ${func.routine_type.toLowerCase() === 'procedure' ? 'PROCEDURE' : 'FUNCTION'} IF EXISTS ${this.options.target}.${func.routine_name};`
-      );
+      alterStatements.push(formatRoutineDropStatement(this.options.target, func));
     }
   }
 
@@ -413,12 +625,7 @@ export class FunctionOperations {
     targetFunctions: IFunctionRow[]
   ) {
     const functionsToCreate = sourceFunctions.filter(
-      d =>
-        !targetFunctions.some(
-          p =>
-            p.routine_name === d.routine_name &&
-            p.routine_type === d.routine_type
-        )
+      d => !this.findMatchingRoutine(targetFunctions, d)
     );
 
     for (const func of functionsToCreate) {
@@ -429,11 +636,7 @@ export class FunctionOperations {
       );
 
       // Get the definition from source schema
-      const definition = await this.getFunctionDefinition(
-        'source',
-        func.routine_name,
-        func.routine_type
-      );
+      const definition = await this.getFunctionDefinition('source', func);
 
       // Generate CREATE statement
       const createStatement = this.generateCreateStatement(

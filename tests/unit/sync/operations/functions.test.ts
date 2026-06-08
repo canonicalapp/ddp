@@ -4,6 +4,7 @@
 
 import { Utils } from '@/utils/formatting.ts';
 import { FunctionOperations } from '@/sync/operations/functions.ts';
+import { APPLICATION_ROUTINES_IN_SCHEMA_QUERY } from '@/sync/routineSql';
 import {
   getUserByIdFunction,
   updateUserStatusProcedure,
@@ -15,6 +16,25 @@ import {
 
 // Mock Utils module
 // Note: jest.mock is not available in global scope with ES modules
+
+/** Source catalog + target catalog + trigger dependency probe (generateFunctionOperations). */
+function stubRoutineCatalogQueries(
+  sourceClient: ReturnType<typeof createMockClient>,
+  targetClient: ReturnType<typeof createMockClient>,
+  sourceRows: unknown[],
+  targetRows: unknown[],
+  triggerRefRows: unknown[] = []
+) {
+  let targetCalls = 0;
+  sourceClient.query = () => Promise.resolve({ rows: sourceRows });
+  targetClient.query = () => {
+    targetCalls += 1;
+    if (targetCalls === 1) {
+      return Promise.resolve({ rows: targetRows });
+    }
+    return Promise.resolve({ rows: triggerRefRows });
+  };
+}
 
 describe('FunctionOperations', () => {
   let functionOps;
@@ -58,21 +78,37 @@ describe('FunctionOperations', () => {
       expect(result).toEqual(mockFunctions);
     });
 
-    it('should filter for FUNCTION and PROCEDURE types only', async () => {
-      // This test verifies the query structure, but without Jest mocks we can't easily inspect the query
-      // We'll verify the method works correctly instead
-      const mockFunctions = [
-        {
-          routine_name: 'test_function',
-          routine_type: 'FUNCTION',
-          specific_name: 'test_function_1',
-        },
-      ];
+    it('uses application-owned routine query (excludes extension members)', () => {
+      expect(APPLICATION_ROUTINES_IN_SCHEMA_QUERY).toContain('pg_depend');
+      expect(APPLICATION_ROUTINES_IN_SCHEMA_QUERY).toContain("deptype = 'e'");
+      expect(APPLICATION_ROUTINES_IN_SCHEMA_QUERY).not.toContain(
+        'information_schema.routines'
+      );
+    });
 
-      mockSourceClient.query = () => Promise.resolve({ rows: mockFunctions });
+    it('should omit preserved dropped routine tombstones', async () => {
+      mockSourceClient.query = () =>
+        Promise.resolve({
+          rows: [
+            {
+              routine_name: 'fn_dropped_1778247438295',
+              routine_type: 'FUNCTION',
+              routine_oid: '99',
+              identity_arguments: '',
+              data_type: 'void',
+            },
+            {
+              routine_name: 'app_fn',
+              routine_type: 'FUNCTION',
+              routine_oid: '100',
+              identity_arguments: 'integer',
+              data_type: 'integer',
+            },
+          ],
+        });
 
       const result = await functionOps.getFunctions('source');
-      expect(result).toEqual(mockFunctions);
+      expect(result.map(r => r.routine_name)).toEqual(['app_fn']);
     });
 
     it('should handle empty results', async () => {
@@ -121,6 +157,8 @@ describe('FunctionOperations', () => {
         {
           routine_name: 'get_user_by_id',
           routine_type: 'FUNCTION',
+          routine_oid: '101',
+          identity_arguments: 'integer',
           specific_name: 'get_user_by_id_1',
         },
       ];
@@ -128,18 +166,26 @@ describe('FunctionOperations', () => {
         {
           routine_name: 'get_user_by_id',
           routine_type: 'FUNCTION',
+          routine_oid: '101',
+          identity_arguments: 'integer',
           specific_name: 'get_user_by_id_1',
         },
         {
           routine_name: 'old_function',
           routine_type: 'FUNCTION',
+          routine_oid: '200',
+          identity_arguments: 'integer',
           specific_name: 'old_function_1',
         },
       ];
 
       // Mock the query to return different results for source and target calls
-      mockSourceClient.query = () => Promise.resolve({ rows: sourceFunctions });
-      mockTargetClient.query = () => Promise.resolve({ rows: targetFunctions });
+      stubRoutineCatalogQueries(
+        mockSourceClient,
+        mockTargetClient,
+        sourceFunctions,
+        targetFunctions
+      );
 
       const result = await functionOps.generateFunctionOperations();
 
@@ -152,9 +198,21 @@ describe('FunctionOperations', () => {
       ).toBe(true);
       expect(
         result.some(line =>
-          line.includes('DROP FUNCTION IF EXISTS prod_schema.old_function;')
+          line.includes(
+            'DROP FUNCTION IF EXISTS prod_schema.old_function(integer);'
+          )
         )
       ).toBe(true);
+    });
+
+    it('should not drop extension-owned routines (e.g. pgcrypto)', async () => {
+      stubRoutineCatalogQueries(mockSourceClient, mockTargetClient, [], []);
+
+      const result = await functionOps.generateFunctionOperations();
+
+      expect(result.some(line => line.includes('DROP FUNCTION'))).toBe(false);
+      expect(result.some(line => line.includes('digest'))).toBe(false);
+      expect(result.some(line => line.includes('pgp_sym_encrypt'))).toBe(false);
     });
 
     it('should handle procedures to drop in target', async () => {
@@ -179,8 +237,12 @@ describe('FunctionOperations', () => {
       ];
 
       // Mock the query to return different results for source and target calls
-      mockSourceClient.query = () => Promise.resolve({ rows: sourceFunctions });
-      mockTargetClient.query = () => Promise.resolve({ rows: targetFunctions });
+      stubRoutineCatalogQueries(
+        mockSourceClient,
+        mockTargetClient,
+        sourceFunctions,
+        targetFunctions
+      );
 
       const result = await functionOps.generateFunctionOperations();
 
@@ -327,8 +389,12 @@ describe('FunctionOperations', () => {
       ];
 
       // Mock the query to return different results for source and target calls
-      mockSourceClient.query = () => Promise.resolve({ rows: sourceFunctions });
-      mockTargetClient.query = () => Promise.resolve({ rows: targetFunctions });
+      stubRoutineCatalogQueries(
+        mockSourceClient,
+        mockTargetClient,
+        sourceFunctions,
+        targetFunctions
+      );
 
       const result = await functionOps.generateFunctionOperations();
 
@@ -378,8 +444,12 @@ describe('FunctionOperations', () => {
         'CREATE PROCEDURE dev_schema.new_procedure() AS $$ BEGIN UPDATE users SET updated_at = NOW(); END; $$ LANGUAGE plpgsql;';
 
       // Mock the query to return different results for source and target calls
-      mockSourceClient.query = () => Promise.resolve({ rows: sourceFunctions });
-      mockTargetClient.query = () => Promise.resolve({ rows: targetFunctions });
+      stubRoutineCatalogQueries(
+        mockSourceClient,
+        mockTargetClient,
+        sourceFunctions,
+        targetFunctions
+      );
 
       // Mock the getFunctionDefinition call
       const originalGetFunctionDefinition = functionOps.getFunctionDefinition;
@@ -433,8 +503,12 @@ describe('FunctionOperations', () => {
       ];
 
       // Mock the query to return different results for source and target calls
-      mockSourceClient.query = () => Promise.resolve({ rows: sourceFunctions });
-      mockTargetClient.query = () => Promise.resolve({ rows: targetFunctions });
+      stubRoutineCatalogQueries(
+        mockSourceClient,
+        mockTargetClient,
+        sourceFunctions,
+        targetFunctions
+      );
 
       const result = await functionOps.generateFunctionOperations();
 
@@ -484,8 +558,12 @@ describe('FunctionOperations', () => {
         'CREATE FUNCTION dev_schema.new_function2() RETURNS integer AS $$ BEGIN RETURN 2; END; $$ LANGUAGE plpgsql;';
 
       // Mock the query to return different results for source and target calls
-      mockSourceClient.query = () => Promise.resolve({ rows: sourceFunctions });
-      mockTargetClient.query = () => Promise.resolve({ rows: targetFunctions });
+      stubRoutineCatalogQueries(
+        mockSourceClient,
+        mockTargetClient,
+        sourceFunctions,
+        targetFunctions
+      );
 
       // Mock the getFunctionDefinition call to return different definitions
       let callCount = 0;
@@ -646,22 +724,15 @@ describe('FunctionOperations', () => {
         },
       ];
 
-      const mockFunctionDefinition =
+      const sourceDef =
         'CREATE FUNCTION dev_schema.test_function() RETURNS integer AS $$ BEGIN RETURN 1; END; $$ LANGUAGE plpgsql;';
+      const targetDef =
+        'CREATE FUNCTION prod_schema.test_function() RETURNS integer AS $$ BEGIN RETURN 2; END; $$ LANGUAGE plpgsql;';
 
-      // Mock the getFunctionDefinition call
-      mockSourceClient.query.mockResolvedValue({
-        rows: [{ definition: mockFunctionDefinition }],
-      });
-
-      // First test the comparison function directly
-      const sourceFunction = sourceFunctions[0];
-      const targetFunction = targetFunctions[0];
-      const isDifferent = functionOps.compareFunctionDefinitions(
-        sourceFunction,
-        targetFunction
-      );
-      expect(isDifferent).toBe(true);
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: [{ definition: sourceDef }] });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: [{ definition: targetDef }] });
 
       const alterStatements = [];
       await functionOps.handleFunctionsToUpdate(
@@ -676,9 +747,9 @@ describe('FunctionOperations', () => {
       );
       expect(
         alterStatements.some(line =>
-          line.includes('DROP FUNCTION IF EXISTS prod_schema.test_function;')
+          line.includes('DROP FUNCTION IF EXISTS prod_schema.test_function')
         )
-      ).toBe(true);
+      ).toBe(false);
       expect(
         alterStatements.some(line =>
           line.includes(
@@ -688,13 +759,61 @@ describe('FunctionOperations', () => {
       ).toBe(true);
     });
 
+    it('detects body drift when catalog rows have no routine_definition field', async () => {
+      const sourceFunctions = [
+        {
+          routine_name: 'sp_record_sale',
+          routine_type: 'PROCEDURE',
+          routine_oid: '101',
+          identity_arguments: 'IN p_payload jsonb, OUT p_result jsonb',
+          data_type: 'jsonb',
+        },
+      ];
+      const targetFunctions = [
+        {
+          routine_name: 'sp_record_sale',
+          routine_type: 'PROCEDURE',
+          routine_oid: '202',
+          identity_arguments: 'IN p_payload jsonb, OUT p_result jsonb',
+          data_type: 'jsonb',
+        },
+      ];
+
+      const sourceDef =
+        'CREATE PROCEDURE ddp_shadow.sp_record_sale(IN p_payload jsonb, OUT p_result jsonb) AS $$ BEGIN /* new */ END; $$';
+      const targetDef =
+        'CREATE PROCEDURE prod_schema.sp_record_sale(IN p_payload jsonb, OUT p_result jsonb) AS $$ BEGIN /* old */ END; $$';
+
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: [{ definition: sourceDef }] });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: [{ definition: targetDef }] });
+
+      const alterStatements: string[] = [];
+      await functionOps.handleFunctionsToUpdate(
+        sourceFunctions,
+        targetFunctions,
+        alterStatements
+      );
+
+      expect(
+        alterStatements.some(line =>
+          line.includes('sp_record_sale has changed, updating in prod_schema')
+        )
+      ).toBe(true);
+      expect(
+        alterStatements.some(line => line.includes('CREATE OR REPLACE PROCEDURE'))
+      ).toBe(true);
+    });
+
     it('should not handle functions that are identical', async () => {
       const sourceFunctions = [
         {
           routine_name: 'test_function',
           routine_type: 'FUNCTION',
+          routine_oid: '1',
+          identity_arguments: '',
           data_type: 'integer',
-          routine_definition: 'BEGIN RETURN 1; END;',
         },
       ];
 
@@ -702,10 +821,18 @@ describe('FunctionOperations', () => {
         {
           routine_name: 'test_function',
           routine_type: 'FUNCTION',
+          routine_oid: '2',
+          identity_arguments: '',
           data_type: 'integer',
-          routine_definition: 'BEGIN RETURN 1; END;',
         },
       ];
+
+      const sameDef =
+        'CREATE FUNCTION prod_schema.test_function() RETURNS integer AS $$ BEGIN RETURN 1; END; $$ LANGUAGE plpgsql;';
+      mockSourceClient.query = () =>
+        Promise.resolve({ rows: [{ definition: sameDef }] });
+      mockTargetClient.query = () =>
+        Promise.resolve({ rows: [{ definition: sameDef }] });
 
       const alterStatements = [];
       await functionOps.handleFunctionsToUpdate(
@@ -748,25 +875,32 @@ describe('FunctionOperations', () => {
         },
       ];
 
-      const mockFunctionDefinition1 =
+      const sourceDef1 =
         'CREATE FUNCTION dev_schema.function1() RETURNS integer AS $$ BEGIN RETURN 1; END; $$ LANGUAGE plpgsql;';
-      const mockFunctionDefinition2 =
+      const targetDef1 =
+        'CREATE FUNCTION prod_schema.function1() RETURNS integer AS $$ BEGIN RETURN 2; END; $$ LANGUAGE plpgsql;';
+      const sourceDef2 =
         'CREATE PROCEDURE dev_schema.function2() AS $$ BEGIN INSERT INTO test VALUES (1); END; $$ LANGUAGE plpgsql;';
+      const targetDef2 =
+        'CREATE PROCEDURE prod_schema.function2() AS $$ BEGIN INSERT INTO test VALUES (2); END; $$ LANGUAGE plpgsql;';
 
-      // Mock the getFunctionDefinition calls
-      let callCount = 0;
-      mockSourceClient.query = (_query, _params) => {
-        callCount++;
-        if (callCount === 1) {
-          // First call is for function1 (FUNCTION) - uses pg_get_functiondef
-          return Promise.resolve({
-            rows: [{ definition: mockFunctionDefinition1 }],
-          });
-        } else if (callCount === 2) {
-          // Second call is for function2 (PROCEDURE) - uses information_schema.routines
-          return Promise.resolve({
-            rows: [{ routine_definition: mockFunctionDefinition2 }],
-          });
+      mockSourceClient.query = (_query, params) => {
+        const name = params?.[1];
+        if (name === 'function1') {
+          return Promise.resolve({ rows: [{ definition: sourceDef1 }] });
+        }
+        if (name === 'function2') {
+          return Promise.resolve({ rows: [{ definition: sourceDef2 }] });
+        }
+        return Promise.resolve({ rows: [] });
+      };
+      mockTargetClient.query = (_query, params) => {
+        const name = params?.[1];
+        if (name === 'function1') {
+          return Promise.resolve({ rows: [{ definition: targetDef1 }] });
+        }
+        if (name === 'function2') {
+          return Promise.resolve({ rows: [{ definition: targetDef2 }] });
         }
         return Promise.resolve({ rows: [] });
       };
@@ -791,12 +925,12 @@ describe('FunctionOperations', () => {
       expect(
         alterStatements.filter(line => line.includes('DROP FUNCTION IF EXISTS'))
           .length
-      ).toBe(1);
+      ).toBe(0);
       expect(
         alterStatements.filter(line =>
           line.includes('DROP PROCEDURE IF EXISTS')
         ).length
-      ).toBe(1);
+      ).toBe(0);
       expect(
         alterStatements.filter(line =>
           line.includes('CREATE OR REPLACE FUNCTION prod_schema')
@@ -804,7 +938,7 @@ describe('FunctionOperations', () => {
       ).toBe(1);
       expect(
         alterStatements.filter(line =>
-          line.includes('-- TODO: Could not retrieve definition for PROCEDURE')
+          line.includes('CREATE OR REPLACE PROCEDURE prod_schema')
         ).length
       ).toBe(1);
     });
@@ -822,8 +956,12 @@ describe('FunctionOperations', () => {
       const targetFunctions = [];
 
       // Mock the query to return different results for source and target calls
-      mockSourceClient.query = () => Promise.resolve({ rows: sourceFunctions });
-      mockTargetClient.query = () => Promise.resolve({ rows: targetFunctions });
+      stubRoutineCatalogQueries(
+        mockSourceClient,
+        mockTargetClient,
+        sourceFunctions,
+        targetFunctions
+      );
 
       const result = await functionOps.generateFunctionOperations();
       expect(result).toBeDefined();
@@ -879,8 +1017,12 @@ describe('FunctionOperations', () => {
       const targetFunctions = [];
 
       // Mock the query to return different results for source and target calls
-      mockSourceClient.query = () => Promise.resolve({ rows: sourceFunctions });
-      mockTargetClient.query = () => Promise.resolve({ rows: targetFunctions });
+      stubRoutineCatalogQueries(
+        mockSourceClient,
+        mockTargetClient,
+        sourceFunctions,
+        targetFunctions
+      );
 
       // Should not throw, but may produce unexpected results
       const result = await functionOps.generateFunctionOperations();
@@ -907,8 +1049,12 @@ describe('FunctionOperations', () => {
         'CREATE FUNCTION dev_schema.get_user() RETURNS integer AS $$ BEGIN RETURN 1; END; $$ LANGUAGE plpgsql;';
 
       // Mock the query to return different results for source and target calls
-      mockSourceClient.query = () => Promise.resolve({ rows: sourceFunctions });
-      mockTargetClient.query = () => Promise.resolve({ rows: targetFunctions });
+      stubRoutineCatalogQueries(
+        mockSourceClient,
+        mockTargetClient,
+        sourceFunctions,
+        targetFunctions
+      );
 
       // Mock the getFunctionDefinition call
       const originalGetFunctionDefinition = functionOps.getFunctionDefinition;
