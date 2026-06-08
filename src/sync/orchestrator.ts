@@ -10,6 +10,7 @@ import { Utils } from '@/utils/formatting';
 import { ColumnOperations } from '@/sync/operations/columns';
 import { ConstraintOperations } from '@/sync/operations/constraints';
 import { EnumOperations } from '@/sync/operations/enums';
+import { ExtensionOperations } from '@/sync/operations/extensions';
 import { FunctionOperations } from '@/sync/operations/functions';
 import { IndexOperations } from '@/sync/operations/indexes';
 import { SequenceOperations } from '@/sync/operations/sequences';
@@ -38,6 +39,7 @@ export class SchemaSyncOrchestrator {
   private tableOps: TableOperations;
   private enumOps: EnumOperations;
   private columnOps: ColumnOperations;
+  private extensionOps: ExtensionOperations;
   private functionOps: FunctionOperations;
   private constraintOps: ConstraintOperations;
   private indexOps: IndexOperations;
@@ -57,6 +59,11 @@ export class SchemaSyncOrchestrator {
     this.tableOps = new TableOperations(sourceClient, targetClient, options);
     this.enumOps = new EnumOperations(sourceClient, targetClient, options);
     this.columnOps = new ColumnOperations(sourceClient, targetClient, options);
+    this.extensionOps = new ExtensionOperations(
+      sourceClient,
+      targetClient,
+      options
+    );
     this.functionOps = new FunctionOperations(
       sourceClient,
       targetClient,
@@ -114,11 +121,19 @@ export class SchemaSyncOrchestrator {
       );
     }
 
-    // 1. Handle enum operations (must come before tables/columns that depend on them)
+    // 1. Extensions (database-wide; member functions are never diffed individually)
+    const extensionOps = await this.extensionOps.generateExtensionOperations();
+    this.appendSectionIfNotEmpty(
+      alterStatements,
+      'EXTENSION OPERATIONS',
+      extensionOps
+    );
+
+    // 2. Handle enum operations (must come before tables/columns that depend on them)
     const enumOps = await this.enumOps.generateEnumOperations();
     this.appendSectionIfNotEmpty(alterStatements, 'ENUM OPERATIONS', enumOps);
 
-    // 2. Handle sequence operations (must come before tables)
+    // 3. Handle sequence operations (must come before tables)
     const sequenceOps = await this.sequenceOps.generateSequenceOperations();
     this.appendSectionIfNotEmpty(
       alterStatements,
@@ -126,11 +141,11 @@ export class SchemaSyncOrchestrator {
       sequenceOps
     );
 
-    // 3. Create missing tables only (drop renames run after constraints/indexes/triggers)
+    // 4. Create missing tables only (drop renames run after constraints/indexes/triggers)
     const tableOps = await this.tableOps.generateTableOperations();
     this.appendSectionIfNotEmpty(alterStatements, 'TABLE OPERATIONS', tableOps);
 
-    // 4. Handle column operations
+    // 5. Handle column operations
     const columnOps = await this.columnOps.generateColumnOperations();
     this.appendSectionIfNotEmpty(
       alterStatements,
@@ -138,7 +153,7 @@ export class SchemaSyncOrchestrator {
       columnOps
     );
 
-    // 5. Handle function operations
+    // 6. Handle function operations (application-owned routines only)
     const functionOps = await this.functionOps.generateFunctionOperations();
     this.appendSectionIfNotEmpty(
       alterStatements,
@@ -146,7 +161,7 @@ export class SchemaSyncOrchestrator {
       functionOps
     );
 
-    // 6. Handle constraint operations
+    // 7. Handle constraint operations
     const constraintOps =
       await this.constraintOps.generateConstraintOperations();
     this.appendSectionIfNotEmpty(
@@ -155,11 +170,11 @@ export class SchemaSyncOrchestrator {
       constraintOps
     );
 
-    // 7. Handle index operations
+    // 8. Handle index operations
     const indexOps = await this.indexOps.generateIndexOperations();
     this.appendSectionIfNotEmpty(alterStatements, 'INDEX OPERATIONS', indexOps);
 
-    // 8. Handle trigger operations
+    // 9. Handle trigger operations
     const triggerOps = await this.triggerOps.generateTriggerOperations();
     this.appendSectionIfNotEmpty(
       alterStatements,
@@ -167,7 +182,7 @@ export class SchemaSyncOrchestrator {
       triggerOps
     );
 
-    // 9. Remove tables absent from source (CASCADE default, or rename-first)
+    // 10. Remove tables absent from source (CASCADE default, or rename-first)
     const removedTableOps =
       await this.tableOps.generateRemovedTableOperations();
     const removedSectionTitle =
