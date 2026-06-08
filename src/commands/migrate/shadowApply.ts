@@ -6,6 +6,10 @@ import { readFile } from 'fs/promises';
 import type { Client } from 'pg';
 import { splitSqlStatements } from '@/utils/splitSqlStatements';
 import type { IStateApplyFile } from '@/types/apply';
+import {
+  resolveStateApplySearchPath,
+  type TShadowCatalogLayout,
+} from '@/commands/migrate/stateApplyRouting';
 
 export interface IShadowApplyError {
   file: string;
@@ -17,6 +21,14 @@ export interface IShadowApplyError {
 export interface IShadowApplyResult {
   success: boolean;
   errors: IShadowApplyError[];
+}
+
+export interface IShadowApplyOptions {
+  /** Schema for tables/enums/indexes (and all objects when same-database layout). */
+  shadowSchema: string;
+  /** Production catalog schema (from env / DB_SCHEMA). */
+  targetSchema: string;
+  layout: TShadowCatalogLayout;
 }
 
 const cascadingHint = (message: string): boolean => {
@@ -50,29 +62,39 @@ export const resetShadowSchema = async (
   await client.query(`CREATE SCHEMA ${esc}`);
 };
 
+const ensureSchemaExists = async (
+  client: Client,
+  schema: string
+): Promise<void> => {
+  if (!schema) {
+    return;
+  }
+  await client.query(`CREATE SCHEMA IF NOT EXISTS ${escapeIdent(schema)}`);
+};
+
 /**
  * Per-file SAVEPOINT: try each file; on failure roll back that file only and record.
  * If any failures: ROLLBACK entire transaction (shadow unchanged). Else COMMIT.
+ *
+ * Layout:
+ * - separate-database: schema → shadowSchema; procs/triggers → targetSchema (production shape).
+ * - same-database: everything → shadowSchema only (does not mutate target during diff).
  */
 export const applyStateFilesToShadowWithAggregateErrors = async (
   client: Client,
   files: IStateApplyFile[],
-  options: { schema: string }
+  options: IShadowApplyOptions
 ): Promise<IShadowApplyResult> => {
   const errors: IShadowApplyError[] = [];
   const sqlByPath = new Map<string, string>();
 
-  // Read all state files before opening transaction/savepoints to keep
-  // lock/transaction time focused on SQL execution only.
   for (const file of files) {
     sqlByPath.set(file.absolutePath, await readFile(file.absolutePath, 'utf8'));
   }
 
-  if (options.schema && options.schema !== 'public') {
-    await client.query(
-      `CREATE SCHEMA IF NOT EXISTS ${escapeIdent(options.schema)}`
-    );
-    await client.query(`SET search_path TO ${escapeIdent(options.schema)}`);
+  await ensureSchemaExists(client, options.shadowSchema);
+  if (options.layout === 'separate-database') {
+    await ensureSchemaExists(client, options.targetSchema);
   }
 
   await client.query('BEGIN');
@@ -86,6 +108,16 @@ export const applyStateFilesToShadowWithAggregateErrors = async (
     await client.query(`SAVEPOINT ${sp}`);
 
     try {
+      const searchPath = resolveStateApplySearchPath(
+        file.displayPath,
+        options.layout,
+        {
+          shadowSchema: options.shadowSchema,
+          targetSchema: options.targetSchema,
+        }
+      );
+      await client.query(`SET search_path TO ${escapeIdent(searchPath)}`);
+
       const sql = sqlByPath.get(file.absolutePath) ?? '';
       const statements = splitSqlStatements(sql.trim());
 

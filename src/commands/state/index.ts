@@ -134,7 +134,9 @@ const runDeepStateValidation = async (): Promise<void> => {
       client,
       files,
       {
-        schema: shadowSchema,
+        shadowSchema,
+        targetSchema: schema,
+        layout: 'same-database',
       }
     );
 

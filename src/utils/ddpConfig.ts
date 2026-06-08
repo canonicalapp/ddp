@@ -33,6 +33,11 @@ export interface IDdpConfig {
       'table' | 'index' | 'constraint' | 'extension' | 'view' | 'enum'
     >;
   };
+  /** Optional catalog names (defaults: DB_SCHEMA + DDP_SHADOW_SCHEMA). */
+  catalog?: {
+    targetSchema?: string;
+    shadowSchema?: string;
+  };
 }
 
 export interface IResolvedDdpConfig {
