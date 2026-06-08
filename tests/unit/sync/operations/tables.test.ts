@@ -5,6 +5,7 @@
 import { Utils } from '@/utils/formatting.ts';
 import { TableOperations } from '@/sync/operations/tables.ts';
 import {
+  createTable,
   sourceTablesForAddTest,
   sourceTablesForDropTest,
   mockColumns,
@@ -271,6 +272,21 @@ describe('TableOperations', () => {
       expect(result).toContain(
         'DROP TABLE IF EXISTS prod_schema.old_table CASCADE;'
       );
+    });
+
+    it('should ignore preserved dropped tables when detecting removals', async () => {
+      mockSourceClient.query.mockResolvedValue({ rows: [usersTable] });
+      mockTargetClient.query.mockResolvedValue({
+        rows: [
+          usersTable,
+          createTable({ table_name: 'legacy_dropped_1778247438295' }),
+        ],
+      });
+
+      const result = await tableOps.generateRemovedTableCascadeDrops();
+
+      expect(result).not.toContain('DROP TABLE');
+      expect(result).not.toContain('legacy_dropped_1778247438295');
     });
 
     it('should handle identical schemas', async () => {

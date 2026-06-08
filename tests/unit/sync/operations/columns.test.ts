@@ -334,6 +334,32 @@ describe('ColumnOperations', () => {
       );
     });
 
+    it('should ignore preserved dropped columns when detecting drops', async () => {
+      mockSourceClient.query.mockResolvedValue({
+        rows: [createColumn()],
+      });
+      mockTargetClient.query.mockResolvedValue({
+        rows: [
+          createColumn(),
+          createColumn({
+            column_name: 'name_dropped_1778247438295',
+            data_type: 'text',
+            is_nullable: 'YES',
+            ordinal_position: 2,
+          }),
+        ],
+      });
+
+      const result = await columnOps.generateColumnOperations();
+
+      expect(result.some(line => line.includes('RENAME COLUMN'))).toBe(false);
+      expect(
+        result.some(line =>
+          line.includes('exists in prod_schema but not in dev_schema')
+        )
+      ).toBe(false);
+    });
+
     it('should handle column modifications', async () => {
       mockSourceClient.query.mockResolvedValue({
         rows: sourceColumnsForModifyTest,

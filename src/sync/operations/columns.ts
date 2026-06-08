@@ -10,6 +10,7 @@ import {
   schemaNameForSide,
 } from '@/sync/syncClient';
 import { Utils } from '@/utils/formatting';
+import { isPreservedDroppedArtifactName } from '@/utils/preservedArtifacts';
 import type { Client } from 'pg';
 
 interface ColumnInfo {
@@ -399,6 +400,7 @@ export class ColumnOperations {
         // Find columns that exist in target but not in source (need to be dropped)
         const columnsToDrop = targetTableCols.filter(
           targetCol =>
+            !isPreservedDroppedArtifactName(targetCol.column_name) &&
             !sourceTableCols.some(
               sourceCol => sourceCol.column_name === targetCol.column_name
             )

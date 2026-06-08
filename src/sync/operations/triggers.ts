@@ -13,6 +13,7 @@ import {
 } from '@/sync/syncClient';
 import type { Client } from 'pg';
 import { Utils } from '@/utils/formatting';
+import { isPreservedOldTriggerName } from '@/utils/preservedArtifacts';
 
 interface ITriggerRow {
   trigger_name: string;
@@ -233,13 +234,6 @@ export class TriggerOperations {
     return createStatement;
   }
 
-  /**
-   * Handle triggers to drop in target
-   */
-  private isPreservedOldTriggerName(triggerName: string) {
-    return /_old_\d+$/.test(triggerName);
-  }
-
   async handleTriggersToDrop(
     sourceTriggers: ITriggerRow[],
     targetTriggers: ITriggerRow[],
@@ -247,7 +241,7 @@ export class TriggerOperations {
   ) {
     const triggersToDrop = targetTriggers.filter(
       p =>
-        !this.isPreservedOldTriggerName(p.trigger_name) &&
+        !isPreservedOldTriggerName(p.trigger_name) &&
         !sourceTriggers.some(d => d.trigger_name === p.trigger_name)
     );
 

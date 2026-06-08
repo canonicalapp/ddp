@@ -16,6 +16,7 @@ import {
   schemaNameForSide,
 } from '@/sync/syncClient';
 import { Utils } from '@/utils/formatting';
+import { isPreservedDroppedArtifactName } from '@/utils/preservedArtifacts';
 import type { Client } from 'pg';
 
 interface ITableRow {
@@ -355,6 +356,7 @@ export class TableOperations {
     return targetTables.filter(
       p =>
         !isDdpDiffIgnoredTable(p.table_name) &&
+        !isPreservedDroppedArtifactName(p.table_name) &&
         !sourceTables.some(d => d.table_name === p.table_name)
     );
   }
