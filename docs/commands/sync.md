@@ -269,6 +269,55 @@ Renamed objects use this pattern:
 
 Example: `old_table_dropped_2024-01-15T10-30-45-123Z`
 
+Subsequent diffs **do not** rename `*_dropped_<digits>` columns or tables again (same policy as `*_old_<digits>` triggers). Remove tombstones with `ddp inspect stale` and `ddp apply --prune`.
+
+### PostgreSQL extensions (`pgcrypto`, etc.)
+
+`CREATE EXTENSION` installs dozens of functions into `public` (or the extension schema). DDP **does not** diff those routines individually:
+
+- **Function diff** lists only application-owned routines (not `pg_depend` extension members).
+- **Extension diff** emits `CREATE EXTENSION IF NOT EXISTS …` when an extension is present after state apply but missing on the target catalog.
+
+Declare extensions in state, e.g. `db/state/schema/extensions/pgcrypto.sql`:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+```
+
+Do not hand-edit migrations to remove `DROP FUNCTION public.digest` lines — they should no longer be generated.
+
+### Catalog schemas (target + shadow)
+
+Configured via env (not hardcoded to `public`):
+
+| Role | Env / flag |
+|------|------------|
+| **Target** (production) | `DB_SCHEMA`, `--schema`, `ddp.config` connection |
+| **Shadow** (materialized state) | `DDP_SHADOW_SCHEMA`, `--shadow-schema` (default `ddp_shadow`) |
+
+**State apply layout**
+
+- **Same database** (default): tables/enums/procs/triggers → `shadowSchema` only (target is not mutated during diff).
+- **Separate shadow DB** (`DDP_SHADOW_DATABASE_URL` / `--shadow-url`): schema objects → `shadowSchema`; **procs + triggers → `targetSchema`** (production layout on disposable DB).
+
+**Routine diff** matches by **name + argument list** (and type), not OID. Body changes are detected by comparing `pg_get_functiondef` output from shadow vs target (catalog listing alone is not enough). Cross-schema: a routine in `public` matches the same logical routine in `ddp_shadow` after state apply. Trigger-backed routines are never auto-dropped. Updates use `CREATE OR REPLACE` only.
+
+### Validate before apply
+
+```bash
+ddp apply --validate --accept-destructive   # executes pending SQL, then ROLLBACK; no history
+```
+
+Use this to catch dependency errors (e.g. `cannot drop function … triggers depend on it`) before production apply. `--dry-run` only lists files; it does not execute SQL.
+
+### Drift check (CI)
+
+```bash
+ddp migration diff --check
+```
+
+Exits `1` when actionable drift exists; does not write a migration file.
+
 ### Manual Cleanup
 
 After verifying data is no longer needed:
