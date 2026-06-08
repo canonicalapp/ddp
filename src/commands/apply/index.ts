@@ -22,6 +22,7 @@ import {
   prepareFilesForBackfillExecution,
 } from '@/commands/apply/backfillWorkflow';
 import { performDryRun, reportResults } from '@/commands/apply/reporting';
+import { validatePendingMigrations } from '@/commands/apply/validateRun';
 import { runApplyPruneFlow } from '@/commands/apply/pruneRenamedArtifacts';
 import type { IApplyCommandOptions, IFileLoadOptions } from '@/types/apply';
 import type { IDatabaseConnection } from '@/types/database';
@@ -85,6 +86,14 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
       console.log('');
       await performDryRun(files);
       return;
+    }
+
+    if (options.validate && options.prune) {
+      throw new ValidationError(
+        'Use either --validate or --prune, not both.',
+        'validate',
+        {}
+      );
     }
 
     console.log('DDP APPLY — validating database...');
@@ -166,6 +175,38 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
         await historyTracker.ensureHistoryTable(client);
         console.log('✅ History table ready');
         console.log('');
+      }
+
+      if (options.validate) {
+        const pending: typeof files = [];
+        for (const file of files) {
+          const decision = await historyTracker.getApplyDecision(
+            client,
+            file.migrationId,
+            file.checksum,
+            enforceImmutability
+          );
+          if (decision !== 'skip') {
+            pending.push(file);
+          }
+        }
+
+        const validateOpts: Parameters<typeof validatePendingMigrations>[3] =
+          {};
+        if (options.acceptDestructive !== undefined) {
+          validateOpts.acceptDestructive = options.acceptDestructive;
+        }
+        if (options.nonInteractive !== undefined) {
+          validateOpts.nonInteractive = options.nonInteractive;
+        }
+
+        await validatePendingMigrations(
+          client,
+          pending,
+          executor,
+          validateOpts
+        );
+        return;
       }
 
       const transactionMode = options.transactionMode ?? 'per-file';

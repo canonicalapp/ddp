@@ -427,6 +427,10 @@ withDbConnectionOptions(
     '--dry-run',
     'Without --prune: list pending migrations only (no database). With --prune: connect, discover tombstones, print DROP statements without executing.'
   )
+  .option(
+    '--validate',
+    'Run pending migrations in a transaction and roll back (no history); fails fast on SQL errors'
+  )
   .option('--continue-on-error', 'Continue execution even if errors occur')
   .option(
     '--transaction-mode <mode>',

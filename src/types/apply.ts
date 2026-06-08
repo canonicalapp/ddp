@@ -73,6 +73,11 @@ export interface IApplyCommandOptions extends IDatabaseConnectionOptions {
 
   // Execution options
   dryRun?: boolean;
+  /**
+   * Execute pending migrations in a transaction and ROLLBACK (no history).
+   * Catches SQL/dependency errors before a real apply.
+   */
+  validate?: boolean;
   continueOnError?: boolean;
   transactionMode?: TransactionMode;
   skipHistory?: boolean;
