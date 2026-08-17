@@ -20,8 +20,10 @@ export const PRIORITY_BY_KIND: Record<string, number> = {
   constraint: 40,
   index: 50,
   view: 60,
-  trigger: 70,
-  proc: 80,
+  // Procs must apply before triggers: `CREATE TRIGGER ... EXECUTE FUNCTION`
+  // requires the function to already exist.
+  proc: 70,
+  trigger: 80,
 };
 
 export const priorityForKind = (kind: string): number =>

@@ -15,6 +15,7 @@ import { assembleStateApplyPlan } from '@/commands/migrate/assembleStateApplyPla
 import {
   applyStateFilesToShadowWithAggregateErrors,
   resetShadowSchema,
+  resetShadowSchemaUnchecked,
 } from '@/commands/migrate/shadowApply';
 import { resolveCatalogSchemaNames } from '@/utils/catalogSchemas';
 import { SchemaSyncOrchestrator } from '@/sync/orchestrator';
@@ -23,6 +24,7 @@ import type { IDatabaseConnection } from '@/types/database';
 import { ValidationError } from '@/types/errors';
 import { loadEnvFile } from '@/utils/envLoader';
 import { resolvePgSchema } from '@/utils/pgSchema';
+import consola from 'consola';
 import { logError, logInfo } from '@/utils/logger';
 import { resolveRemovedTableStrategy } from '@/sync/pendingTableRemoval';
 import { migrationWriteFromDiff, sanitizeMigrationSlug } from './persist';
@@ -198,7 +200,7 @@ const resolveMigrationSlugForWrite = async (
       return sanitizeMigrationSlug(line);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.error(msg);
+      consola.error(msg);
     }
   }
 };
@@ -351,7 +353,12 @@ export const migrateDiffCommand = async (
     await shadowClient.connect();
 
     try {
-      if (!usesSeparateShadowDb) {
+      if (usesSeparateShadowDb) {
+        logInfo('migrate diff: resetting shadow database (separate DB)', {
+          shadowSchema: shadowCatalogSchema,
+        });
+        await resetShadowSchemaUnchecked(shadowClient, shadowCatalogSchema);
+      } else {
         logInfo('migrate diff: resetting shadow schema (same DB)', {
           shadowSchema: shadowCatalogSchema,
         });
@@ -380,23 +387,20 @@ export const migrateDiffCommand = async (
       );
 
       if (!shadowResult.success) {
-        console.error('');
-        console.error(
+        consola.error(
           'Shadow apply finished with errors — nothing was committed on the shadow catalog.'
         );
-        console.error('Fix the issues below, then run again.\n');
+        consola.log('Fix the issues below, then run again.\n');
 
         for (const err of shadowResult.errors) {
-          console.error(`  • ${err.file}`);
-          console.error(
-            `    ${err.code ? `[${err.code}] ` : ''}${err.message}`
-          );
+          consola.log(`  • ${err.file}`);
+          consola.log(`    ${err.code ? `[${err.code}] ` : ''}${err.message}`);
           if (err.possiblyCascading) {
-            console.error(
+            consola.log(
               '    (This may be a follow-on error from an earlier failure.)'
             );
           }
-          console.error('');
+          consola.log('');
         }
 
         throw new ValidationError(
@@ -465,16 +469,16 @@ export const migrateDiffCommand = async (
 
       if (options.check === true) {
         if (hasDrift) {
-          console.error(
+          consola.error(
             'Drift detected between materialized state (shadow) and target schema.'
           );
-          console.error(
+          consola.log(
             'Run without --check to preview SQL, or use --write to generate a migration.'
           );
           process.exit(1);
         }
-        console.log(
-          '✅ No actionable drift between state catalog and target schema.'
+        consola.success(
+          'No actionable drift between state catalog and target schema.'
         );
         return;
       }
@@ -488,19 +492,20 @@ export const migrateDiffCommand = async (
           verifySql,
           constraintsSql,
         });
-        console.log('');
-        console.log('Wrote migration:');
-        console.log(`- Id: ${migrationId}`);
-        console.log(`- Path: ${targetDir}`);
+        consola.success('Wrote migration:');
+        consola.log(`- Id: ${migrationId}`);
+        consola.log(`- Path: ${targetDir}`);
         if (backfillSql.trim().length > 0) {
-          console.log('- Expand: up.sql');
-          console.log('- Backfill: backfill.sql');
-          console.log('- Verify: backfill.verify.sql');
-          console.log('- Constraints: constraints.sql');
+          consola.log('- Expand: up.sql');
+          consola.log('- Backfill: backfill.sql');
+          consola.log('- Verify: backfill.verify.sql');
+          consola.log('- Constraints: constraints.sql');
         }
-        console.log('');
-        console.log('Review up.sql, then run: ddp apply --validate && ddp apply');
+        consola.log(
+          '\nReview up.sql, then run: ddp apply --validate && ddp apply'
+        );
       } else {
+        // Raw SQL output — kept as plain console.log so `ddp migration diff > file.sql` stays clean.
         console.log(script);
       }
     } finally {
@@ -510,7 +515,7 @@ export const migrateDiffCommand = async (
   } catch (error) {
     logError('ddp migration diff failed', error as Error);
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('DDP MIGRATION DIFF failed:', message);
+    consola.error(`DDP MIGRATION DIFF failed: ${message}`);
     process.exit(1);
   }
 };

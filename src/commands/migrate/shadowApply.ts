@@ -46,7 +46,8 @@ const escapeIdent = (identifier: string): string =>
 
 /**
  * Drop and recreate a non-public schema so each diff starts from a clean catalog.
- * Used when shadow and target share one database (different schema names).
+ * Used when shadow and target share one database (different schema names): refusing
+ * `public` here protects the real target data that lives in the shared database.
  */
 export const resetShadowSchema = async (
   client: Client,
@@ -57,6 +58,19 @@ export const resetShadowSchema = async (
       'resetShadowSchema requires a dedicated shadow schema name (not public)'
     );
   }
+  await resetShadowSchemaUnchecked(client, schema);
+};
+
+/**
+ * Drop and recreate a schema on a disposable shadow database (`--shadow-url` /
+ * `DDP_SHADOW_DATABASE_URL`). Unlike `resetShadowSchema`, this allows `public`: the
+ * connection is a separate database instance with no real data, so wiping it is safe
+ * even when the shadow schema name mirrors the target schema name (often `public`).
+ */
+export const resetShadowSchemaUnchecked = async (
+  client: Client,
+  schema: string
+): Promise<void> => {
   const esc = escapeIdent(schema);
   await client.query(`DROP SCHEMA IF EXISTS ${esc} CASCADE`);
   await client.query(`CREATE SCHEMA ${esc}`);
