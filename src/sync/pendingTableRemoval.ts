@@ -11,10 +11,7 @@ export const resolveRemovedTableStrategy = (
   options: ILegacySyncOptions
 ): TRemovedTableStrategy => {
   const fromOptions = options.removedTableStrategy;
-  if (
-    fromOptions === 'cascade' ||
-    fromOptions === 'preserve-rename'
-  ) {
+  if (fromOptions === 'cascade' || fromOptions === 'preserve-rename') {
     return fromOptions;
   }
 

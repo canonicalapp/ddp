@@ -1,8 +1,5 @@
 import { TableOperations } from '@/sync/operations/tables';
-import {
-  createMockClient,
-  createMockOptions,
-} from '../../fixtures/testUtils';
+import { createMockClient, createMockOptions } from '../../fixtures/testUtils';
 
 describe('removed table CASCADE ordering', () => {
   it('orders child table before parent for DROP TABLE', async () => {

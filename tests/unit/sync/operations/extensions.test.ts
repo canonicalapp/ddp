@@ -27,8 +27,8 @@ describe('ExtensionOperations', () => {
       '-- Extension pgcrypto is required by dev_schema (state) but not installed on prod_schema'
     );
     expect(result).toContain('CREATE EXTENSION IF NOT EXISTS pgcrypto;');
-    expect(result.filter(line => line.includes('CREATE EXTENSION'))).toHaveLength(
-      1
-    );
+    expect(
+      result.filter(line => line.includes('CREATE EXTENSION'))
+    ).toHaveLength(1);
   });
 });

@@ -3,7 +3,12 @@
  * Handles table creation, dropping, and comparison logic
  */
 
-import type { ILegacySyncOptions, ITableDefinition, TArray, TNullable } from '@/types';
+import type {
+  ILegacySyncOptions,
+  ITableDefinition,
+  TArray,
+  TNullable,
+} from '@/types';
 import { TableSorter } from '@/generators/schema/utils/tableSorter';
 import { isDdpDiffIgnoredTable } from '@/sync/ddpInternalSchema';
 import {
@@ -245,7 +250,10 @@ export class TableOperations {
 
     const names = new Set(tablesToDrop.map(t => t.table_name));
     const refsByTable = await this.getIntraRemovalForeignKeyRefs(names);
-    const emptyStubBase = (): Omit<ITableDefinition, 'name' | 'constraints'> => ({
+    const emptyStubBase = (): Omit<
+      ITableDefinition,
+      'name' | 'constraints'
+    > => ({
       schema: 'public',
       columns: [],
       indexes: [],

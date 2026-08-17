@@ -170,7 +170,9 @@ export class IndexOperations {
     );
 
     for (const index of indexesToDrop) {
-      if (shouldSkipPerObjectDropsOnRemovedTable(this.options, index.tablename)) {
+      if (
+        shouldSkipPerObjectDropsOnRemovedTable(this.options, index.tablename)
+      ) {
         continue;
       }
 

@@ -1,9 +1,6 @@
 import { ConstraintHandlers } from '@/utils/constraintHandlers';
 import { primePendingTableRemovals } from '@/sync/pendingTableRemoval';
-import {
-  createMockClient,
-  createMockOptions,
-} from '../../fixtures/testUtils';
+import { createMockClient, createMockOptions } from '../../fixtures/testUtils';
 
 describe('ConstraintHandlers removed module FKs', () => {
   it('drops FKs on surviving tables that reference removed module tables first', async () => {
@@ -52,8 +49,9 @@ describe('ConstraintHandlers removed module FKs', () => {
       )
     ).toBe(true);
     expect(
-      statements.some(line =>
-        line.includes('DROP CONSTRAINT') && line.includes('affiliates_pkey')
+      statements.some(
+        line =>
+          line.includes('DROP CONSTRAINT') && line.includes('affiliates_pkey')
       )
     ).toBe(false);
   });

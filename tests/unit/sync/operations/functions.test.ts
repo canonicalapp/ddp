@@ -802,7 +802,9 @@ describe('FunctionOperations', () => {
         )
       ).toBe(true);
       expect(
-        alterStatements.some(line => line.includes('CREATE OR REPLACE PROCEDURE'))
+        alterStatements.some(line =>
+          line.includes('CREATE OR REPLACE PROCEDURE')
+        )
       ).toBe(true);
     });
 

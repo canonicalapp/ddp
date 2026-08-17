@@ -1,0 +1,216 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.6/schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": { "ignoreUnknown": false },
+  "formatter": {
+    "enabled": true,
+    "formatWithErrors": false,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 80,
+    "attributePosition": "auto",
+    "bracketSameLine": false,
+    "bracketSpacing": true,
+    "expand": "auto",
+    "useEditorconfig": true,
+    "includes": [
+      "**",
+      "!**/node_modules/",
+      "!**/dist/",
+      "!**/build/",
+      "!**/coverage/",
+      "!**/*.min.js",
+      "!**/*.bundle.js",
+      "!**/package-lock.json",
+      "!**/CHANGELOG.md",
+      "!**/yarn.lock",
+      "!**/pnpm-lock.yaml",
+      "!**/.git/",
+      "!**/.vscode/",
+      "!**/.idea/",
+      "!**/*.log",
+      "!**/*.sql",
+      "!**/.env",
+      "!**/.env.*"
+    ]
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "none",
+      "complexity": {
+        "noAdjacentSpacesInRegex": "error",
+        "noExtraBooleanCast": "error",
+        "noUselessCatch": "error",
+        "noUselessEscapeInRegex": "error"
+      },
+      "correctness": {
+        "noConstAssign": "error",
+        "noConstantCondition": "error",
+        "noEmptyCharacterClassInRegex": "error",
+        "noEmptyPattern": "error",
+        "noGlobalObjectCalls": "error",
+        "noInvalidBuiltinInstantiation": "error",
+        "noInvalidConstructorSuper": "error",
+        "noNonoctalDecimalEscape": "error",
+        "noPrecisionLoss": "error",
+        "noSelfAssign": "error",
+        "noSetterReturn": "error",
+        "noSwitchDeclarations": "error",
+        "noUndeclaredVariables": "error",
+        "noUnreachable": "error",
+        "noUnreachableSuper": "error",
+        "noUnsafeFinally": "error",
+        "noUnsafeOptionalChaining": "error",
+        "noUnusedLabels": "error",
+        "noUnusedPrivateClassMembers": "error",
+        "noUnusedVariables": "error",
+        "useIsNan": "error",
+        "useValidForDirection": "error",
+        "useValidTypeof": "error",
+        "useYield": "error"
+      },
+      "style": { "useBlockStatements": "off" },
+      "suspicious": {
+        "noAsyncPromiseExecutor": "error",
+        "noCatchAssign": "error",
+        "noClassAssign": "error",
+        "noCompareNegZero": "error",
+        "noConstantBinaryExpressions": "error",
+        "noControlCharactersInRegex": "error",
+        "noDebugger": "error",
+        "noDuplicateCase": "error",
+        "noDuplicateClassMembers": "error",
+        "noDuplicateElseIf": "error",
+        "noDuplicateObjectKeys": "error",
+        "noDuplicateParameters": "error",
+        "noEmptyBlockStatements": "error",
+        "noFallthroughSwitchClause": "error",
+        "noFunctionAssign": "error",
+        "noGlobalAssign": "error",
+        "noImportAssign": "error",
+        "noIrregularWhitespace": "error",
+        "noMisleadingCharacterClass": "error",
+        "noPrototypeBuiltins": "error",
+        "noRedeclare": "error",
+        "noShadowRestrictedNames": "error",
+        "noSparseArray": "error",
+        "noUnsafeNegation": "error",
+        "noUselessRegexBackrefs": "error",
+        "noWith": "error",
+        "useGetterReturn": "error"
+      }
+    },
+    "includes": [
+      "**",
+      "!node_modules/",
+      "!dist/",
+      "!build/",
+      "!coverage/",
+      "!*.min.js",
+      "!*.tsbuildinfo"
+    ]
+  },
+  "javascript": {
+    "formatter": {
+      "jsxQuoteStyle": "single",
+      "quoteProperties": "asNeeded",
+      "trailingCommas": "es5",
+      "semicolons": "always",
+      "arrowParentheses": "asNeeded",
+      "bracketSameLine": false,
+      "quoteStyle": "single",
+      "attributePosition": "auto",
+      "bracketSpacing": true
+    }
+  },
+  "html": {
+    "formatter": {
+      "indentScriptAndStyle": false,
+      "selfCloseVoidElements": "always"
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/**/*.ts", "src/**/*.tsx"],
+      "javascript": { "globals": [] },
+      "linter": {
+        "rules": {
+          "complexity": { "useOptionalChain": "warn" },
+          "correctness": {
+            "noUndeclaredVariables": "off",
+            "noUnusedVariables": "error"
+          },
+          "style": {
+            "noCommonJs": "off",
+            "noInferrableTypes": "off",
+            "noNonNullAssertion": "warn",
+            "useAsConstAssertion": "error"
+          },
+          "suspicious": { "noExplicitAny": "warn" }
+        }
+      }
+    },
+    {
+      "includes": [
+        "tests/**/*.ts",
+        "tests/**/*.tsx",
+        "scripts/**/*.ts",
+        "*.config.ts"
+      ],
+      "javascript": { "globals": [] },
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUndeclaredVariables": "off",
+            "noUnusedVariables": "error"
+          },
+          "style": {
+            "noCommonJs": "off",
+            "noInferrableTypes": "off",
+            "noNonNullAssertion": "warn",
+            "useAsConstAssertion": "error"
+          },
+          "suspicious": { "noExplicitAny": "warn" }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.js", "**/*.cjs"],
+      "javascript": {
+        "globals": [
+          "console",
+          "expect",
+          "beforeAll",
+          "__dirname",
+          "exports",
+          "beforeEach",
+          "afterEach",
+          "require",
+          "__filename",
+          "global",
+          "module",
+          "process",
+          "Buffer",
+          "jest",
+          "describe",
+          "it",
+          "test",
+          "afterAll"
+        ]
+      },
+      "linter": {
+        "rules": {
+          "correctness": { "noUnusedVariables": "error" },
+          "style": { "useConst": "error", "useTemplate": "error" },
+          "suspicious": { "noVar": "error" }
+        }
+      }
+    }
+  ],
+  "assist": {
+    "enabled": true,
+    "actions": { "source": { "organizeImports": "off" } }
+  }
+}

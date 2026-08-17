@@ -37,16 +37,16 @@ describe('pendingTableRemoval', () => {
     const options = baseOptions();
     primePendingTableRemovals(options, ['affiliates']);
 
-    expect(
-      shouldSkipPerObjectDropsOnRemovedTable(options, 'affiliates')
-    ).toBe(true);
+    expect(shouldSkipPerObjectDropsOnRemovedTable(options, 'affiliates')).toBe(
+      true
+    );
     expect(shouldSkipPerObjectDropsOnRemovedTable(options, 'orders')).toBe(
       false
     );
 
     options.removedTableStrategy = 'preserve-rename';
-    expect(
-      shouldSkipPerObjectDropsOnRemovedTable(options, 'affiliates')
-    ).toBe(false);
+    expect(shouldSkipPerObjectDropsOnRemovedTable(options, 'affiliates')).toBe(
+      false
+    );
   });
 });

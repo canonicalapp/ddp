@@ -2,7 +2,10 @@
  * Route state SQL to shadow vs target catalog schema (layout-aware).
  */
 
-import { inferStateApplyPriority, priorityForKind } from '@/commands/migrate/stateApplyPriority';
+import {
+  inferStateApplyPriority,
+  priorityForKind,
+} from '@/commands/migrate/stateApplyPriority';
 
 export type TStateFileKind = 'schema' | 'proc' | 'trigger' | 'other';
 

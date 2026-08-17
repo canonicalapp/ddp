@@ -3,10 +3,7 @@
  */
 
 import type { ILegacySyncOptions } from '@/types';
-import {
-  type SyncDbSide,
-  clientForSyncSide,
-} from '@/sync/syncClient';
+import { type SyncDbSide, clientForSyncSide } from '@/sync/syncClient';
 import type { Client } from 'pg';
 
 interface IExtensionRow {
@@ -62,9 +59,7 @@ export class ExtensionOperations {
       alterStatements.push(
         `-- Extension ${ext.extname} is required by ${this.options.source} (state) but not installed on ${this.options.target}`
       );
-      alterStatements.push(
-        `CREATE EXTENSION IF NOT EXISTS ${ext.extname};`
-      );
+      alterStatements.push(`CREATE EXTENSION IF NOT EXISTS ${ext.extname};`);
       alterStatements.push('');
     }
 

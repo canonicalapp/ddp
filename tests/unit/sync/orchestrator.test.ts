@@ -106,8 +106,12 @@ describe('SchemaSyncOrchestrator', () => {
       `schema-sync_${source}-to-${target}_2024-01-01T00-00-00.sql`;
 
     // Mock fs and path
-    global.writeFileSync = () => {};
-    global.mkdirSync = () => {};
+    global.writeFileSync = () => {
+      // no-op
+    };
+    global.mkdirSync = () => {
+      // no-op
+    };
     global.dirname = path => path.split('/').slice(0, -1).join('/') || '.';
 
     orchestrator = new SchemaSyncOrchestrator(
@@ -257,7 +261,9 @@ describe('SchemaSyncOrchestrator', () => {
       expect(result).not.toContain('-- CONSTRAINT OPERATIONS');
       expect(result).not.toContain('-- INDEX OPERATIONS');
       expect(result).not.toContain('-- TRIGGER OPERATIONS');
-      expect(result).not.toContain('-- REMOVED TABLE OPERATIONS (DROP CASCADE)');
+      expect(result).not.toContain(
+        '-- REMOVED TABLE OPERATIONS (DROP CASCADE)'
+      );
       expect(result).toContain('-- END OF SCHEMA SYNC SCRIPT');
     });
 
@@ -382,7 +388,9 @@ describe('SchemaSyncOrchestrator', () => {
     it('should output script to console when save is false', async () => {
       // Mock console.log
       const originalConsoleLog = console.log;
-      console.log = () => {};
+      console.log = () => {
+        // no-op
+      };
 
       await orchestrator.execute();
 

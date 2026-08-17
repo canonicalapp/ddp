@@ -98,7 +98,9 @@ export function formatRoutineDropStatement(
   routine: IRoutineIdentity
 ): string {
   const kind =
-    routine.routine_type.toLowerCase() === 'procedure' ? 'PROCEDURE' : 'FUNCTION';
+    routine.routine_type.toLowerCase() === 'procedure'
+      ? 'PROCEDURE'
+      : 'FUNCTION';
   const args = routine.identity_arguments?.trim();
   const objectRef =
     args !== undefined && args.length > 0
