@@ -6,6 +6,7 @@
 import { execSync } from 'child_process';
 import { mkdirSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
+import consola from 'consola';
 
 interface RepoSyncOptions {
   sourceRepo: string;
@@ -34,14 +35,16 @@ export class RepoIntegration {
    */
   async execute() {
     try {
-      console.log('DDP REPO SYNC - Pulling schema files from repositories...');
-      console.log(
-        `Source: ${this.options.sourceRepo} (${this.options.sourceBranch})`
+      consola.start(
+        'DDP REPO SYNC - Pulling schema files from repositories...'
       );
-      console.log(
-        `Target: ${this.options.targetRepo} (${this.options.targetBranch})`
+      consola.log(
+        `  Source: ${this.options.sourceRepo} (${this.options.sourceBranch})`
       );
-      console.log(`Output: ${this.options.output ?? 'alter.sql'}`);
+      consola.log(
+        `  Target: ${this.options.targetRepo} (${this.options.targetBranch})`
+      );
+      consola.log(`  Output: ${this.options.output ?? 'alter.sql'}`);
 
       // Create temporary directory
       const tempDir = this.options.tempDir ?? './temp-repos';
@@ -78,7 +81,7 @@ export class RepoIntegration {
         'Repository-based file sync has been removed. Please use database sync instead.'
       );
     } catch (error) {
-      console.error('Repository sync execution failed:', error);
+      consola.error('Repository sync execution failed:', error);
       throw error;
     }
   }
@@ -92,7 +95,7 @@ export class RepoIntegration {
     targetDir: string
   ) {
     try {
-      console.log(`📥 Cloning ${repoUrl} (${branch}) to ${targetDir}...`);
+      consola.start(`Cloning ${repoUrl} (${branch}) to ${targetDir}...`);
 
       // Clone the repository
       execSync(
@@ -103,10 +106,10 @@ export class RepoIntegration {
         }
       );
 
-      console.log(`✅ Successfully cloned ${repoUrl}`);
+      consola.success(`Successfully cloned ${repoUrl}`);
       return targetDir;
     } catch (error) {
-      console.error(`❌ Failed to clone ${repoUrl}:`, error);
+      consola.error(`Failed to clone ${repoUrl}:`, error);
       throw new Error(`Failed to clone repository: ${repoUrl}`);
     }
   }
@@ -129,12 +132,12 @@ export class RepoIntegration {
     for (const path of commonPaths) {
       const schemaDir = join(repoDir, path);
       if (this.hasSchemaFiles(schemaDir)) {
-        console.log(`📁 Found schema files in: ${schemaDir}`);
+        consola.info(`Found schema files in: ${schemaDir}`);
         return schemaDir;
       }
     }
 
-    console.warn(`⚠️  No schema files found in ${repoDir}`);
+    consola.warn(`No schema files found in ${repoDir}`);
     return null;
   }
 

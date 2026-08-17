@@ -5,20 +5,7 @@
 import { buildConnectionString } from '@/database/connection';
 import type { IDatabaseConnection } from '@/types/database';
 import { Client } from 'pg';
-import { createInterface } from 'readline';
-
-const promptLine = (question: string): Promise<string> => {
-  return new Promise(resolve => {
-    const rl = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    rl.question(question, answer => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
-};
+import consola from 'consola';
 
 const escapeIdent = (name: string): string => `"${name.replace(/"/g, '""')}"`;
 
@@ -99,39 +86,41 @@ export const ensureTargetDatabase = async (
   }
 
   const db = config.database;
-  console.error('');
-  console.error(
+  consola.warn(
     `Database "${db}" does not exist on ${config.host}:${config.port}.`
   );
 
   if (options.createDatabase) {
-    console.log(`Creating database "${db}"...`);
+    consola.start(`Creating database "${db}"...`);
     await createDatabaseFromConfig(config);
-    console.log(`Created database "${db}".`);
+    consola.success(`Created database "${db}".`);
     return true;
   }
 
   if (options.nonInteractive) {
-    console.error(
+    consola.error(
       'Non-interactive mode: create the database first, or re-run with --create-database.'
     );
     return false;
   }
 
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    console.error(
+    consola.error(
       'Not a TTY: cannot prompt. Create the database or use --create-database.'
     );
     return false;
   }
 
-  const answer = await promptLine(`Create database "${db}" now? [y/N] `);
-  if (!/^y(es)?$/i.test(answer)) {
-    console.error('Aborted.');
+  const confirmed = await consola.prompt(`Create database "${db}" now?`, {
+    type: 'confirm',
+    initial: false,
+  });
+  if (confirmed !== true) {
+    consola.error('Aborted.');
     return false;
   }
 
   await createDatabaseFromConfig(config);
-  console.log(`Created database "${db}".`);
+  consola.success(`Created database "${db}".`);
   return true;
 };

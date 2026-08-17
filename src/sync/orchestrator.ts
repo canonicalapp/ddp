@@ -6,6 +6,7 @@
 import { mkdirSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
 import type { Client } from 'pg';
+import consola from 'consola';
 import { Utils } from '@/utils/formatting';
 import { ColumnOperations } from '@/sync/operations/columns';
 import { ConstraintOperations } from '@/sync/operations/constraints';
@@ -219,7 +220,7 @@ export class SchemaSyncOrchestrator {
 
       return alterStatements;
     } catch (error) {
-      console.error('Error generating sync script:', error);
+      consola.error('Error generating sync script:', error);
       throw error;
     }
   }
@@ -247,9 +248,9 @@ export class SchemaSyncOrchestrator {
 
       // Write file
       writeFileSync(filename, script, 'utf8');
-      console.log(`✅ Schema sync script saved to: ${filename}`);
+      consola.success(`Schema sync script saved to: ${filename}`);
     } catch (error) {
-      console.error('❌ Error saving script to file:', error);
+      consola.error('Error saving script to file:', error);
       throw error;
     }
   }
@@ -277,13 +278,13 @@ export class SchemaSyncOrchestrator {
         const filename = this.generateOutputFilename();
         this.saveScriptToFile(script, filename);
       } else {
-        // Output to console
+        // Raw SQL output — kept as plain console.log for stdout piping.
         console.log(script);
       }
 
       return script;
     } catch (error) {
-      console.error('Schema sync execution failed:', error);
+      consola.error('Schema sync execution failed:', error);
       throw error;
     } finally {
       // Close connections

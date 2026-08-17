@@ -4,6 +4,7 @@
  */
 
 import type { Client } from 'pg';
+import consola from 'consola';
 import type { SQLExecutor } from '@/commands/apply/executor';
 import type { ILoadedFile } from '@/types/apply';
 import { assertDestructiveMigrationsAllowed } from '@/commands/apply/destructiveGuard';
@@ -20,7 +21,7 @@ export const validatePendingMigrations = async (
   options: IValidateRunOptions
 ): Promise<void> => {
   if (files.length === 0) {
-    console.log('✅ No pending migrations to validate');
+    consola.success('No pending migrations to validate');
     return;
   }
 
@@ -35,16 +36,15 @@ export const validatePendingMigrations = async (
   }
   await assertDestructiveMigrationsAllowed(files, destructiveOpts);
 
-  console.log(
-    `🧪 Validating ${files.length} pending migration(s) (execute + ROLLBACK, no history)...`
+  consola.start(
+    `Validating ${files.length} pending migration(s) (execute + ROLLBACK, no history)...`
   );
-  console.log('');
 
   await client.query('BEGIN');
 
   try {
     for (const file of files) {
-      console.log(`  ▶ ${file.migrationId}`);
+      consola.log(`  ▶ ${file.migrationId}`);
       const result = await executor.execute(client, {
         sql: file.content,
         fileName: file.name,
@@ -54,16 +54,14 @@ export const validatePendingMigrations = async (
 
       if (!result.success) {
         throw new Error(
-          result.errorMessage ??
-            `Validation failed on ${file.migrationId}`
+          result.errorMessage ?? `Validation failed on ${file.migrationId}`
         );
       }
     }
 
     await client.query('ROLLBACK');
-    console.log('');
-    console.log(
-      '✅ Validation passed — SQL executed successfully; all changes rolled back'
+    consola.success(
+      'Validation passed — SQL executed successfully; all changes rolled back'
     );
   } catch (e) {
     await client.query('ROLLBACK').catch(() => undefined);

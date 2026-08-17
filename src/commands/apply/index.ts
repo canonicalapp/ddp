@@ -4,6 +4,7 @@
  */
 
 import { resolve } from 'path';
+import consola from 'consola';
 import { buildConnectionString, testConnection } from '@/database/connection';
 import {
   ensurePgSchemaExists,
@@ -62,28 +63,25 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
 
     const migrationsFolder = await resolveApplyFolder(options);
 
-    console.log(`📂 Migrations folder: ${migrationsFolder}`);
-    console.log('');
+    consola.info(`Migrations folder: ${migrationsFolder}`);
 
     const fileLoader = new FileLoader();
     const loadOptions: IFileLoadOptions = {
       folder: migrationsFolder,
       withBackfill: options.withBackfill ?? false,
     };
-    console.log('📂 Loading SQL migrations...');
+    consola.start('Loading SQL migrations...');
     const files = await fileLoader.loadFiles(loadOptions);
 
     if (files.length === 0) {
-      console.warn('⚠️  No SQL migrations found to apply');
+      consola.warn('No SQL migrations found to apply');
       return;
     }
 
-    console.log(`✅ Found ${files.length} migration(s)`);
-    console.log('');
+    consola.success(`Found ${files.length} migration(s)`);
 
     if (options.dryRun) {
-      console.log('🔍 DRY-RUN — no database connection, no changes');
-      console.log('');
+      consola.info('DRY-RUN — no database connection, no changes');
       await performDryRun(files);
       return;
     }
@@ -96,11 +94,12 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
       );
     }
 
-    console.log('DDP APPLY — validating database...');
-    console.log(`Database: ${connectionConfig.database}`);
-    console.log(`Schema: ${connectionConfig.schema}`);
-    console.log(`Host: ${connectionConfig.host}:${connectionConfig.port}`);
-    console.log('');
+    consola.start('DDP APPLY — validating database...');
+    consola.log(`  Database: ${connectionConfig.database}`);
+    consola.log(`  Schema:   ${connectionConfig.schema}`);
+    consola.log(
+      `  Host:     ${connectionConfig.host}:${connectionConfig.port}`
+    );
 
     const ensureOpts: Parameters<typeof ensureTargetDatabase>[1] = {};
     if (options.nonInteractive !== undefined) {
@@ -123,17 +122,16 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
       );
 
       logError('Database connection failed', error);
-      console.error('❌ Database connection failed');
+      consola.fail('Database connection failed');
 
       if (connectionTest.error) {
-        console.error(`Error: ${connectionTest.error}`);
+        consola.log(`Error: ${connectionTest.error}`);
       }
 
       throw error;
     }
 
-    console.log('✅ Database connection validated');
-    console.log('');
+    consola.success('Database connection validated');
 
     const resolvedCfg = await resolveDdpConfig();
     const enforceImmutability =
@@ -171,10 +169,9 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
       const historyTracker = new HistoryTracker();
 
       if (!options.skipHistory) {
-        console.log('📋 Migration history...');
+        consola.start('Migration history...');
         await historyTracker.ensureHistoryTable(client);
-        console.log('✅ History table ready');
-        console.log('');
+        consola.success('History table ready');
       }
 
       if (options.validate) {
@@ -219,30 +216,26 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
         enforceImmutability
       );
 
-      console.log('🚀 Applying migrations...');
-      console.log(`Transaction mode: ${transactionMode}`);
-      console.log(`Continue on error: ${continueOnError}`);
-      console.log(`Immutability: ${enforceImmutability}`);
-      console.log('');
+      consola.start('Applying migrations...');
+      consola.log(`  Transaction mode:   ${transactionMode}`);
+      consola.log(`  Continue on error:  ${continueOnError}`);
+      consola.log(`  Immutability:       ${enforceImmutability}`);
 
       if (pendingBackfillMigrations.length > 0) {
-        console.log(
-          '🧩 Detected migrations with backfill scaffolds (backfill.sql):'
+        consola.info(
+          'Detected migrations with backfill scaffolds (backfill.sql):'
         );
         pendingBackfillMigrations.forEach(item => {
-          console.log(`   - ${item.migrationId}: ${item.backfillPath}`);
+          consola.log(`  - ${item.migrationId}: ${item.backfillPath}`);
         });
-        console.log('');
-        console.log(
-          '   Apply up.sql first, then complete backfill.sql before running constraints.sql.'
+        consola.log(
+          '  Apply up.sql first, then complete backfill.sql before running constraints.sql.'
         );
-        console.log('');
 
         if (!options.withBackfill && !options.acknowledgeBackfill) {
-          console.log(
-            'ℹ️ Continuing with up.sql only. Run backfill.sql manually, then re-run apply with --with-backfill to execute constraints.sql.'
+          consola.info(
+            'Continuing with up.sql only. Run backfill.sql manually, then re-run apply with --with-backfill to execute constraints.sql.'
           );
-          console.log('');
         }
       }
 
@@ -278,18 +271,15 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
 
       const hasFailures = results.some(r => !r.success);
       if (hasFailures) {
-        console.error('');
-        console.error('❌ Some migrations failed');
+        consola.fail('Some migrations failed');
         process.exit(1);
       }
 
-      console.log('');
-      console.log('🎉 All migrations applied successfully!');
+      consola.success('All migrations applied successfully!');
       if (pendingBackfillMigrations.length > 0) {
-        console.log('');
-        console.log('📌 Manual backfill follow-up:');
+        consola.info('Manual backfill follow-up:');
         pendingBackfillMigrations.forEach(item => {
-          console.log(`   - Review and run: ${item.backfillPath}`);
+          consola.log(`  - Review and run: ${item.backfillPath}`);
         });
       }
     } finally {
@@ -312,11 +302,11 @@ export const applyCommand = async (options: IApplyCommandOptions) => {
     });
 
     if (error instanceof ValidationError) {
-      console.error('❌ Validation Error:', error.message);
+      consola.fail(`Validation Error: ${error.message}`);
     } else {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      console.error('❌ DDP APPLY failed:', errorMessage);
+      consola.fail(`DDP APPLY failed: ${errorMessage}`);
     }
 
     process.exit(1);

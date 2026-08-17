@@ -3,6 +3,7 @@
  * Handles stored procedures and functions sync logic
  */
 
+import consola from 'consola';
 import type { ILegacySyncOptions, TNullable } from '@/types';
 import {
   type SyncDbSide,
@@ -213,10 +214,12 @@ export class FunctionOperations {
   /**
    * Resolve catalog schema for a routine row (shadow vs target layout).
    */
-  private schemaForRoutine(side: SyncDbSide, routine: IRoutineIdentity): string {
+  private schemaForRoutine(
+    side: SyncDbSide,
+    routine: IRoutineIdentity
+  ): string {
     return (
-      routine.routine_schema?.trim() ||
-      schemaNameForSide(side, this.options)
+      routine.routine_schema?.trim() || schemaNameForSide(side, this.options)
     );
   }
 
@@ -261,7 +264,7 @@ export class FunctionOperations {
         return definition;
       }
     } catch (error) {
-      console.warn(
+      consola.warn(
         `pg_get_functiondef failed for ${routine.routine_type} ${schemaName}.${routine.routine_name}:`,
         error instanceof Error ? error.message : 'Unknown error'
       );
@@ -282,7 +285,7 @@ export class FunctionOperations {
 
       return fallbackResult.rows[0]?.routine_definition ?? null;
     } catch (error) {
-      console.warn(
+      consola.warn(
         `Failed to get definition for ${routine.routine_type} ${schemaName}.${routine.routine_name}:`,
         error instanceof Error ? error.message : 'Unknown error'
       );
@@ -322,7 +325,6 @@ export class FunctionOperations {
     sourceFunction: IFunctionDefinition,
     targetFunction: IFunctionDefinition
   ) {
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!sourceFunction || !targetFunction) {
       return false;
     }
@@ -612,7 +614,9 @@ export class FunctionOperations {
       alterStatements.push(
         `-- ${func.routine_type} ${func.routine_name} exists in ${this.options.target} but not in ${this.options.source}`
       );
-      alterStatements.push(formatRoutineDropStatement(this.options.target, func));
+      alterStatements.push(
+        formatRoutineDropStatement(this.options.target, func)
+      );
     }
   }
 

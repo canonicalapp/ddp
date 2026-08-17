@@ -6,7 +6,7 @@
 import { basename, dirname } from 'path';
 import type { Client } from 'pg';
 import type { IMigrationRecord } from '@/types/apply';
-import { logDebug, logError, logInfo, logWarn } from '@/utils/logger';
+import { logDebug, logError, logWarn } from '@/utils/logger';
 
 export class HistoryTracker {
   private readonly tableName = 'ddp_migrations';
@@ -45,7 +45,7 @@ export class HistoryTracker {
       await this.backfillMigrationIds(client);
       await this.createPartialUniqueIndex(client);
       await this.createIndexes(client);
-      logInfo('Migration history table ready');
+      logDebug('Migration history table ready');
     } catch (error) {
       logError('Failed to ensure migration history table', error as Error);
       throw new Error(
@@ -225,7 +225,7 @@ export class HistoryTracker {
       ];
 
       await client.query(insertQuery, values);
-      logInfo('Migration recorded in history', {
+      logDebug('Migration recorded in history', {
         migrationId: record.migration_id,
         success: record.success,
       });

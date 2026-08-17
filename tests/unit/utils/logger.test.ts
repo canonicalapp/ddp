@@ -2,6 +2,19 @@
  * Unit tests for logger utility
  */
 
+const mockConsolaInstance = {
+  debug: jest.fn(),
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+};
+
+jest.mock('consola', () => ({
+  createConsola: jest.fn(() => ({
+    withTag: jest.fn(() => mockConsolaInstance),
+  })),
+}));
+
 import {
   Logger,
   LogLevel,
@@ -11,43 +24,15 @@ import {
   logError,
 } from '@/utils/logger';
 
-// Mock console methods
-const originalConsole = {
-  debug: console.debug,
-  info: console.info,
-  warn: console.warn,
-  error: console.error,
-};
-
 describe('Logger', () => {
-  let logger: Logger;
-  let consoleSpy: {
-    debug: jest.SpyInstance;
-    info: jest.SpyInstance;
-    warn: jest.SpyInstance;
-    error: jest.SpyInstance;
-  };
+  let logger: InstanceType<typeof Logger>;
 
   beforeEach(() => {
     logger = Logger.getInstance();
     logger.clearLogs();
     logger.setLogLevel(LogLevel.DEBUG);
 
-    consoleSpy = {
-      debug: jest.spyOn(console, 'debug').mockImplementation(),
-      info: jest.spyOn(console, 'info').mockImplementation(),
-      warn: jest.spyOn(console, 'warn').mockImplementation(),
-      error: jest.spyOn(console, 'error').mockImplementation(),
-    };
-  });
-
-  afterEach(() => {
-    Object.values(consoleSpy).forEach(spy => spy.mockRestore());
-  });
-
-  afterAll(() => {
-    // Restore original console methods
-    Object.assign(console, originalConsole);
+    Object.values(mockConsolaInstance).forEach(fn => fn.mockClear());
   });
 
   describe('Log Levels', () => {
@@ -55,86 +40,78 @@ describe('Logger', () => {
       logger.setLogLevel(LogLevel.DEBUG);
       logger.debug('Debug message');
 
-      expect(consoleSpy.debug).toHaveBeenCalledWith(
-        expect.stringContaining('DEBUG: Debug message')
-      );
+      expect(mockConsolaInstance.debug).toHaveBeenCalledWith('Debug message');
     });
 
     it('should not log debug messages when level is INFO', () => {
       logger.setLogLevel(LogLevel.INFO);
       logger.debug('Debug message');
 
-      expect(consoleSpy.debug).not.toHaveBeenCalled();
+      expect(mockConsolaInstance.debug).not.toHaveBeenCalled();
     });
 
     it('should log info messages when level is INFO', () => {
       logger.setLogLevel(LogLevel.INFO);
       logger.info('Info message');
 
-      expect(consoleSpy.info).toHaveBeenCalledWith(
-        expect.stringContaining('INFO: Info message')
-      );
+      expect(mockConsolaInstance.info).toHaveBeenCalledWith('Info message');
     });
 
     it('should not log info messages when level is WARN', () => {
       logger.setLogLevel(LogLevel.WARN);
       logger.info('Info message');
 
-      expect(consoleSpy.info).not.toHaveBeenCalled();
+      expect(mockConsolaInstance.info).not.toHaveBeenCalled();
     });
 
     it('should log warn messages when level is WARN', () => {
       logger.setLogLevel(LogLevel.WARN);
       logger.warn('Warning message');
 
-      expect(consoleSpy.warn).toHaveBeenCalledWith(
-        expect.stringContaining('WARN: Warning message')
-      );
+      expect(mockConsolaInstance.warn).toHaveBeenCalledWith('Warning message');
     });
 
     it('should not log warn messages when level is ERROR', () => {
       logger.setLogLevel(LogLevel.ERROR);
       logger.warn('Warning message');
 
-      expect(consoleSpy.warn).not.toHaveBeenCalled();
+      expect(mockConsolaInstance.warn).not.toHaveBeenCalled();
     });
 
     it('should log error messages when level is ERROR', () => {
       logger.setLogLevel(LogLevel.ERROR);
       logger.error('Error message');
 
-      expect(consoleSpy.error).toHaveBeenCalledWith(
-        expect.stringContaining('ERROR: Error message')
-      );
+      expect(mockConsolaInstance.error).toHaveBeenCalledWith('Error message');
     });
   });
 
   describe('Context and Error Handling', () => {
-    it('should include context in log messages', () => {
+    it('should pass context alongside the message', () => {
       logger.info('Test message', { key: 'value', number: 123 });
 
-      expect(consoleSpy.info).toHaveBeenCalledWith(
-        expect.stringContaining('{"key":"value","number":123}')
-      );
+      expect(mockConsolaInstance.info).toHaveBeenCalledWith('Test message', {
+        key: 'value',
+        number: 123,
+      });
     });
 
-    it('should include error details in error messages', () => {
+    it('should log error details separately', () => {
       const error = new Error('Test error');
       logger.error('Error occurred', error, { context: 'test' });
 
-      expect(consoleSpy.error).toHaveBeenCalledWith(
-        expect.stringContaining('ERROR: Error occurred')
-      );
-      expect(consoleSpy.error).toHaveBeenCalledWith('Error details:', error);
+      expect(mockConsolaInstance.error).toHaveBeenCalledWith('Error occurred', {
+        context: 'test',
+      });
+      expect(mockConsolaInstance.error).toHaveBeenCalledWith(error);
     });
 
     it('should handle error without context', () => {
       const error = new Error('Test error');
       logger.error('Error occurred', error);
 
-      expect(consoleSpy.error).toHaveBeenCalledWith(
-        expect.stringContaining('ERROR: Error occurred')
-      );
+      expect(mockConsolaInstance.error).toHaveBeenCalledWith('Error occurred');
+      expect(mockConsolaInstance.error).toHaveBeenCalledWith(error);
     });
   });
 
@@ -186,10 +163,10 @@ describe('Logger', () => {
       logWarn('Warning message', { warn: true });
       logError('Error message', new Error('Test'), { error: true });
 
-      expect(consoleSpy.debug).toHaveBeenCalled();
-      expect(consoleSpy.info).toHaveBeenCalled();
-      expect(consoleSpy.warn).toHaveBeenCalled();
-      expect(consoleSpy.error).toHaveBeenCalled();
+      expect(mockConsolaInstance.debug).toHaveBeenCalled();
+      expect(mockConsolaInstance.info).toHaveBeenCalled();
+      expect(mockConsolaInstance.warn).toHaveBeenCalled();
+      expect(mockConsolaInstance.error).toHaveBeenCalled();
     });
   });
 

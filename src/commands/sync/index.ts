@@ -4,6 +4,7 @@ import type { IDatabaseConnection, ISyncCommandOptions } from '@/types';
 import { loadEnvFile } from '@/utils/envLoader';
 import { resolvePgSchema } from '@/utils/pgSchema';
 import { Client } from 'pg';
+import consola from 'consola';
 
 // Helper function to build connection details
 const buildConnectionDetails = (
@@ -35,7 +36,7 @@ const buildConnectionDetails = (
 // Helper function to validate credentials
 const validateCredentials = (details: IDatabaseConnection, type: string) => {
   if (!details.database || !details.username || !details.password) {
-    console.error(`Error: ${type} database credentials are required.`);
+    consola.error(`${type} database credentials are required.`);
     process.exit(1);
   }
 };
@@ -60,7 +61,7 @@ export const syncCommand = async (options: ISyncCommandOptions) => {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';
-    console.error('DDP SYNC failed:', errorMessage);
+    consola.fail(`DDP SYNC failed: ${errorMessage}`);
     process.exit(1);
   }
 };
@@ -70,8 +71,8 @@ export const syncCommand = async (options: ISyncCommandOptions) => {
  */
 async function executeRepoSync(options: ISyncCommandOptions) {
   if (!options.sourceRepo || !options.targetRepo) {
-    console.error(
-      'Error: Both --source-repo and --target-repo are required for repository sync'
+    consola.error(
+      'Both --source-repo and --target-repo are required for repository sync'
     );
     process.exit(1);
   }
@@ -105,10 +106,10 @@ async function executeDatabaseSync(options: ISyncCommandOptions) {
   const sourceConnectionString = buildConnectionString(sourceDetails);
   const targetConnectionString = buildConnectionString(targetDetails);
 
-  console.log('DDP SYNC - Comparing databases and generating alter.sql...');
-  console.log(`Source: ${sourceDetails.database}.${sourceDetails.schema}`);
-  console.log(`Target: ${targetDetails.database}.${targetDetails.schema}`);
-  console.log(`Output: ${options.output}`);
+  consola.start('DDP SYNC - Comparing databases and generating alter.sql...');
+  consola.log(`  Source: ${sourceDetails.database}.${sourceDetails.schema}`);
+  consola.log(`  Target: ${targetDetails.database}.${targetDetails.schema}`);
+  consola.log(`  Output: ${options.output}`);
 
   // Create separate clients for source and target
   const sourceClient = new Client({

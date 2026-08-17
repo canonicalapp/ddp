@@ -3,6 +3,7 @@
  * Handles triggers sync logic
  */
 
+import consola from 'consola';
 import type { ILegacySyncOptions, TArray, TNullable } from '@/types';
 import { isDdpDiffIgnoredTable } from '@/sync/ddpInternalSchema';
 import { shouldSkipPerObjectDropsOnRemovedTable } from '@/sync/pendingTableRemoval';
@@ -119,7 +120,7 @@ export class TriggerOperations {
 
       return result.rows[0];
     } catch (error) {
-      console.warn(
+      consola.warn(
         `Failed to get definition for trigger ${triggerName}:`,
         error instanceof Error ? error.message : 'Unknown error'
       );

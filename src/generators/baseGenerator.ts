@@ -12,6 +12,7 @@ import type {
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { Client } from 'pg';
+import consola from 'consola';
 
 export abstract class BaseGenerator {
   protected client: Client;
@@ -40,11 +41,11 @@ export abstract class BaseGenerator {
    */
   async execute(): Promise<IGeneratorResult> {
     try {
-      console.log(`🔧 Generating ${this.getGeneratorName()}...`);
+      consola.start(`Generating ${this.getGeneratorName()}...`);
 
       // Check if generation should be skipped
       if (this.shouldSkip()) {
-        console.log(`⏭️  Skipping ${this.getGeneratorName()} generation`);
+        consola.info(`Skipping ${this.getGeneratorName()} generation`);
         return {
           success: true,
           files: [],
@@ -62,8 +63,8 @@ export abstract class BaseGenerator {
         await this.outputToFiles(files);
       }
 
-      console.log(
-        `✅ ${this.getGeneratorName()} generation completed successfully`
+      consola.success(
+        `${this.getGeneratorName()} generation completed successfully`
       );
 
       return {
@@ -73,9 +74,8 @@ export abstract class BaseGenerator {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      console.error(
-        `❌ ${this.getGeneratorName()} generation failed:`,
-        errorMessage
+      consola.fail(
+        `${this.getGeneratorName()} generation failed: ${errorMessage}`
       );
 
       // Re-throw the original error to preserve error details for better handling
@@ -89,7 +89,7 @@ export abstract class BaseGenerator {
   protected abstract getGeneratorName(): string;
 
   /**
-   * Output files to stdout
+   * Output files to stdout — kept as plain console.log for piping the generated SQL.
    */
   private outputToStdout(files: IGeneratedFile[]) {
     files.forEach((file, index) => {
@@ -115,7 +115,7 @@ export abstract class BaseGenerator {
       file.path = filePath;
 
       writeFileSync(filePath, file.content, 'utf8');
-      console.log(`📄 Generated: ${filePath}`);
+      consola.success(`Generated: ${filePath}`);
     }
   }
 

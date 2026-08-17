@@ -1,6 +1,7 @@
 import { access, writeFile } from 'fs/promises';
 import { constants } from 'fs';
 import { join } from 'path';
+import consola from 'consola';
 import type { IInitCommandOptions } from '@/types';
 import type { IDdpConfig } from '@/utils/ddpConfig';
 import { ensureDirectory } from '@/utils/filesystem';
@@ -64,7 +65,7 @@ export const initCommand = async (options: IInitCommandOptions) => {
       force: options.force,
     });
 
-    console.log(`Initializing DDP structure at: ${rootPath}`);
+    consola.start(`Initializing DDP structure at: ${rootPath}`);
 
     await ensureDirectory(rootPath);
     await ensureDirectory(join(rootPath, 'state'));
@@ -78,8 +79,8 @@ export const initCommand = async (options: IInitCommandOptions) => {
     const configAlreadyExists = await fileExists(configPath);
 
     if (configAlreadyExists && !shouldOverwriteConfig) {
-      console.log(`Skipped existing config: ${configPath}`);
-      console.log('Use --force to overwrite the existing config.');
+      consola.warn(`Skipped existing config: ${configPath}`);
+      consola.log('Use --force to overwrite the existing config.');
     } else {
       const config = buildDefaultConfig(rootPath);
       await writeFile(
@@ -87,23 +88,22 @@ export const initCommand = async (options: IInitCommandOptions) => {
         `${JSON.stringify(config, null, 2)}\n`,
         'utf8'
       );
-      console.log(
+      consola.success(
         `${configAlreadyExists ? 'Overwrote' : 'Created'} config: ${configPath}`
       );
     }
 
-    console.log('Created directories:');
-    console.log(`- ${join(rootPath, 'state', 'schema')}`);
-    console.log(`- ${join(rootPath, 'state', 'procs')}`);
-    console.log(`- ${join(rootPath, 'state', 'triggers')}`);
-    console.log(`- ${join(rootPath, 'migrations')}`);
-    console.log(`- ${join(rootPath, 'seeds')}`);
-    console.log('');
-    console.log('DDP init complete.');
+    consola.info('Created directories:');
+    consola.log(`  - ${join(rootPath, 'state', 'schema')}`);
+    consola.log(`  - ${join(rootPath, 'state', 'procs')}`);
+    consola.log(`  - ${join(rootPath, 'state', 'triggers')}`);
+    consola.log(`  - ${join(rootPath, 'migrations')}`);
+    consola.log(`  - ${join(rootPath, 'seeds')}`);
+    consola.success('DDP init complete.');
   } catch (error) {
     logError('DDP init command failed', error as Error, { rootPath, options });
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('DDP INIT failed:', message);
+    consola.fail(`DDP INIT failed: ${message}`);
     process.exit(1);
   }
 };

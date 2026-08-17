@@ -6,6 +6,7 @@
 
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
+import consola from 'consola';
 import type { IMigrationCreateCommandOptions } from '@/types';
 import { resolveDdpConfig, resolveDdpMigrationsDir } from '@/utils/ddpConfig';
 import { ensureDirectory } from '@/utils/filesystem';
@@ -80,16 +81,16 @@ export const migrationCreateCommand = async (
 
     logInfo('Created migration', { migrationId, path: targetDir });
 
-    console.log('Created migration:');
-    console.log(`- Id: ${migrationId}`);
-    console.log(`- Path: ${targetDir}`);
-    console.log(
-      `- Files: up.sql${requireDown ? ', down.sql' : ''}${requireMeta ? ', migration.json' : ''}`
+    consola.success('Created migration:');
+    consola.log(`  Id: ${migrationId}`);
+    consola.log(`  Path: ${targetDir}`);
+    consola.log(
+      `  Files: up.sql${requireDown ? ', down.sql' : ''}${requireMeta ? ', migration.json' : ''}`
     );
   } catch (error) {
     logError('ddp migration create failed', error as Error, { options });
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('DDP MIGRATION CREATE failed:', message);
+    consola.fail(`DDP MIGRATION CREATE failed: ${message}`);
     process.exit(1);
   }
 };

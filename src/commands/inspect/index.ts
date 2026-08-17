@@ -1,6 +1,7 @@
 import { Client } from 'pg';
 import { readdir, stat } from 'fs/promises';
 import { join } from 'path';
+import consola from 'consola';
 import { buildConnectionString } from '@/database/connection';
 import type { IInspectCommandOptions } from '@/types/cli';
 import type { IDatabaseConnection } from '@/types/database';
@@ -52,34 +53,34 @@ export const inspectStaleCommand = async (
     const artifacts = await collectPreservedArtifacts(client, targetSchema);
 
     if (artifacts.totalCount === 0) {
-      console.log(
+      consola.success(
         `No preserved backup artifacts found in schema "${targetSchema}".`
       );
       return;
     }
 
-    console.log(
+    consola.info(
       `Found ${artifacts.totalCount} preserved backup artifact(s) in schema "${targetSchema}".`
     );
 
     if (artifacts.triggerNames.length > 0) {
-      console.log(`\nTriggers (${artifacts.triggerNames.length}):`);
-      artifacts.triggerNames.forEach(name => console.log(`- ${name}`));
+      consola.log(`\nTriggers (${artifacts.triggerNames.length}):`);
+      artifacts.triggerNames.forEach(name => consola.log(`  - ${name}`));
     }
 
     if (artifacts.tableNames.length > 0) {
-      console.log(`\nTables (${artifacts.tableNames.length}):`);
-      artifacts.tableNames.forEach(name => console.log(`- ${name}`));
+      consola.log(`\nTables (${artifacts.tableNames.length}):`);
+      artifacts.tableNames.forEach(name => consola.log(`  - ${name}`));
     }
 
     if (artifacts.droppedColumns.length > 0) {
-      console.log(`\nColumns (${artifacts.droppedColumns.length}):`);
+      consola.log(`\nColumns (${artifacts.droppedColumns.length}):`);
       artifacts.droppedColumns.forEach(entry =>
-        console.log(`- ${entry.tableName}.${entry.columnName}`)
+        consola.log(`  - ${entry.tableName}.${entry.columnName}`)
       );
     }
 
-    console.log(
+    consola.log(
       '\nCleanup: after validating data is no longer needed, remove tombstones with `ddp apply --prune --dry-run` then `ddp apply --prune`, or drop manually.'
     );
   } finally {
@@ -178,7 +179,9 @@ export const inspectBackfillCommand = async (
     const statuses = await inspectBackfillMigrations(migrationsDir, appliedIds);
 
     if (statuses.length === 0) {
-      console.log(`No split backfill migrations found in "${migrationsDir}".`);
+      consola.success(
+        `No split backfill migrations found in "${migrationsDir}".`
+      );
       return;
     }
 
@@ -196,11 +199,14 @@ export const inspectBackfillCommand = async (
       }
     }
 
-    console.log('Backfill inspection summary:');
-    console.log(`- Completed constraints: ${completed}`);
-    console.log(`- Waiting for backfill/constraints: ${pendingBackfill}`);
-    console.log(`- Waiting for expand apply: ${pendingExpand}`);
-    console.log('');
+    consola.box({
+      title: 'Backfill inspection summary',
+      message: [
+        `Completed constraints:            ${completed}`,
+        `Waiting for backfill/constraints: ${pendingBackfill}`,
+        `Waiting for expand apply:         ${pendingExpand}`,
+      ].join('\n'),
+    });
 
     for (const status of statuses) {
       const fileSet = [
@@ -219,12 +225,12 @@ export const inspectBackfillCommand = async (
         next = 'run backfill.sql, then ddp apply --with-backfill';
       }
 
-      console.log(`- ${status.migrationId}`);
-      console.log(`  files: ${fileSet}`);
-      console.log(
-        `  applied: expand=${status.appliedExpand ? 'yes' : 'no'}, constraints=${status.appliedConstraints ? 'yes' : 'no'}`
+      consola.log(`- ${status.migrationId}`);
+      consola.log(`    files: ${fileSet}`);
+      consola.log(
+        `    applied: expand=${status.appliedExpand ? 'yes' : 'no'}, constraints=${status.appliedConstraints ? 'yes' : 'no'}`
       );
-      console.log(`  next: ${next}`);
+      consola.log(`    next: ${next}`);
     }
   } finally {
     await client.end().catch(() => undefined);

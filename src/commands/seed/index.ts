@@ -6,6 +6,7 @@ import { createHash } from 'crypto';
 import { readFile, readdir } from 'fs/promises';
 import { basename, join, resolve } from 'path';
 import { Client } from 'pg';
+import consola from 'consola';
 import { assertDestructiveMigrationsAllowed } from '@/commands/apply/destructiveGuard';
 import {
   ensurePgSchemaExists,
@@ -126,21 +127,20 @@ export const seedCommand = async (options: ISeedCommandOptions) => {
     const connectionConfig = buildConnectionConfig(options);
     const seedsFolder = await resolveSeedFolder(options);
 
-    console.log(`📂 Seeds folder: ${seedsFolder}`);
-    console.log('');
+    consola.info(`Seeds folder: ${seedsFolder}`);
 
     const files = await loadSeedSqlFiles(seedsFolder);
-    console.log(`✅ Found ${files.length} seed file(s)`);
+    consola.success(`Found ${files.length} seed file(s)`);
     for (const f of files) {
-      console.log(`   • ${f.name}`);
+      consola.log(`  • ${f.name}`);
     }
-    console.log('');
 
-    console.log('DDP SEED — validating database...');
-    console.log(`Database: ${connectionConfig.database}`);
-    console.log(`Schema: ${connectionConfig.schema}`);
-    console.log(`Host: ${connectionConfig.host}:${connectionConfig.port}`);
-    console.log('');
+    consola.start('DDP SEED — validating database...');
+    consola.log(`  Database: ${connectionConfig.database}`);
+    consola.log(`  Schema:   ${connectionConfig.schema}`);
+    consola.log(
+      `  Host:     ${connectionConfig.host}:${connectionConfig.port}`
+    );
 
     const ensureOpts: Parameters<typeof ensureTargetDatabase>[1] = {};
     if (options.nonInteractive !== undefined) {
@@ -161,15 +161,14 @@ export const seedCommand = async (options: ISeedCommandOptions) => {
         { connectionConfig, testResult: connectionTest }
       );
       logError('Database connection failed', err);
-      console.error('❌ Database connection failed');
+      consola.fail('Database connection failed');
       if (connectionTest.error) {
-        console.error(`Error: ${connectionTest.error}`);
+        consola.log(`Error: ${connectionTest.error}`);
       }
       throw err;
     }
 
-    console.log('✅ Database connection validated');
-    console.log('');
+    consola.success('Database connection validated');
 
     const destructiveOpts: Parameters<
       typeof assertDestructiveMigrationsAllowed
@@ -215,10 +214,9 @@ export const seedCommand = async (options: ISeedCommandOptions) => {
       const transactionManager = new TransactionManager();
       const results: IExecutionResult[] = [];
 
-      console.log('🌱 Running seed SQL...');
-      console.log(`Transaction mode: ${transactionMode}`);
-      console.log(`Continue on error: ${continueOnError}`);
-      console.log('');
+      consola.start('Running seed SQL...');
+      consola.log(`  Transaction mode:  ${transactionMode}`);
+      consola.log(`  Continue on error: ${continueOnError}`);
 
       if (transactionMode === 'all-or-nothing') {
         try {
@@ -284,13 +282,11 @@ export const seedCommand = async (options: ISeedCommandOptions) => {
       reportSeedResults(results);
       const hasFailures = results.some(r => !r.success);
       if (hasFailures) {
-        console.error('');
-        console.error('❌ One or more seed files failed');
+        consola.fail('One or more seed files failed');
         process.exit(1);
       }
 
-      console.log('');
-      console.log('🎉 All seed SQL executed successfully.');
+      consola.success('All seed SQL executed successfully.');
     } finally {
       if (lockHeld) {
         try {
@@ -312,11 +308,11 @@ export const seedCommand = async (options: ISeedCommandOptions) => {
     });
 
     if (error instanceof ValidationError) {
-      console.error('❌ Validation Error:', error.message);
+      consola.fail(`Validation Error: ${error.message}`);
     } else {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      console.error('❌ DDP SEED failed:', errorMessage);
+      consola.fail(`DDP SEED failed: ${errorMessage}`);
     }
 
     process.exit(1);
@@ -324,9 +320,6 @@ export const seedCommand = async (options: ISeedCommandOptions) => {
 };
 
 function reportSeedResults(results: IExecutionResult[]): void {
-  console.log('');
-  console.log('📊 Seed summary:');
-
   const successful = results.filter(r => r.success).length;
   const failed = results.filter(r => !r.success).length;
   const totalStatements = results.reduce(
@@ -334,17 +327,21 @@ function reportSeedResults(results: IExecutionResult[]): void {
     0
   );
 
-  console.log(`✅ Successful files: ${successful}`);
-  console.log(`❌ Failed files: ${failed}`);
-  console.log(`📝 Statements executed: ${totalStatements}`);
-  console.log('');
+  consola.box({
+    title: 'Seed summary',
+    message: [
+      `Successful files:     ${successful}`,
+      `Failed files:         ${failed}`,
+      `Statements executed:  ${totalStatements}`,
+    ].join('\n'),
+  });
 
   if (failed > 0) {
     for (const r of results) {
       if (!r.success) {
-        console.error(`  ❌ ${r.fileName}`);
+        consola.error(`  ${r.fileName}`);
         if (r.errorMessage) {
-          console.error(`     ${r.errorMessage}`);
+          consola.log(`    ${r.errorMessage}`);
         }
       }
     }

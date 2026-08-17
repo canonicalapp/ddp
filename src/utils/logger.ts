@@ -1,7 +1,10 @@
 /**
- * Logging utility for structured logging and debugging
+ * Logging utility for structured logging and debugging.
+ * Terminal output is rendered via consola (leveled, tagged, colored);
+ * entries are also kept in memory for programmatic inspection.
  */
 
+import { createConsola } from 'consola';
 import type { TUnknownOrAny } from '@/types';
 
 export enum LogLevel {
@@ -18,6 +21,17 @@ export interface LogEntry {
   context?: Record<string, TUnknownOrAny> | undefined;
   error?: Error | undefined;
 }
+
+// Our own LogLevel check in `log()` below is the single source of truth for
+// filtering, so consola's own level must never additionally suppress a call
+// we've already decided to allow through (consola's default level hides
+// `.debug()`/`.trace()` regardless of what we pass it).
+const consola = createConsola({
+  level: Number.POSITIVE_INFINITY,
+  formatOptions: {
+    date: false,
+  },
+}).withTag('ddp');
 
 export class Logger {
   private static instance: Logger | undefined;
@@ -75,25 +89,20 @@ export class Logger {
 
     this.logs.push(entry);
 
-    // Output to console based on level
-    const logMessage = this.formatLogEntry(entry);
+    const logFn = {
+      [LogLevel.DEBUG]: consola.debug,
+      [LogLevel.INFO]: consola.info,
+      [LogLevel.WARN]: consola.warn,
+      [LogLevel.ERROR]: consola.error,
+    }[level].bind(consola);
 
-    switch (level) {
-      case LogLevel.DEBUG:
-        console.debug(logMessage);
-        break;
-      case LogLevel.INFO:
-        console.info(logMessage);
-        break;
-      case LogLevel.WARN:
-        console.warn(logMessage);
-        break;
-      case LogLevel.ERROR:
-        console.error(logMessage);
-        if (error) {
-          console.error('Error details:', error);
-        }
-        break;
+    if (context) {
+      logFn(message, context);
+    } else {
+      logFn(message);
+    }
+    if (level === LogLevel.ERROR && error) {
+      consola.error(error);
     }
   }
 

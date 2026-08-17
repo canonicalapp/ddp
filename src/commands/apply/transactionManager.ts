@@ -5,7 +5,7 @@
 
 import type { Client } from 'pg';
 import type { ITransactionOptions } from '@/types/apply';
-import { logDebug, logError, logInfo, logWarn } from '@/utils/logger';
+import { logDebug, logError, logWarn } from '@/utils/logger';
 
 export class TransactionManager {
   /**
@@ -43,7 +43,7 @@ export class TransactionManager {
     client: Client,
     operations: () => Promise<void>
   ): Promise<void> {
-    logInfo('Starting all-or-nothing transaction');
+    logDebug('Starting all-or-nothing transaction');
 
     try {
       await this.beginTransaction(client);
@@ -52,7 +52,7 @@ export class TransactionManager {
       await operations();
 
       await this.commitTransaction(client);
-      logInfo('Transaction committed successfully');
+      logDebug('Transaction committed successfully');
     } catch (error) {
       logError('Transaction failed, rolling back', error as Error);
       await this.rollbackTransaction(client);
@@ -68,7 +68,7 @@ export class TransactionManager {
     client: Client,
     operations: () => Promise<void>
   ): Promise<void> {
-    logInfo('Starting per-file transaction');
+    logDebug('Starting per-file transaction');
 
     try {
       await this.beginTransaction(client);
@@ -77,7 +77,7 @@ export class TransactionManager {
       await operations();
 
       await this.commitTransaction(client);
-      logInfo('Transaction committed successfully');
+      logDebug('Transaction committed successfully');
     } catch (error) {
       logError('Transaction failed, rolling back', error as Error);
       await this.rollbackTransaction(client);

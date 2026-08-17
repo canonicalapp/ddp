@@ -1,25 +1,20 @@
+import consola from 'consola';
 import type { IExecutionResult, ILoadedFile } from '@/types/apply';
 
 export const performDryRun = async (files: ILoadedFile[]): Promise<void> => {
-  console.log('Migrations that would run (in order):');
-  console.log('');
+  consola.info('Migrations that would run (in order):');
 
   for (const file of files) {
-    console.log(`📄 ${file.migrationId}`);
-    console.log(`   Path: ${file.path}`);
-    console.log(`   Checksum: ${file.checksum.substring(0, 16)}...`);
-    console.log(`   Size: ${file.content.length} bytes`);
-    console.log('');
+    consola.log(`  ${file.migrationId}`);
+    consola.log(`    Path: ${file.path}`);
+    consola.log(`    Checksum: ${file.checksum.substring(0, 16)}...`);
+    consola.log(`    Size: ${file.content.length} bytes`);
   }
 
-  console.log('✅ Dry-run completed — no database changes');
+  consola.success('Dry-run completed — no database changes');
 };
 
 export const reportResults = (results: IExecutionResult[]): void => {
-  console.log('');
-  console.log('📊 Execution summary:');
-  console.log('');
-
   const successful = results.filter(r => r.success).length;
   const failed = results.filter(r => !r.success).length;
   const totalStatements = results.reduce(
@@ -28,22 +23,25 @@ export const reportResults = (results: IExecutionResult[]): void => {
   );
   const totalTime = results.reduce((sum, r) => sum + r.executionTime, 0);
 
-  console.log(`✅ Successful: ${successful}`);
-  console.log(`❌ Failed: ${failed}`);
-  console.log(`📝 Total statements: ${totalStatements}`);
-  console.log(`⏱️  Total time: ${totalTime}ms`);
-  console.log('');
+  consola.box({
+    title: 'Execution summary',
+    message: [
+      `Successful:       ${successful}`,
+      `Failed:           ${failed}`,
+      `Total statements: ${totalStatements}`,
+      `Total time:       ${totalTime}ms`,
+    ].join('\n'),
+  });
 
   if (failed > 0) {
-    console.log('Failed migrations:');
+    consola.warn('Failed migrations:');
     for (const result of results) {
       if (!result.success) {
-        console.log(`  ❌ ${result.fileName}`);
+        consola.log(`  ${result.fileName}`);
         if (result.errorMessage) {
-          console.log(`     Error: ${result.errorMessage}`);
+          consola.log(`    Error: ${result.errorMessage}`);
         }
       }
     }
-    console.log('');
   }
 };

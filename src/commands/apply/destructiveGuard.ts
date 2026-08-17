@@ -2,7 +2,7 @@
  * Heuristic detection of potentially destructive SQL (user confirmation required).
  */
 
-import { createInterface } from 'readline';
+import consola from 'consola';
 import type { ILoadedFile } from '@/types/apply';
 
 const stripStringsAndComments = (sql: string): string =>
@@ -35,19 +35,6 @@ export const migrationSqlLooksDestructive = (sql: string): boolean => {
   return false;
 };
 
-const promptLine = (question: string): Promise<string> => {
-  return new Promise(resolve => {
-    const rl = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    rl.question(question, answer => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
-};
-
 export const assertDestructiveMigrationsAllowed = async (
   files: ILoadedFile[],
   options: {
@@ -60,16 +47,15 @@ export const assertDestructiveMigrationsAllowed = async (
     return;
   }
 
-  console.error('');
-  console.error(
+  consola.warn(
     'The following pending migration(s) contain potentially destructive statements (DROP, TRUNCATE, ALTER … DROP, etc.):'
   );
   for (const f of risky) {
-    console.error(`  - ${f.migrationId}`);
+    consola.log(`  - ${f.migrationId}`);
   }
 
   if (options.acceptDestructive) {
-    console.log('Proceeding (--accept-destructive).');
+    consola.info('Proceeding (--accept-destructive).');
     return;
   }
 
@@ -85,10 +71,11 @@ export const assertDestructiveMigrationsAllowed = async (
     );
   }
 
-  const answer = await promptLine(
-    'Apply these migrations anyway? This may destroy data. [y/N] '
+  const confirmed = await consola.prompt(
+    'Apply these migrations anyway? This may destroy data.',
+    { type: 'confirm', initial: false }
   );
-  if (!/^y(es)?$/i.test(answer)) {
+  if (confirmed !== true) {
     throw new Error('Aborted: destructive migrations not confirmed.');
   }
 };

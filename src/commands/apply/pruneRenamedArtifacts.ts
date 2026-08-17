@@ -4,6 +4,7 @@
  */
 
 import { Client } from 'pg';
+import consola from 'consola';
 import { buildConnectionString, testConnection } from '@/database/connection';
 import {
   ensurePgSchemaExists,
@@ -62,39 +63,33 @@ export const runApplyPruneFlow = async (
   connectionConfig: IDatabaseConnection,
   options: IApplyCommandOptions
 ): Promise<void> => {
-  console.log('DDP APPLY --prune');
-  console.log(
-    'This run only targets preserved rename tombstones (non-destructive sync policy):'
-  );
-  console.log('  • triggers named like *_old_<digits>  → DROP TRIGGER … ON …');
-  console.log(
-    '  • tables named like *_dropped_<digits>  → DROP TABLE … CASCADE'
-  );
-  console.log(
-    '  • columns named like *_dropped_<digits>  → ALTER TABLE … DROP COLUMN … CASCADE'
-  );
-  console.log(
-    'No migration files are loaded or applied. Use `ddp apply` without --prune for migrations.'
-  );
-  console.log('');
+  consola.box({
+    title: 'DDP APPLY --prune',
+    message: [
+      'Targets preserved rename tombstones only (non-destructive sync policy):',
+      '  • triggers named like *_old_<digits>      → DROP TRIGGER … ON …',
+      '  • tables named like *_dropped_<digits>    → DROP TABLE … CASCADE',
+      '  • columns named like *_dropped_<digits>   → ALTER TABLE … DROP COLUMN … CASCADE',
+      '',
+      'No migration files are loaded or applied. Use `ddp apply` without --prune for migrations.',
+    ].join('\n'),
+  });
 
   const dryRun = options.dryRun === true;
   if (dryRun) {
-    console.log(
-      '🔍 DRY-RUN: objects are discovered via the database; DROP statements are printed only.'
+    consola.info(
+      'DRY-RUN: objects are discovered via the database; DROP statements are printed only.'
     );
-    console.log('');
   } else {
     logWarn(
       'Prune will execute DROP / DROP COLUMN for matching objects only. Confirm backups if unsure.'
     );
   }
 
-  console.log('DDP APPLY --prune — validating database...');
-  console.log(`Database: ${connectionConfig.database}`);
-  console.log(`Schema: ${connectionConfig.schema ?? 'public'}`);
-  console.log(`Host: ${connectionConfig.host}:${connectionConfig.port}`);
-  console.log('');
+  consola.start('Validating database...');
+  consola.log(`  Database: ${connectionConfig.database}`);
+  consola.log(`  Schema:   ${connectionConfig.schema ?? 'public'}`);
+  consola.log(`  Host:     ${connectionConfig.host}:${connectionConfig.port}`);
 
   const ensureOpts: Parameters<typeof ensureTargetDatabase>[1] = {};
   if (options.nonInteractive !== undefined) {
@@ -115,15 +110,14 @@ export const runApplyPruneFlow = async (
       { connectionConfig, testResult: connectionTest }
     );
     logError('Database connection failed', error);
-    console.error('❌ Database connection failed');
+    consola.fail('Database connection failed');
     if (connectionTest.error) {
-      console.error(`Error: ${connectionTest.error}`);
+      consola.log(`Error: ${connectionTest.error}`);
     }
     throw error;
   }
 
-  console.log('✅ Database connection validated');
-  console.log('');
+  consola.success('Database connection validated');
 
   const schema = connectionConfig.schema ?? 'public';
   const client = new Client({
@@ -158,19 +152,19 @@ export const runApplyPruneFlow = async (
     const statements = buildPruneStatements(schema, triggerRefs, artifacts);
 
     if (statements.length === 0) {
-      console.log('No preserved rename tombstones matched the prune patterns.');
-      console.log('Nothing to do.');
+      consola.success(
+        'No preserved rename tombstones matched the prune patterns. Nothing to do.'
+      );
       return;
     }
 
-    console.log(`Found ${statements.length} prune statement(s):`);
-    console.log('');
+    consola.info(`Found ${statements.length} prune statement(s):`);
 
     if (dryRun) {
       for (const sql of statements) {
-        console.log(`Would execute:\n  ${sql}\n`);
+        consola.log(`  Would execute: ${sql}`);
       }
-      console.log('DRY-RUN complete — no changes were made.');
+      consola.success('DRY-RUN complete — no changes were made.');
       return;
     }
 
@@ -186,9 +180,8 @@ export const runApplyPruneFlow = async (
       throw e;
     }
 
-    console.log('');
-    console.log(
-      `🎉 Prune finished successfully (${statements.length} statement(s)).`
+    consola.success(
+      `Prune finished successfully (${statements.length} statement(s)).`
     );
   } finally {
     if (lockHeld) {

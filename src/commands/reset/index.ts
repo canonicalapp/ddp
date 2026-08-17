@@ -2,8 +2,8 @@
  * Dev reset command: drop + recreate DB, then apply migrations and seed data.
  */
 
-import { createInterface } from 'readline';
 import { Client } from 'pg';
+import consola from 'consola';
 import { applyCommand } from '@/commands/apply/index';
 import { seedCommand } from '@/commands/seed/index';
 import { buildConnectionString } from '@/database/connection';
@@ -18,19 +18,6 @@ import { resolvePgSchema } from '@/utils/pgSchema';
 const DEV_ENV_VALUES = new Set(['development', 'dev', 'local', 'test']);
 const DEFAULT_HOST_ALLOWLIST = ['localhost', '127.0.0.1', '::1'];
 const RISKY_DB_PATTERNS = ['*prod*', '*production*', '*staging*', '*live*'];
-
-const promptLine = (question: string): Promise<string> => {
-  return new Promise(resolve => {
-    const rl = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    rl.question(question, answer => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
-};
 
 const escapeIdent = (name: string): string => `"${name.replace(/"/g, '""')}"`;
 
@@ -120,10 +107,11 @@ async function assertDevOnly(
     return;
   }
 
-  const answer = await promptLine(
-    `This will DROP and recreate database "${databaseName}". Continue? [y/N] `
+  const confirmed = await consola.prompt(
+    `This will DROP and recreate database "${databaseName}". Continue?`,
+    { type: 'confirm', initial: false }
   );
-  if (!/^y(es)?$/i.test(answer)) {
+  if (confirmed !== true) {
     throw new Error('Reset aborted.');
   }
 }
@@ -210,17 +198,19 @@ export const resetCommand = async (options: IResetCommandOptions) => {
       process.env.DDP_MAINTENANCE_DB ??
       'postgres';
 
-    console.log('DDP RESET (dev-only)');
-    console.log(`Target DB: ${connectionConfig.database}`);
-    console.log(`Host: ${connectionConfig.host}:${connectionConfig.port}`);
-    console.log(`Schema: ${connectionConfig.schema ?? 'public'}`);
-    console.log(`Maintenance DB: ${maintenanceDatabase}`);
-    console.log('');
+    consola.box({
+      title: 'DDP RESET (dev-only)',
+      message: [
+        `Target DB:      ${connectionConfig.database}`,
+        `Host:           ${connectionConfig.host}:${connectionConfig.port}`,
+        `Schema:         ${connectionConfig.schema ?? 'public'}`,
+        `Maintenance DB: ${maintenanceDatabase}`,
+      ].join('\n'),
+    });
 
-    console.log('🗑️  Dropping and recreating database...');
+    consola.start('Dropping and recreating database...');
     await resetDatabase(connectionConfig, maintenanceDatabase);
-    console.log('✅ Database recreated');
-    console.log('');
+    consola.success('Database recreated');
 
     const applyOptions: IApplyCommandOptions = {
       host: connectionConfig.host,
@@ -250,9 +240,8 @@ export const resetCommand = async (options: IResetCommandOptions) => {
       applyOptions.skipLock = options.skipLock;
     }
 
-    console.log('🚀 Running ddp apply...');
+    consola.start('Running ddp apply...');
     await applyCommand(applyOptions);
-    console.log('');
 
     if (!options.skipSeed) {
       const seedOptions: ISeedCommandOptions = {
@@ -282,21 +271,19 @@ export const resetCommand = async (options: IResetCommandOptions) => {
       if (options.skipLock !== undefined) {
         seedOptions.skipLock = options.skipLock;
       }
-      console.log('🌱 Running ddp seed...');
+      consola.start('Running ddp seed...');
       await seedCommand(seedOptions);
-      console.log('');
     } else {
-      console.log('⏭️  Skipping seed step (--skip-seed)');
-      console.log('');
+      consola.info('Skipping seed step (--skip-seed)');
     }
 
-    console.log('🎉 Reset complete.');
+    consola.success('Reset complete.');
   } catch (error) {
     logError('DDP reset command failed', error as Error, {
       options: { ...options, password: '[REDACTED]' },
     });
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('❌ DDP RESET failed:', message);
+    consola.fail(`DDP RESET failed: ${message}`);
     process.exit(1);
   }
 };

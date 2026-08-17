@@ -5,7 +5,7 @@
 
 import type { Client } from 'pg';
 import type { IExecutionOptions, IExecutionResult } from '@/types/apply';
-import { logDebug, logError, logInfo, logWarn } from '@/utils/logger';
+import { logDebug, logError, logWarn } from '@/utils/logger';
 import { splitSqlStatements } from '@/utils/splitSqlStatements';
 
 export class SQLExecutor {
@@ -20,7 +20,7 @@ export class SQLExecutor {
     const fileName = options.fileName;
     const sql = options.sql.trim();
 
-    logInfo('Executing SQL file', {
+    logDebug('Executing SQL file', {
       fileName,
       transactionMode: options.transactionMode,
     });
@@ -111,7 +111,7 @@ export class SQLExecutor {
       };
 
       if (result.success) {
-        logInfo('SQL file executed successfully', {
+        logDebug('SQL file executed successfully', {
           fileName,
           statementsExecuted: executedCount,
           executionTime,

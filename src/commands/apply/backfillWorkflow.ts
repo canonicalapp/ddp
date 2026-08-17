@@ -1,6 +1,7 @@
 import { dirname, join } from 'path';
 import { readFile, stat } from 'fs/promises';
 import type { Client } from 'pg';
+import consola from 'consola';
 import { ValidationError } from '@/types/errors';
 import type { ILoadedFile } from '@/types/apply';
 import type { HistoryTracker } from '@/commands/apply/historyTracker';
@@ -206,21 +207,21 @@ export const prepareFilesForBackfillExecution = async (
       );
     }
 
-    console.log(`🔎 Verifying backfill status for ${file.baseMigrationId}...`);
+    consola.start(`Verifying backfill status for ${file.baseMigrationId}...`);
     const initialVerify = await runVerifyChecks(
       file.baseMigrationId,
       file.verifyPath,
       client
     );
     if (initialVerify.success) {
-      console.log(
-        `✅ Verify passed for ${file.baseMigrationId}; backfill not required.`
+      consola.success(
+        `Verify passed for ${file.baseMigrationId}; backfill not required.`
       );
       executionFiles.push(file);
       continue;
     }
-    console.log(
-      `⚠️ Verify failed for ${file.baseMigrationId}; backfill is required before constraints.`
+    consola.warn(
+      `Verify failed for ${file.baseMigrationId}; backfill is required before constraints.`
     );
 
     const { backfillPath, statements: backfillStatements } =
@@ -228,8 +229,8 @@ export const prepareFilesForBackfillExecution = async (
 
     if (backfillStatements.length === 0) {
       if (force) {
-        console.warn(
-          `⚠️ Verify failed for ${file.baseMigrationId}, but --force is enabled. Applying constraints without backfill execution.`
+        consola.warn(
+          `Verify failed for ${file.baseMigrationId}, but --force is enabled. Applying constraints without backfill execution.`
         );
         executionFiles.push(file);
         continue;
@@ -245,13 +246,13 @@ export const prepareFilesForBackfillExecution = async (
       );
     }
 
-    console.log(`🛠️ Running backfill.sql for ${file.baseMigrationId}...`);
+    consola.start(`Running backfill.sql for ${file.baseMigrationId}...`);
     for (const statement of backfillStatements) {
       await client.query(statement);
     }
-    console.log(`✅ Backfill applied for ${file.baseMigrationId}.`);
+    consola.success(`Backfill applied for ${file.baseMigrationId}.`);
 
-    console.log(`🔎 Re-running verify for ${file.baseMigrationId}...`);
+    consola.start(`Re-running verify for ${file.baseMigrationId}...`);
     const verifyAfterBackfill = await runVerifyChecks(
       file.baseMigrationId,
       file.verifyPath,
@@ -259,8 +260,8 @@ export const prepareFilesForBackfillExecution = async (
     );
     if (!verifyAfterBackfill.success) {
       if (force) {
-        console.warn(
-          `⚠️ Verify still failing for ${file.baseMigrationId}, but --force is enabled. Applying constraints anyway.`
+        consola.warn(
+          `Verify still failing for ${file.baseMigrationId}, but --force is enabled. Applying constraints anyway.`
         );
         executionFiles.push(file);
         continue;
@@ -275,7 +276,7 @@ export const prepareFilesForBackfillExecution = async (
       );
     }
 
-    console.log(`✅ Backfill verify passed for ${file.baseMigrationId}.`);
+    consola.success(`Backfill verify passed for ${file.baseMigrationId}.`);
     executionFiles.push(file);
   }
 

@@ -1,6 +1,7 @@
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
 import { Client } from 'pg';
+import consola from 'consola';
 import { getManifestPath, readManifest, writeManifest } from './manifest';
 import { getNextNumericPrefix, getTargetDirectory } from './paths';
 import { parseStateCreateArgs } from './parseArgs';
@@ -69,23 +70,23 @@ export const stateCreateCommand = async (input: {
       await writeManifest(rootPath, manifest);
     }
 
-    console.log('Created DDP state file:');
+    consola.success('Created DDP state file:');
     if (parsed.type === 'schema') {
-      console.log(`- Type: schema (${parsed.schemaKind})`);
+      consola.log(`  Type: schema (${parsed.schemaKind})`);
     } else {
-      console.log(`- Type: ${parsed.type}`);
+      consola.log(`  Type: ${parsed.type}`);
     }
 
     if (parsed.type === 'proc' && parsed.procDomain) {
-      console.log(`- Domain: ${parsed.procDomain}`);
+      consola.log(`  Domain: ${parsed.procDomain}`);
     }
 
-    console.log(`- Path: ${filePath}`);
-    console.log(`- Manifest: ${getManifestPath(rootPath)}`);
+    consola.log(`  Path: ${filePath}`);
+    consola.log(`  Manifest: ${getManifestPath(rootPath)}`);
   } catch (error) {
     logError('DDP state create command failed', error as Error, { input });
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('DDP STATE CREATE failed:', message);
+    consola.fail(`DDP STATE CREATE failed: ${message}`);
     process.exit(1);
   }
 };
@@ -181,28 +182,28 @@ export const stateValidateCommand = async (
     }
 
     if (errors.length > 0) {
-      console.error('State validation failed:');
+      consola.fail('State validation failed:');
       for (const err of errors) {
-        console.error(`- ${err}`);
+        consola.log(`  ${err}`);
       }
       process.exit(1);
     }
 
-    console.log('State validation passed.');
-    console.log(`- Root: ${rootPath}`);
-    console.log(`- Manifest entries: ${manifest.entries.length}`);
-    console.log(`- Strict mode: ${policy.strictMode}`);
-    console.log(`- Legacy mode: ${policy.legacyMode}`);
+    consola.success('State validation passed.');
+    consola.log(`  Root: ${rootPath}`);
+    consola.log(`  Manifest entries: ${manifest.entries.length}`);
+    consola.log(`  Strict mode: ${policy.strictMode}`);
+    consola.log(`  Legacy mode: ${policy.legacyMode}`);
 
     // Deep validation is mandatory to catch executable SQL errors early.
     if (options.deep ?? true) {
       await runDeepStateValidation();
-      console.log('- Deep validation: passed');
+      consola.success('Deep validation: passed');
     }
   } catch (error) {
     logError('DDP state validate command failed', error as Error);
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('DDP STATE VALIDATE failed:', message);
+    consola.fail(`DDP STATE VALIDATE failed: ${message}`);
     process.exit(1);
   }
 };
@@ -220,14 +221,14 @@ export const stateSortManifestCommand = async () => {
       projectRoot
     );
     await writeManifest(rootPath, sorted);
-    console.log(
+    consola.success(
       'Updated state-manifest.json: schema/table entries ordered by FK dependencies (aligned with apply).'
     );
-    console.log(`- Manifest: ${getManifestPath(rootPath)}`);
+    consola.log(`  Manifest: ${getManifestPath(rootPath)}`);
   } catch (error) {
     logError('DDP state sort-manifest command failed', error as Error);
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('DDP STATE SORT-MANIFEST failed:', message);
+    consola.fail(`DDP STATE SORT-MANIFEST failed: ${message}`);
     process.exit(1);
   }
 };

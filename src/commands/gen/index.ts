@@ -1,3 +1,4 @@
+import consola from 'consola';
 import { buildConnectionString, testConnection } from '@/database/connection';
 import { IntrospectionService } from '@/database/introspection';
 import { ProcsGenerator } from '@/generators/procsGenerator';
@@ -66,10 +67,10 @@ export const genCommand = async (options: IGenCommandOptions) => {
       // In test environment, continue with placeholder generation
       if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID) {
         logInfo('Running in test mode - no credentials provided');
-        console.log('⚠️  Running in test mode - no credentials provided');
-        console.log('✅ Database connection validation skipped (test mode)');
-        console.log('✅ Read-only access validation skipped (test mode)');
-        console.log(`Output: ${options.stdout ? 'stdout' : options.output}`);
+        consola.warn('Running in test mode - no credentials provided');
+        consola.success('Database connection validation skipped (test mode)');
+        consola.success('Read-only access validation skipped (test mode)');
+        consola.log(`Output: ${options.stdout ? 'stdout' : options.output}`);
 
         // Generate placeholder files in test mode
         await generatePlaceholderFiles(options);
@@ -83,8 +84,8 @@ export const genCommand = async (options: IGenCommandOptions) => {
       );
 
       logError('Missing database credentials', error);
-      console.error('Database credentials are required');
-      console.error('Required: --database, --username, --password');
+      consola.error('Database credentials are required');
+      consola.error('Required: --database, --username, --password');
 
       throw error;
     }
@@ -99,10 +100,12 @@ export const genCommand = async (options: IGenCommandOptions) => {
       schema: schema,
     };
 
-    console.log('DDP GEN - Validating database connection...');
-    console.log(`Database: ${database}`);
-    console.log(`Schema: ${schema}`);
-    console.log(`Host: ${connectionConfig.host}:${connectionConfig.port}`);
+    consola.start('DDP GEN - Validating database connection...');
+    consola.log(`  Database: ${database}`);
+    consola.log(`  Schema:   ${schema}`);
+    consola.log(
+      `  Host:     ${connectionConfig.host}:${connectionConfig.port}`
+    );
 
     // Test database connection
     const connectionTest = await testConnection(connectionConfig);
@@ -115,19 +118,19 @@ export const genCommand = async (options: IGenCommandOptions) => {
       );
 
       logError('Database connection failed', error);
-      console.error('❌ Database connection failed');
+      consola.fail('Database connection failed');
 
       if (connectionTest.error) {
-        console.error(`Error: ${connectionTest.error}`);
+        consola.log(`Error: ${connectionTest.error}`);
       }
 
       // In test environment or when connection fails, continue as placeholder
       if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID) {
         logInfo('Running in test mode - continuing as placeholder');
-        console.log('⚠️  Running in test mode - continuing as placeholder');
-        console.log('✅ Database connection validation skipped (test mode)');
-        console.log('✅ Read-only access validation skipped (test mode)');
-        console.log(`Output: ${options.stdout ? 'stdout' : options.output}`);
+        consola.warn('Running in test mode - continuing as placeholder');
+        consola.success('Database connection validation skipped (test mode)');
+        consola.success('Read-only access validation skipped (test mode)');
+        consola.log(`Output: ${options.stdout ? 'stdout' : options.output}`);
 
         // Generate placeholder files in test mode
         await generatePlaceholderFiles(options);
@@ -145,13 +148,13 @@ export const genCommand = async (options: IGenCommandOptions) => {
       );
 
       logError('Read-only access validation failed', error);
-      console.error('❌ Read-only access validation failed');
+      consola.fail('Read-only access validation failed');
 
       if (connectionTest.error) {
-        console.error(`Error: ${connectionTest.error}`);
+        consola.log(`Error: ${connectionTest.error}`);
       }
 
-      console.error('Please ensure the database user has read-only access');
+      consola.log('Please ensure the database user has read-only access');
       throw error;
     }
 
@@ -159,9 +162,9 @@ export const genCommand = async (options: IGenCommandOptions) => {
     logInfo('Database connection validated successfully', {
       readOnly: connectionTest.readOnly,
     });
-    console.log('✅ Database connection validated successfully');
-    console.log('✅ Read-only access confirmed');
-    console.log(`Output: ${options.stdout ? 'stdout' : options.output}`);
+    consola.success('Database connection validated successfully');
+    consola.success('Read-only access confirmed');
+    consola.log(`Output: ${options.stdout ? 'stdout' : options.output}`);
 
     // Create database client and introspection service
     const client = new Client({
@@ -173,19 +176,19 @@ export const genCommand = async (options: IGenCommandOptions) => {
 
       const introspection = new IntrospectionService(client, schema);
 
-      console.log('🔍 Introspecting database schema...');
+      consola.start('Introspecting database schema...');
 
       // Get database information
       const dbInfo = await introspection.getDatabaseInfo();
 
-      console.log(`📊 Database: ${dbInfo.database_name} (${dbInfo.version})`);
+      consola.info(`Database: ${dbInfo.database_name} (${dbInfo.version})`);
 
       // Get schema information
       const schemaInfo = await introspection.getSchemaInfo();
 
       if (schemaInfo) {
-        console.log(
-          `📁 Schema: ${schemaInfo.schema_name} (owner: ${schemaInfo.schema_owner})`
+        consola.info(
+          `Schema: ${schemaInfo.schema_name} (owner: ${schemaInfo.schema_owner})`
         );
       }
 
@@ -194,35 +197,34 @@ export const genCommand = async (options: IGenCommandOptions) => {
 
       // Introspect schema (tables, columns, constraints, indexes)
       if (introspectionPlan.schema) {
-        console.log('📋 Discovering tables...');
+        consola.log('Discovering tables...');
         const tables = await introspection.getTables();
-        console.log(`   Found ${tables.length} tables`);
+        consola.log(`  Found ${tables.length} tables`);
 
         if (tables.length > 0) {
-          console.log('📋 Discovering table details...');
+          consola.log('Discovering table details...');
           const completeTables = await introspection.getAllTablesComplete();
-          console.log(
-            `   Analyzed ${completeTables.length} tables with full metadata`
+          consola.log(
+            `  Analyzed ${completeTables.length} tables with full metadata`
           );
         }
       }
 
       // Introspect functions and procedures
       if (introspectionPlan.procs) {
-        console.log('⚙️  Discovering functions and procedures...');
+        consola.log('Discovering functions and procedures...');
         const functions = await introspection.getFunctions();
-        console.log(`   Found ${functions.length} functions/procedures`);
+        consola.log(`  Found ${functions.length} functions/procedures`);
       }
 
       // Introspect triggers
       if (introspectionPlan.triggers) {
-        console.log('🔔 Discovering triggers...');
+        consola.log('Discovering triggers...');
         const triggers = await introspection.getTriggers();
-        console.log(`   Found ${triggers.length} triggers`);
+        consola.log(`  Found ${triggers.length} triggers`);
       }
 
-      console.log('✅ Database introspection completed successfully');
-      console.log('');
+      consola.success('Database introspection completed successfully');
 
       // Generate SQL files using the generators
       await generateSQLFiles(
@@ -241,7 +243,7 @@ export const genCommand = async (options: IGenCommandOptions) => {
 
     // Handle specific error types with better user guidance
     if (error instanceof ValidationError) {
-      console.error('❌ Validation Error:', error.message);
+      consola.fail(`Validation Error: ${error.message}`);
 
       // Provide additional context for schema-related errors
       if (
@@ -249,21 +251,20 @@ export const genCommand = async (options: IGenCommandOptions) => {
         error.details?.availableSchemas &&
         Array.isArray(error.details.availableSchemas)
       ) {
-        console.error('\n💡 Available schemas in the database:');
+        consola.info('Available schemas in the database:');
 
         error.details.availableSchemas.forEach((schema: string) => {
-          console.error(`   - ${schema}`);
+          consola.log(`  - ${schema}`);
         });
 
-        console.error('\n🔧 To create a new schema, run:');
-        console.error(
-          `   CREATE SCHEMA ${options.schema ?? 'your_schema_name'};`
+        consola.info(
+          `To create a new schema, run: CREATE SCHEMA ${options.schema ?? 'your_schema_name'};`
         );
       }
     } else {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      console.error('❌ DDP GEN failed:', errorMessage);
+      consola.fail(`DDP GEN failed: ${errorMessage}`);
     }
 
     process.exit(1);
@@ -350,7 +351,7 @@ const generateSQLFiles = async (
   logInfo('All SQL files generated successfully', {
     generatorCount: generators.length,
   });
-  console.log('🎉 All SQL files generated successfully!');
+  consola.success('All SQL files generated successfully!');
 };
 
 /**
@@ -360,6 +361,7 @@ const generatePlaceholderFiles = async (options: IGenCommandOptions) => {
   const outputDir = options.output ?? './output';
 
   if (options.stdout) {
+    // Placeholder SQL output — kept as plain console.log for stdout piping.
     console.log('-- Placeholder schema.sql');
     console.log(
       '-- This would contain table definitions, constraints, and indexes'
@@ -397,7 +399,7 @@ const generatePlaceholderFiles = async (options: IGenCommandOptions) => {
     for (const file of files) {
       const filePath = join(outputDir, file.name);
       writeFileSync(filePath, file.content, 'utf8');
-      console.log(`📄 Generated: ${filePath}`);
+      consola.success(`Generated: ${filePath}`);
     }
   }
 };

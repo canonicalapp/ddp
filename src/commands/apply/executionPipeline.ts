@@ -1,6 +1,7 @@
 import type { Client } from 'pg';
+import consola from 'consola';
 import { createProgress } from '@/utils/progress';
-import { logError, logInfo, logWarn } from '@/utils/logger';
+import { logDebug, logError, logWarn } from '@/utils/logger';
 import { assertDestructiveMigrationsAllowed } from '@/commands/apply/destructiveGuard';
 import type { SQLExecutor } from '@/commands/apply/executor';
 import type { TransactionManager } from '@/commands/apply/transactionManager';
@@ -48,10 +49,10 @@ export const executeFiles = async (
       );
 
       if (decision === 'skip') {
-        logInfo('Skipping already applied migration', {
+        logDebug('Skipping already applied migration', {
           migrationId: file.migrationId,
         });
-        console.log(`⏭️  Skipping ${file.migrationId} (already applied)`);
+        consola.info(`Skipping ${file.migrationId} (already applied)`);
         results.push({
           success: true,
           fileName: file.name,

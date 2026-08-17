@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { program } from 'commander';
 import type { Command } from 'commander';
+import consola from 'consola';
+import { LogLevel, logger } from '@/utils/logger';
 import { genCommand } from '@/commands/gen/index';
 import { syncCommand } from '@/commands/sync/index';
 import { applyCommand } from '@/commands/apply/index';
@@ -35,7 +37,17 @@ import type {
 program
   .name('ddp')
   .description('Declarative Database Provisioning - DDP CLI tool')
-  .version(require('../package.json').version);
+  .version(require('../package.json').version)
+  .option(
+    '--verbose',
+    'Enable debug-level logging (full per-file execution trace)'
+  );
+
+program.hook('preAction', thisCommand => {
+  if (thisCommand.opts().verbose) {
+    logger.setLogLevel(LogLevel.DEBUG);
+  }
+});
 
 interface IDbOptionTexts {
   host: string;
@@ -79,7 +91,7 @@ program
     try {
       await initCommand(options);
     } catch (error) {
-      console.error(error instanceof Error ? error.message : 'Unknown error');
+      consola.error(error instanceof Error ? error.message : 'Unknown error');
       process.exit(1);
     }
   });
@@ -100,7 +112,7 @@ withDbConnectionOptions(
   try {
     await inspectStaleCommand(options);
   } catch (error) {
-    console.error(error instanceof Error ? error.message : 'Unknown error');
+    consola.error(error instanceof Error ? error.message : 'Unknown error');
     process.exit(1);
   }
 });
@@ -115,7 +127,7 @@ withDbConnectionOptions(
   try {
     await inspectBackfillCommand(options);
   } catch (error) {
-    console.error(error instanceof Error ? error.message : 'Unknown error');
+    consola.error(error instanceof Error ? error.message : 'Unknown error');
     process.exit(1);
   }
 });
@@ -148,7 +160,7 @@ withDbConnectionOptions(
     try {
       await seedCommand(options);
     } catch (error) {
-      console.error(error instanceof Error ? error.message : 'Unknown error');
+      consola.error(error instanceof Error ? error.message : 'Unknown error');
       process.exit(1);
     }
   });
@@ -191,7 +203,7 @@ withDbConnectionOptions(
     try {
       await resetCommand(options);
     } catch (error) {
-      console.error(error instanceof Error ? error.message : 'Unknown error');
+      consola.error(error instanceof Error ? error.message : 'Unknown error');
       process.exit(1);
     }
   });
@@ -246,7 +258,7 @@ stateCommand
 
       await stateCreateCommand(payload);
     } catch (error) {
-      console.error(error instanceof Error ? error.message : 'Unknown error');
+      consola.error(error instanceof Error ? error.message : 'Unknown error');
       process.exit(1);
     }
   });
@@ -260,7 +272,7 @@ stateCommand
     try {
       await stateValidateCommand();
     } catch (error) {
-      console.error(error instanceof Error ? error.message : 'Unknown error');
+      consola.error(error instanceof Error ? error.message : 'Unknown error');
       process.exit(1);
     }
   });
@@ -274,7 +286,7 @@ stateCommand
     try {
       await stateSortManifestCommand();
     } catch (error) {
-      console.error(error instanceof Error ? error.message : 'Unknown error');
+      consola.error(error instanceof Error ? error.message : 'Unknown error');
       process.exit(1);
     }
   });
@@ -293,7 +305,7 @@ migrationCommand
       const payload: IMigrationCreateCommandOptions = { name };
       await migrationCreateCommand(payload);
     } catch (error) {
-      console.error(error instanceof Error ? error.message : 'Unknown error');
+      consola.error(error instanceof Error ? error.message : 'Unknown error');
       process.exit(1);
     }
   });
@@ -343,7 +355,7 @@ withDbConnectionOptions(
     try {
       await migrateDiffCommand(migrateDiffOptionsFromCommander(opts));
     } catch (error) {
-      console.error(error instanceof Error ? error.message : 'Unknown error');
+      consola.error(error instanceof Error ? error.message : 'Unknown error');
       process.exit(1);
     }
   });
@@ -367,7 +379,7 @@ withDbConnectionOptions(
     try {
       await genCommand(options);
     } catch (error) {
-      console.error(error instanceof Error ? error.message : 'Unknown error');
+      consola.error(error instanceof Error ? error.message : 'Unknown error');
       process.exit(1);
     }
   });
@@ -410,7 +422,7 @@ program
     try {
       await syncCommand(options);
     } catch (error) {
-      console.error(error instanceof Error ? error.message : 'Unknown error');
+      consola.error(error instanceof Error ? error.message : 'Unknown error');
       process.exit(1);
     }
   });
@@ -474,7 +486,7 @@ withDbConnectionOptions(
     try {
       await applyCommand(options);
     } catch (error) {
-      console.error(error instanceof Error ? error.message : 'Unknown error');
+      consola.error(error instanceof Error ? error.message : 'Unknown error');
       process.exit(1);
     }
   });
