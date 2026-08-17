@@ -330,54 +330,6 @@ export class ProcsGenerator extends BaseGenerator {
     return definition.trim();
   }
 
-  private generateFunctionComment(func: IFunctionDefinition) {
-    const parts = [];
-
-    if (func.comment) {
-      parts.push(func.comment);
-    }
-
-    if (func.parameters.length > 0) {
-      const paramList = func.parameters
-        .map(p => `${p.name || 'unnamed'}: ${p.type}`)
-        .join(', ');
-      parts.push(`Parameters: ${paramList}`);
-    }
-
-    if (func.returnType && func.returnType !== 'void') {
-      parts.push(`Returns: ${func.returnType}`);
-    }
-
-    return parts.join(' | ');
-  }
-
-  private generateFunctionSignature(func: IFunctionDefinition) {
-    const params = func.parameters
-      .map(param => {
-        let paramStr = '';
-
-        if (param.mode !== 'IN') {
-          paramStr += `${param.mode} `;
-        }
-
-        if (param.name) {
-          paramStr += `${this.escapeIdentifier(param.name)} `;
-        }
-
-        paramStr += param.type;
-
-        return paramStr.trim();
-      })
-      .join(', ');
-
-    const returnType =
-      func.returnType && func.returnType !== 'void'
-        ? ` RETURNS ${func.returnType}`
-        : '';
-
-    return `${this.escapeIdentifier(func.name)}(${params})${returnType}`;
-  }
-
   private generateFunctionBody(func: IFunctionDefinition) {
     // Clean up the function body
     let body = func.body;
@@ -397,21 +349,5 @@ export class ProcsGenerator extends BaseGenerator {
     }
 
     return body;
-  }
-
-  private generateFunctionMetadata(func: IFunctionDefinition) {
-    const metadata = [];
-
-    metadata.push(`Volatility: ${func.volatility}`);
-
-    metadata.push(`Security: ${func.security}`);
-
-    if (func.language) {
-      metadata.push(`Language: ${func.language}`);
-    }
-
-    return metadata.length > 0
-      ? this.generateComment(metadata.join(' | ')) + '\n'
-      : '';
   }
 }
