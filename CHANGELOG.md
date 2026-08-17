@@ -1,3 +1,16 @@
+# [3.3.0](https://github.com/canonicalapp/ddp/compare/v3.2.0...v3.3.0) (2026-08-17)
+
+
+### Bug Fixes
+
+* **migrate:** apply procs before triggers and reset public on separate shadow DBs ([843a7d9](https://github.com/canonicalapp/ddp/commit/843a7d935d0b9b54ec2dc36314b8d1fec867667a))
+* **sync:** pair composite constraint columns from pg_catalog ([997442d](https://github.com/canonicalapp/ddp/commit/997442d4794dd10e024e556cbeb0705554beedd6))
+
+
+### Features
+
+* **cli:** add --verbose and route terminal output through consola ([cf08442](https://github.com/canonicalapp/ddp/commit/cf0844262866f4c4056a3a0f633ec113f1e0cfea))
+
 # [3.2.0](https://github.com/canonicalapp/ddp/compare/v3.1.0...v3.2.0) (2026-06-08)
 
 
