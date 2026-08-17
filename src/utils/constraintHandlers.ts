@@ -14,7 +14,6 @@ import {
   collectNotNullCheckKeys,
   notNullCheckEquivalenceKey,
 } from './constraintNotNullEquivalence';
-import { Utils } from './formatting';
 
 const quotePgIdent = (ident: string): string =>
   `"${ident.replace(/"/g, '""')}"`;
@@ -44,8 +43,6 @@ function constraintCreateSortKey(row: IConstraintRow): number {
 }
 
 export class ConstraintHandlers {
-  private sourceClient: Client;
-  private targetClient: Client;
   private options: ILegacySyncOptions;
   private constraintDefinitions: ConstraintDefinitions;
 
@@ -54,8 +51,6 @@ export class ConstraintHandlers {
     targetClient: Client,
     options: ILegacySyncOptions
   ) {
-    this.sourceClient = sourceClient;
-    this.targetClient = targetClient;
     this.options = options;
     this.constraintDefinitions = new ConstraintDefinitions(
       sourceClient,
@@ -230,48 +225,6 @@ export class ConstraintHandlers {
         `-- Constraint ${constraint.constraint_name} exists in ${this.options.target} but not in ${this.options.source}`
       );
       alterStatements.push(dropSql);
-    }
-  }
-
-  /**
-   * Generate a proper constraint name (same logic as ConstraintDefinitions)
-   */
-  private generateProperConstraintName(
-    originalName: string,
-    constraintType: string,
-    tableName: string,
-    columns: string
-  ): string {
-    // Always use the original name if it exists and is valid
-    if (
-      originalName &&
-      originalName.length <= 63 &&
-      /^[a-zA-Z_]/.test(originalName) &&
-      !/^\d+/.test(originalName)
-    ) {
-      return originalName;
-    }
-
-    // Generate a descriptive name based on constraint type and columns
-    const columnList = columns
-      ? columns.replace(/\s+/g, '_').toLowerCase()
-      : 'col';
-
-    switch (constraintType) {
-      case 'PRIMARY KEY':
-        return `${tableName}_pkey`;
-      case 'UNIQUE':
-        return `${tableName}_${columnList}_key`;
-      case 'FOREIGN KEY':
-        return `${tableName}_${columnList}_fkey`;
-      case 'CHECK': {
-        // For CHECK constraints, include timestamp to ensure uniqueness
-        const timestamp = Utils.generateTimestamp();
-
-        return `${tableName}_${columnList}_check_${timestamp}`;
-      }
-      default:
-        return `${tableName}_${columnList}_${constraintType.toLowerCase().replace(/\s+/g, '_')}`;
     }
   }
 

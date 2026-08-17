@@ -54,24 +54,24 @@ describe('ConstraintOperations - Basic Operations', () => {
 
       // Verify the query was called with correct parameters
       expect(queryCalled).toBe(true);
-      expect(queryArgs[0]).toContain('information_schema.table_constraints');
+      expect(queryArgs[0]).toContain('pg_constraint');
       expect(queryArgs[1]).toEqual(['dev_schema']);
       expect(result).toEqual(mockConstraints);
     });
 
-    it('should join with key_column_usage and constraint_column_usage', async () => {
+    it('should aggregate local and referenced columns via conkey/confkey', async () => {
       await constraintOps.getConstraints('source');
 
       const query = mockSourceClient.query.mock.calls[0][0];
-      expect(query).toContain('information_schema.key_column_usage');
-      expect(query).toContain('information_schema.constraint_column_usage');
+      expect(query).toContain('con.conkey');
+      expect(query).toContain('con.confkey');
     });
 
     it('should order constraints by table name and constraint name', async () => {
       await constraintOps.getConstraints('source');
 
       const query = mockSourceClient.query.mock.calls[0][0];
-      expect(query).toContain('ORDER BY tc.table_name, tc.constraint_name');
+      expect(query).toContain('ORDER BY table_name, constraint_name');
     });
 
     it('should handle empty results', async () => {
@@ -99,6 +99,28 @@ describe('ConstraintOperations - Basic Operations', () => {
       const result = await constraintOps.getConstraints('source');
 
       expect(result).toEqual(mockConstraints);
+    });
+
+    it('should pass through a composite foreign key as a single row with positionally-paired columns', async () => {
+      // The query aggregates conkey/confkey server-side (via string_agg ... WITH
+      // ORDINALITY), so Postgres always returns exactly one row per constraint,
+      // with local and referenced columns already paired in declaration order.
+      const compositeFkRow = {
+        table_name: 'offer_channel_influencers',
+        constraint_name: 'offer_channel_influencers_offer_id_channel_id_fkey',
+        constraint_type: 'FOREIGN KEY',
+        column_name: 'offer_id, channel_id',
+        foreign_table_name: 'offer_channels',
+        foreign_column_name: 'offer_id, channel_id',
+        update_rule: 'NO ACTION',
+        delete_rule: 'NO ACTION',
+      };
+
+      mockSourceClient.query.mockResolvedValue({ rows: [compositeFkRow] });
+
+      const result = await constraintOps.getConstraints('source');
+
+      expect(result).toEqual([compositeFkRow]);
     });
   });
 

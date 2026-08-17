@@ -11,7 +11,6 @@ import {
   schemaNameForSide,
 } from '@/sync/syncClient';
 import { ConstraintDefinitions } from '@/utils/constraintDefinitions';
-import { mergeConstraintColumnName } from '@/utils/constraintEquivalence';
 import { ConstraintHandlers } from '@/utils/constraintHandlers';
 import type { Client } from 'pg';
 import { IndexOperations, type IIndexRow } from './indexes';
@@ -63,31 +62,85 @@ export class ConstraintOperations {
 
   /**
    * Get all constraints from a schema on the given database.
+   *
+   * Reads pg_constraint.conkey/confkey directly (via unnest ... WITH ORDINALITY)
+   * instead of joining information_schema.key_column_usage x constraint_column_usage:
+   * that join is keyed only on constraint_name, so composite constraints produce a
+   * cross product of local x referenced column rows with no positional pairing,
+   * silently corrupting which local column maps to which referenced column.
+   *
+   * A second branch replicates information_schema's synthesized "<table>_<col>_not_null"
+   * pseudo CHECK constraints (real Postgres behavior for information_schema.table_constraints,
+   * but backed only by pg_attribute.attnotnull, not an actual pg_constraint row) — without
+   * it, plain column-level NOT NULL never lines up against an equivalent explicit CHECK
+   * constraint on the other side, and notNullCheckEquivalenceKey can't suppress the false
+   * "constraint changed" it would otherwise report.
    */
   async getConstraints(side: SyncDbSide) {
     const constraintsQuery = `
-      SELECT 
-        tc.table_name,
-        tc.constraint_name,
-        tc.constraint_type,
-        kcu.column_name,
-        ccu.table_name AS foreign_table_name,
-        ccu.column_name AS foreign_column_name,
-        rc.update_rule,
-        rc.delete_rule,
+      SELECT
+        cl.relname AS table_name,
+        con.conname AS constraint_name,
+        CASE con.contype
+          WHEN 'p' THEN 'PRIMARY KEY'
+          WHEN 'u' THEN 'UNIQUE'
+          WHEN 'f' THEN 'FOREIGN KEY'
+          WHEN 'c' THEN 'CHECK'
+          ELSE con.contype::text
+        END AS constraint_type,
+        (
+          SELECT string_agg(att.attname, ', ' ORDER BY ord.n)
+          FROM unnest(con.conkey) WITH ORDINALITY AS ord(attnum, n)
+          JOIN pg_attribute att
+            ON att.attrelid = con.conrelid AND att.attnum = ord.attnum
+        ) AS column_name,
+        fcl.relname AS foreign_table_name,
+        (
+          SELECT string_agg(fatt.attname, ', ' ORDER BY ord.n)
+          FROM unnest(con.confkey) WITH ORDINALITY AS ord(attnum, n)
+          JOIN pg_attribute fatt
+            ON fatt.attrelid = con.confrelid AND fatt.attnum = ord.attnum
+        ) AS foreign_column_name,
+        CASE con.confupdtype
+          WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT' WHEN 'c' THEN 'CASCADE'
+          WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT'
+        END AS update_rule,
+        CASE con.confdeltype
+          WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT' WHEN 'c' THEN 'CASCADE'
+          WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT'
+        END AS delete_rule,
         cc.check_clause
-      FROM information_schema.table_constraints tc
-      LEFT JOIN information_schema.key_column_usage kcu 
-        ON tc.constraint_name = kcu.constraint_name
-      LEFT JOIN information_schema.constraint_column_usage ccu 
-        ON ccu.constraint_name = tc.constraint_name
-      LEFT JOIN information_schema.referential_constraints rc
-        ON tc.constraint_name = rc.constraint_name
+      FROM pg_constraint con
+      JOIN pg_class cl ON cl.oid = con.conrelid
+      JOIN pg_namespace n ON n.oid = cl.relnamespace
+      LEFT JOIN pg_class fcl ON fcl.oid = con.confrelid
       LEFT JOIN information_schema.check_constraints cc
-        ON tc.constraint_name = cc.constraint_name
-      WHERE tc.table_schema = $1
-        AND tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY', 'CHECK')
-      ORDER BY tc.table_name, tc.constraint_name
+        ON cc.constraint_schema = n.nspname AND cc.constraint_name = con.conname
+      WHERE n.nspname = $1
+        AND con.contype IN ('p', 'u', 'f', 'c')
+
+      UNION ALL
+
+      SELECT
+        cl.relname AS table_name,
+        cl.relname || '_' || att.attname || '_not_null' AS constraint_name,
+        'CHECK' AS constraint_type,
+        NULL AS column_name,
+        NULL AS foreign_table_name,
+        NULL AS foreign_column_name,
+        NULL AS update_rule,
+        NULL AS delete_rule,
+        att.attname || ' IS NOT NULL' AS check_clause
+      FROM pg_attribute att
+      JOIN pg_class cl ON cl.oid = att.attrelid
+      JOIN pg_namespace n ON n.oid = cl.relnamespace
+      WHERE n.nspname = $1
+        AND cl.relkind = 'r'
+        AND att.attnum > 0
+        AND NOT att.attisdropped
+        AND att.attnotnull
+
+      ORDER BY table_name, constraint_name
     `;
 
     const schemaName = schemaNameForSide(side, this.options);
@@ -98,33 +151,7 @@ export class ConstraintOperations {
     );
 
     const result = await client.query(constraintsQuery, [schemaName]);
-
-    const uniqueConstraints = new Map<string, IConstraintRow>();
-
-    for (const row of result.rows) {
-      const key = `${row.table_name}\0${row.constraint_name}`;
-      const existing = uniqueConstraints.get(key);
-      if (!existing) {
-        uniqueConstraints.set(key, { ...row });
-      } else {
-        uniqueConstraints.set(key, {
-          ...existing,
-          column_name: mergeConstraintColumnName(
-            existing.column_name,
-            row.column_name
-          ),
-          check_clause: existing.check_clause ?? row.check_clause,
-          foreign_table_name:
-            existing.foreign_table_name ?? row.foreign_table_name,
-          foreign_column_name:
-            existing.foreign_column_name ?? row.foreign_column_name,
-          update_rule: existing.update_rule ?? row.update_rule,
-          delete_rule: existing.delete_rule ?? row.delete_rule,
-        });
-      }
-    }
-
-    return Array.from(uniqueConstraints.values());
+    return result.rows as IConstraintRow[];
   }
 
   /**

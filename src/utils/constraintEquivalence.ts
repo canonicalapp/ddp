@@ -53,25 +53,3 @@ export function normalizeCheckClauseForCompare(
   s = s.replace(/\s*::\s*/g, '::');
   return s.toLowerCase();
 }
-
-export function mergeConstraintColumnName(
-  existingColumn: string | null | undefined,
-  nextColumn: string | null | undefined
-): string | null {
-  const cols = new Set<string>();
-  for (const raw of [existingColumn, nextColumn]) {
-    if (!raw) {
-      continue;
-    }
-    for (const part of raw.split(',')) {
-      const t = part.trim();
-      if (t.length > 0) {
-        cols.add(t);
-      }
-    }
-  }
-  if (cols.size === 0) {
-    return null;
-  }
-  return [...cols].sort().join(',');
-}

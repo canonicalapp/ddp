@@ -1,21 +1,11 @@
 import {
-  mergeConstraintColumnName,
   normalizeCheckClauseForCompare,
   normalizeConstraintColumnList,
 } from '@/utils/constraintEquivalence';
 import { ConstraintDefinitions } from '@/utils/constraintDefinitions';
-import {
-  createMockClient,
-  createMockOptions,
-} from '../../fixtures/testUtils';
+import { createMockClient, createMockOptions } from '../../fixtures/testUtils';
 
 describe('constraintEquivalence', () => {
-  it('merges multi-column constraint rows into sorted column list', () => {
-    expect(
-      mergeConstraintColumnName('subscription_id', 'invoice_id')
-    ).toBe('invoice_id,subscription_id');
-  });
-
   it('normalizes CHECK clauses with cosmetic differences', () => {
     const a = `((CASE scope WHEN 'global'::tax_scope THEN true ELSE false END))`;
     const b = `CASE scope WHEN 'global'::tax_scope THEN true ELSE false END`;
@@ -47,9 +37,7 @@ describe('constraintEquivalence', () => {
       column_name: 'subscription_id,invoice_id',
     };
 
-    expect(
-      defs.compareConstraintDefinitions(source, target)
-    ).toBe(false);
+    expect(defs.compareConstraintDefinitions(source, target)).toBe(false);
     expect(normalizeConstraintColumnList(source.column_name)).toBe(
       normalizeConstraintColumnList(target.column_name)
     );

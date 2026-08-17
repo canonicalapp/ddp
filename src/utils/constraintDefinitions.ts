@@ -3,6 +3,7 @@
  * Handles constraint definition, comparison, and generation logic
  */
 
+import consola from 'consola';
 import type { ILegacySyncOptions, TNullable } from '@/types';
 import {
   type SyncDbSide,
@@ -57,6 +58,13 @@ export class ConstraintDefinitions {
 
   /**
    * Get detailed constraint definition from the given database side.
+   *
+   * Reads pg_constraint.conkey/confkey directly (via unnest ... WITH ORDINALITY)
+   * instead of joining information_schema.key_column_usage x constraint_column_usage:
+   * that join is keyed only on constraint_name, so composite constraints produce a
+   * cross product of local x referenced column rows with no positional pairing,
+   * silently corrupting which local column maps to which referenced column.
+   * Always resolves to at most one row per constraint.
    */
   async getConstraintDefinition(
     side: SyncDbSide,
@@ -65,29 +73,47 @@ export class ConstraintDefinitions {
   ): Promise<IConstraintRow[] | null> {
     try {
       const constraintDefQuery = `
-        SELECT 
-          tc.table_name,
-          tc.constraint_name,
-          tc.constraint_type,
-          kcu.column_name,
-          ccu.table_name AS foreign_table_name,
-          ccu.column_name AS foreign_column_name,
-          rc.update_rule,
-          rc.delete_rule,
+        SELECT
+          cl.relname AS table_name,
+          con.conname AS constraint_name,
+          CASE con.contype
+            WHEN 'p' THEN 'PRIMARY KEY'
+            WHEN 'u' THEN 'UNIQUE'
+            WHEN 'f' THEN 'FOREIGN KEY'
+            WHEN 'c' THEN 'CHECK'
+            ELSE con.contype::text
+          END AS constraint_type,
+          (
+            SELECT string_agg(att.attname, ', ' ORDER BY ord.n)
+            FROM unnest(con.conkey) WITH ORDINALITY AS ord(attnum, n)
+            JOIN pg_attribute att
+              ON att.attrelid = con.conrelid AND att.attnum = ord.attnum
+          ) AS column_name,
+          fcl.relname AS foreign_table_name,
+          (
+            SELECT string_agg(fatt.attname, ', ' ORDER BY ord.n)
+            FROM unnest(con.confkey) WITH ORDINALITY AS ord(attnum, n)
+            JOIN pg_attribute fatt
+              ON fatt.attrelid = con.confrelid AND fatt.attnum = ord.attnum
+          ) AS foreign_column_name,
+          CASE con.confupdtype
+            WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT' WHEN 'c' THEN 'CASCADE'
+            WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT'
+          END AS update_rule,
+          CASE con.confdeltype
+            WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT' WHEN 'c' THEN 'CASCADE'
+            WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT'
+          END AS delete_rule,
           cc.check_clause
-        FROM information_schema.table_constraints tc
-        LEFT JOIN information_schema.key_column_usage kcu 
-          ON tc.constraint_name = kcu.constraint_name
-        LEFT JOIN information_schema.constraint_column_usage ccu 
-          ON ccu.constraint_name = tc.constraint_name
-        LEFT JOIN information_schema.referential_constraints rc
-          ON tc.constraint_name = rc.constraint_name
+        FROM pg_constraint con
+        JOIN pg_class cl ON cl.oid = con.conrelid
+        JOIN pg_namespace n ON n.oid = cl.relnamespace
+        LEFT JOIN pg_class fcl ON fcl.oid = con.confrelid
         LEFT JOIN information_schema.check_constraints cc
-          ON tc.constraint_name = cc.constraint_name
-        WHERE tc.table_schema = $1 
-        AND tc.constraint_name = $2
-        AND tc.table_name = $3
-        ORDER BY kcu.ordinal_position
+          ON cc.constraint_schema = n.nspname AND cc.constraint_name = con.conname
+        WHERE n.nspname = $1
+          AND con.conname = $2
+          AND cl.relname = $3
       `;
 
       const schemaName = schemaNameForSide(side, this.options);
@@ -104,7 +130,7 @@ export class ConstraintDefinitions {
       ]);
       return result.rows;
     } catch (error) {
-      console.warn(
+      consola.warn(
         `Failed to get definition for constraint ${constraintName}:`,
         error instanceof Error ? error.message : 'Unknown error'
       );
@@ -170,7 +196,6 @@ export class ConstraintDefinitions {
     sourceConstraint: IConstraintRow,
     targetConstraint: IConstraintRow
   ): boolean {
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!sourceConstraint || !targetConstraint) {
       return false;
     }
@@ -228,7 +253,11 @@ export class ConstraintDefinitions {
   }
 
   /**
-   * Generate CREATE CONSTRAINT statement
+   * Generate CREATE CONSTRAINT statement.
+   *
+   * `getConstraintDefinition` resolves to at most one row per constraint, with
+   * `column_name` / `foreign_column_name` already aggregated in the correct
+   * positional order (see its query), so no further merging is needed here.
    */
   generateCreateConstraintStatement(
     constraintRows: IConstraintRow[] | null,
@@ -254,12 +283,7 @@ export class ConstraintDefinitions {
       check_clause,
     } = firstRow;
 
-    // Get all columns for multi-column constraints (deduplicated)
-    const columns = constraintRows
-      .map(row => row.column_name)
-      .filter((name): name is string => Boolean(name))
-      .filter((name, index, array) => array.indexOf(name) === index) // Remove duplicates
-      .join(', ');
+    const columns = firstRow.column_name ?? '';
 
     // Generate a proper constraint name if the original is numeric or invalid
     const properConstraintName = this.generateProperConstraintName(
