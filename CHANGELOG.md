@@ -1,3 +1,19 @@
+# [3.2.0](https://github.com/canonicalapp/ddp/compare/v3.1.0...v3.2.0) (2026-06-08)
+
+
+### Bug Fixes
+
+* **sync:** detect routine body drift with pg_get_functiondef ([422854d](https://github.com/canonicalapp/ddp/commit/422854df44bc4692278094eaf07495447f91373f))
+* **sync:** diff PostgreSQL extensions without false routine drops ([3f0ecf7](https://github.com/canonicalapp/ddp/commit/3f0ecf74fb86b9d631014de5e5ea0bd04b5dbcfa))
+* **sync:** skip preserved dropped tombstones in structural diff ([2a98d93](https://github.com/canonicalapp/ddp/commit/2a98d930c9c1510f7c77b1b42ce476ad53cead61))
+
+
+### Features
+
+* **apply:** add --validate rollback dry-run for pending migrations ([43c9e5c](https://github.com/canonicalapp/ddp/commit/43c9e5cfe5b2c0d14a1bd60f270ac770efd845b0))
+* **migrate:** add migration diff --check CI drift gate ([1e5d1fa](https://github.com/canonicalapp/ddp/commit/1e5d1fa38a8651bd22dc1be295acfd6d8c421740))
+* **migrate:** route shadow state apply by database layout ([d228b2c](https://github.com/canonicalapp/ddp/commit/d228b2ce4c29c9fa75e77e8a49ea111a278338a0))
+
 # [3.1.0](https://github.com/canonicalapp/ddp/compare/v3.0.2...v3.1.0) (2026-05-22)
 
 
