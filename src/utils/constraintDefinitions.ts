@@ -114,6 +114,7 @@ export class ConstraintDefinitions {
         WHERE n.nspname = $1
           AND con.conname = $2
           AND cl.relname = $3
+          AND con.contype <> 'n'
       `;
 
       const schemaName = schemaNameForSide(side, this.options);
