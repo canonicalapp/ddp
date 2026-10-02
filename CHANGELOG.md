@@ -1,3 +1,13 @@
+## [3.3.1](https://github.com/canonicalapp/ddp/compare/v3.3.0...v3.3.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* **apply:** do not treat BEFORE TRUNCATE trigger events as destructive ([5622bea](https://github.com/canonicalapp/ddp/commit/5622beacb8ea9b2ab4ad4449fc685197c7347a43))
+* **cli:** honor DB_PORT when --port is not passed ([a6267bd](https://github.com/canonicalapp/ddp/commit/a6267bdb0aee42690d111b869491ee0b9250854d))
+* **sync:** ignore PostgreSQL 18 NOT NULL pg_constraint rows in definition lookup ([63aa71b](https://github.com/canonicalapp/ddp/commit/63aa71bf92615726a1447196c4a7736b70e0b8cd))
+* **sync:** ignore source/target schema qualifier when comparing trigger functions ([d684bab](https://github.com/canonicalapp/ddp/commit/d684bab4c54a2eba89c3776c073a9490e1de9acb))
+
 # [3.3.0](https://github.com/canonicalapp/ddp/compare/v3.2.0...v3.3.0) (2026-08-17)
 
 
