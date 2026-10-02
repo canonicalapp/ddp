@@ -89,15 +89,11 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
-  ],
+  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
   "dependencies": {
     "commander": "^14.0.0",
     "consola": "^3.4.2",
+    "dotenv": "^17.4.2",
     "find-up": "^7.0.0",
     "pg": "^8.16.3"
   },
@@ -112,7 +108,6 @@
     "@types/pg": "^8.15.5",
     "@types/supertest": "^6.0.3",
     "baseline-browser-mapping": "^2.10.23",
-    "dotenv": "^17.2.2",
     "husky": "^9.1.7",
     "jest": "^30.1.3",
     "semantic-release": "^25.0.3",
