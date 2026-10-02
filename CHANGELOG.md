@@ -1,3 +1,10 @@
+## [3.3.2](https://github.com/canonicalapp/ddp/compare/v3.3.1...v3.3.2) (2026-10-02)
+
+
+### Bug Fixes
+
+* **deps:** ship dotenv as a runtime dependency ([01198ad](https://github.com/canonicalapp/ddp/commit/01198ad20a070b543f2f3d8bf08b392a2b8f041e))
+
 ## [3.3.1](https://github.com/canonicalapp/ddp/compare/v3.3.0...v3.3.1) (2026-10-02)
 
 

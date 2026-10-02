@@ -1,6 +1,6 @@
 {
   "name": "@advcomm/ddp",
-  "version": "3.3.1",
+  "version": "3.3.2",
   "description": "Declarative Database Provisioning - DDP CLI tool",
   "main": "dist/cli.js",
   "bin": {
@@ -89,7 +89,12 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "dependencies": {
     "commander": "^14.0.0",
     "consola": "^3.4.2",
