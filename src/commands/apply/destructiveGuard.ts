@@ -16,7 +16,9 @@ export const migrationSqlLooksDestructive = (sql: string): boolean => {
   const s = stripStringsAndComments(sql);
   const upper = s.toUpperCase();
 
-  if (/\bTRUNCATE\b/.test(upper)) {
+  // `BEFORE TRUNCATE ON t` / `... OR TRUNCATE ON t` is a trigger event, not a data-destroying
+  // statement; only a TRUNCATE that is not followed by ON counts.
+  if (/\bTRUNCATE\b(?!\s+ON\b)/.test(upper)) {
     return true;
   }
 
