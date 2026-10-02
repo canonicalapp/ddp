@@ -74,7 +74,7 @@ const withDbConnectionOptions = <T extends Command>(
   return command
     .option('--env <path>', 'Path to .env file (default: auto-discover)')
     .option('--host <host>', resolved.host)
-    .option('--port <port>', resolved.port, '5432')
+    .option('--port <port>', resolved.port)
     .option('--database <name>', resolved.database)
     .option('--username <user>', resolved.username)
     .option('--password <pass>', resolved.password)
