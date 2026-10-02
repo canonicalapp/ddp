@@ -150,6 +150,16 @@ export class TriggerOperations {
       s = s.replace(/EXECUTE\s+PROCEDURE/gi, 'EXECUTE FUNCTION');
       // Optional schema qualifier on the routine name (same object either way)
       s = s.replace(/(EXECUTE\s+FUNCTION\s+)public\./gi, '$1');
+      // Same for the compared schemas (shadow vs target): catalogs qualify the routine name
+      // with whichever schema is not first on the search_path.
+      for (const schema of [this.options.source, this.options.target]) {
+        if (schema && /^[A-Za-z_][A-Za-z0-9_]*$/.test(schema)) {
+          s = s.replace(
+            new RegExp(`(EXECUTE\\s+FUNCTION\\s+)${schema}\\.`, 'gi'),
+            '$1'
+          );
+        }
+      }
       return s.toLowerCase();
     };
 

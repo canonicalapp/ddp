@@ -672,6 +672,21 @@ describe('TriggerOperations', () => {
       expect(result).toBe(false);
     });
 
+    it('should ignore the source/target schema qualifier on the trigger function', () => {
+      const base = {
+        trigger_name: 'test_trigger',
+        event_manipulation: 'UPDATE',
+        action_timing: 'BEFORE',
+        action_orientation: 'ROW',
+        action_condition: null,
+      };
+      const result = triggerOps.compareTriggerDefinitions(
+        { ...base, action_statement: 'EXECUTE FUNCTION dev_schema.fn()' },
+        { ...base, action_statement: 'EXECUTE FUNCTION prod_schema.fn()' }
+      );
+      expect(result).toBe(false);
+    });
+
     it('should return false if either trigger is null', () => {
       const trigger1 = {
         trigger_name: 'test_trigger',
